@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, TouchableOpacity, ScrollView, StyleSheet, 
-  Animated, SafeAreaView, Platform, Dimensions, ActivityIndicator, StatusBar, Easing
+  Animated, SafeAreaView, Platform, Dimensions, ActivityIndicator, StatusBar, Easing, PanResponder
 } from 'react-native';
 import { 
-  Zap, Shield, Wrench, Map, Store, Gem, TreePine, Mountain, 
+  Zap, Shield, Building2, Trophy, ShoppingCart, Sliders, Gem, TreePine, Mountain, 
   Pickaxe, Skull, Coins, Clover, Star, TrendingUp, Sparkles, Flame, AlertTriangle, Target, Check, Crown, ArrowUpRight, ArrowDownRight, Minus
 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -133,6 +133,8 @@ const STREAK_BONUS_PER_WIN = 0.15;
 const WILD_BOOST_CHANCE_PER_LEVEL = 0.04;
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
+const POREDAK_EKRANA = ['automat', 'selo', 'misije', 'trgovina', 'nadogradnje'];
+
 const IconBadge = ({ Ikona, boja, velicina = 24 }) => (
   <View style={[styles.iconBadge, { backgroundColor: boja + '15', borderColor: boja + '50', borderWidth: 1 }]}>
     <Ikona size={velicina} color={boja} strokeWidth={2} />
@@ -198,6 +200,26 @@ export default function App() {
   const stupciAnims = useRef([...Array(5)].map(() => new Animated.Value(0))).current; 
   const stupciBlurs = useRef([...Array(5)].map(() => new Animated.Value(1))).current; 
   const winScaleAnims = useRef([...Array(15)].map(() => new Animated.Value(1))).current; 
+
+  const swipeRef = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) =>
+        Math.abs(g.dx) > 15 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+      onPanResponderRelease: (_, g) => {
+        if (g.dx < -60) {
+          setPogled(prev => {
+            const i = POREDAK_EKRANA.indexOf(prev);
+            return i < POREDAK_EKRANA.length - 1 ? POREDAK_EKRANA[i + 1] : prev;
+          });
+        } else if (g.dx > 60) {
+          setPogled(prev => {
+            const i = POREDAK_EKRANA.indexOf(prev);
+            return i > 0 ? POREDAK_EKRANA[i - 1] : prev;
+          });
+        }
+      },
+    })
+  ).current;
 
   const maxEnergija = 100 + ((razine.baterija||0) * 50);
   const maxStitova = 1 + (razine.oklop||0);
@@ -783,7 +805,7 @@ export default function App() {
         </View>
       )}
 
-      <Animated.View style={[styles.mainWrapper, { transform: [{ translateX: shakeAnim }] }]}>
+      <Animated.View style={[styles.mainWrapper, { transform: [{ translateX: shakeAnim }] }]} {...swipeRef.panHandlers}>
         
         {/* --- PREMIUM ZAGLAVLJE --- */}
         <View style={styles.header}>
@@ -1201,19 +1223,31 @@ export default function App() {
         </View>
       </Animated.View>
 
+      {/* Page indicator dots */}
+      <View style={styles.pageIndicatorRow}>
+        {POREDAK_EKRANA.map(ekran => (
+          <View key={ekran} style={[styles.pageIndicatorDot, pogled === ekran && styles.pageIndicatorDotActive]} />
+        ))}
+      </View>
+
       <View style={styles.floatingNavbar}>
         {[
-          { id: 'automat', ikona: Zap, label: 'IGRAJ' },
-          { id: 'selo', ikona: Map, label: 'BAZA' },
-          { id: 'misije', ikona: Target, label: 'ZADACI' },
-          { id: 'trgovina', ikona: Store, label: 'TRŽIŠTE' },
-          { id: 'nadogradnje', ikona: Wrench, label: 'OPREMA' }
+          { id: 'automat', ikona: Zap, label: 'IGRAJ', boja: BOJE.energija },
+          { id: 'selo', ikona: Building2, label: 'BAZA', boja: BOJE.drvo },
+          { id: 'misije', ikona: Trophy, label: 'ZADACI', boja: BOJE.misije },
+          { id: 'trgovina', ikona: ShoppingCart, label: 'TRŽIŠTE', boja: BOJE.zlato },
+          { id: 'nadogradnje', ikona: Sliders, label: 'OPREMA', boja: BOJE.nadogradnje }
         ].map(tab => {
           const aktivan = pogled === tab.id;
           const TIcon = tab.ikona;
           return (
             <TouchableOpacity activeOpacity={0.7} key={tab.id} onPress={() => setPogled(tab.id)} style={styles.navBtn}>
-              <View style={[styles.navTabPill, aktivan && styles.navTabPillActive]}>
+              <View style={[
+                styles.navTabPill,
+                aktivan
+                  ? [styles.navTabPillActive, { backgroundColor: tab.boja, shadowColor: tab.boja }]
+                  : styles.navTabPillInactive
+              ]}>
                 <TIcon size={aktivan ? 20 : 18} color={aktivan ? '#000' : BOJE.textMuted} strokeWidth={aktivan ? 2.5 : 1.8} />
                 {aktivan && <Text style={styles.navText}>{tab.label}</Text>}
               </View>
@@ -1338,9 +1372,14 @@ const styles = StyleSheet.create({
 
   floatingNavbar: { position: 'absolute', bottom: Platform.OS === 'ios' ? 28 : 16, left: 10, right: 10, flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', backgroundColor: BOJE.navBg, paddingVertical: 10, paddingHorizontal: 6, borderRadius: 32, borderWidth: 1, borderColor: BOJE.border, shadowColor: '#000', shadowOpacity: 0.6, shadowRadius: 24, elevation: 18 },
   navBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 2 },
-  navTabPill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 22 },
-  navTabPillActive: { backgroundColor: BOJE.energija, shadowColor: BOJE.energija, shadowOpacity: 0.5, shadowRadius: 10, elevation: 5 },
+  navTabPill: { height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
+  navTabPillInactive: { width: 44, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)' },
+  navTabPillActive: { paddingHorizontal: 14, shadowOpacity: 0.55, shadowRadius: 12, elevation: 6, transform: [{ translateY: -2 }] },
   navText: { fontSize: Math.round(11 * uiScale), fontWeight: '900', letterSpacing: 0.5, color: '#000', marginLeft: 5 },
+
+  pageIndicatorRow: { position: 'absolute', bottom: Platform.OS === 'ios' ? 100 : 88, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, zIndex: 15 },
+  pageIndicatorDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: 'rgba(255,255,255,0.18)' },
+  pageIndicatorDotActive: { width: 18, height: 5, borderRadius: 2.5, backgroundColor: BOJE.energija, shadowColor: BOJE.energija, shadowOpacity: 0.9, shadowRadius: 6, elevation: 3 },
 
   // Daily bonus modal
   modalOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.88)', justifyContent: 'center', alignItems: 'center', zIndex: 200, paddingHorizontal: 24 },
