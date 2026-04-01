@@ -1,929 +1,1065 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, TouchableOpacity, ScrollView, StyleSheet, 
-  Animated, SafeAreaView, Platform, Dimensions 
+  Animated, SafeAreaView, Platform, Dimensions, ActivityIndicator, StatusBar, Easing
 } from 'react-native';
 import { 
-  Zap, Circle, Play, Hammer, Shield, 
-  Wrench, Flame, Star, Crown, Map, BarChart2, Timer, Crosshair, Book
+  Zap, Shield, Wrench, Map, Store, Gem, TreePine, Mountain, 
+  Pickaxe, Skull, Coins, Clover, Star, TrendingUp, Sparkles, Flame, AlertTriangle, Target, Check, Crown, ArrowUpRight, ArrowDownRight, Minus
 } from 'lucide-react-native';
-import { Audio } from 'expo-av';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const VRIJEDNOST_SIMBOLA = {
-  '💀': 0, '🍎': 1, '⭐': 2, '🔥': 3, '⚡': 4, 
-  '🍀': 5, '🎁': 8, '🔔': 10, '📦': 15, '💎': 20
+// --- KONFIGURACIJA I EKONOMIJA ---
+const BLAGO = {
+  'skull':   { Ikona: Skull, boja: '#FF2A55', raritet: '#550000', tip: 'steta', baza: 0 },
+  'wood':    { Ikona: TreePine, boja: '#00F0FF', raritet: '#003344', tip: 'drvo', baza: 4 },    
+  'stone':   { Ikona: Mountain, boja: '#B4C6F0', raritet: '#2A3040', tip: 'kamen', baza: 8 },   
+  'iron':    { Ikona: Pickaxe, boja: '#F0F0FF', raritet: '#404552', tip: 'zeljezo', baza: 12 },  
+  'gold':    { Ikona: Coins, boja: '#FFD700', raritet: '#554400', tip: 'zlato', baza: 25 },    
+  'energy':  { Ikona: Zap, boja: '#CCFF00', raritet: '#334400', tip: 'energija', baza: 1 },     
+  'gem':     { Ikona: Gem, boja: '#FF00AA', raritet: '#550033', tip: 'dijamanti', baza: 1 },    
+  'shield':  { Ikona: Shield, boja: '#0088FF', raritet: '#002255', tip: 'stit', baza: 0 }, 
+  'wild':    { Ikona: Star, boja: '#FFFFFF', raritet: '#444444', tip: 'wild', baza: 0 },    
 };
-const SIMBOLI = Object.keys(VRIJEDNOST_SIMBOLA);
-
-// --- SETOVI KARATA ---
-const SETOVI_KARATA = [
-  { id: 'ratnici', naziv: 'Ratnici', nagradaEnergija: 100, nagradaBodovi: 1500, karte: ['⚔️', '🛡️', '🏹'] },
-  { id: 'magija', naziv: 'Tajne Magije', nagradaEnergija: 250, nagradaBodovi: 3000, karte: ['🔮', '📜', '🪄'] },
-  { id: 'kraljevstvo', naziv: 'Kraljevstvo', nagradaEnergija: 600, nagradaBodovi: 8000, karte: ['👑', '💍', '🪙'] }
-];
+const SVO_BLAGO = Object.keys(BLAGO);
 
 const BOJE = {
-  bgSl: '#f1f5f9', bgCard: '#ffffff', bgLight: '#e2e8f0', 
-  textMain: '#1e293b', textMuted: '#64748b', koloBg: '#1e293b', 
-  slotBg: '#0f172a', slotValueText: '#cbd5e1', koloHighlight: 'rgba(245, 158, 11, 0.2)', 
-  bodovi: '#f59e0b', energija: '#0891b2', zdravlje: '#ef4444', 
-  siva: '#94a3b8', dvorac: '#8b5cf6', vatra: '#fb923c', zlato: '#fcd34d',
-  statistika: '#3b82f6', vjestina: '#10b981', karte: '#ec4899'
+  bg: '#020205',         
+  bgCard: 'rgba(15, 16, 25, 0.85)',     
+  border: 'rgba(255, 255, 255, 0.08)',     
+  textMain: '#FFFFFF',   
+  textMuted: '#6B7280',  
+  zlato: '#FFD700',      
+  energija: '#CCFF00',   
+  stit: '#00D4FF',       
+  dijamant: '#FF00AA',   
+  drvo: '#00F0FF',       
+  kamen: '#B4C6F0',      
+  zeljezo: '#E2E8F0',    
+  slotOkvirZlato: '#11131C', 
+  slotRolaCrna: '#040408',
+  slotVatra: '#FF3300',   
+  navBg: 'rgba(5, 6, 10, 0.98)',
+  nadogradnje: '#9D4EDD',
+  xp: '#00FFAA',
+  misije: '#FF8800',
+  prestige: '#FFB800'
 };
 
-const OPCIJE_ULOGA = [1, 2, 5, 10, 25, 50, 100];
-const delay = ms => new Promise(res => setTimeout(res, ms));
-const screenWidth = Dimensions.get('window').width;
+const BAZA_TECAJ = {    
+    drvo: { kupi: 200, prodaj: 80 },   
+    kamen: { kupi: 400, prodaj: 160 },   
+    zeljezo: { kupi: 800, prodaj: 300 },   
+    dijamant: { kupi: 5000, prodaj: 2500 }  
+};
 
 const ZGRADE = [
-  { id: 'zidine', naziv: 'Obrambene Zidine', maxLv: 4, baznaCijena: 150, ikona: <Shield size={24} color="#64748b" /> },
-  { id: 'kula', naziv: 'Čarobna Kula', maxLv: 4, baznaCijena: 250, ikona: <Zap size={24} color="#0ea5e9" /> },
-  { id: 'kovacnica', naziv: 'Kovačnica Oružja', maxLv: 4, baznaCijena: 400, ikona: <Hammer size={24} color="#f59e0b" /> },
-  { id: 'prijestolje', naziv: 'Zlatno Prijestolje', maxLv: 4, baznaCijena: 600, ikona: <Crown size={24} color="#fcd34d" /> }
+  { id: 'pilana', naziv: 'Pilana', maxLv: 10, ikona: TreePine, bazaBoja: BOJE.drvo,
+    cijena: (lv) => ({ 
+        zlato: Math.floor(150 * Math.pow(1.6, lv-1)), 
+        drvo: 0, 
+        kamen: Math.floor(25 * Math.pow(1.5, lv-1)),
+        zeljezo: 0 
+    }),
+    bazaProizvodnja: 2 },
+  { id: 'kamenolom', naziv: 'Rudnik', maxLv: 10, ikona: Mountain, bazaBoja: BOJE.kamen,
+    cijena: (lv) => ({ 
+        zlato: Math.floor(250 * Math.pow(1.65, lv-1)), 
+        drvo: Math.floor(100 * Math.pow(1.5, lv-1)), 
+        kamen: 0,
+        zeljezo: Math.floor(20 * Math.pow(1.5, lv-1)) 
+    }),
+    bazaProizvodnja: 1 },
+  { id: 'rudnik', naziv: 'Željezara', maxLv: 10, ikona: Pickaxe, bazaBoja: BOJE.zeljezo,
+    cijena: (lv) => ({ 
+        zlato: Math.floor(500 * Math.pow(1.7, lv-1)), 
+        drvo: Math.floor(200 * Math.pow(1.5, lv-1)), 
+        kamen: Math.floor(200 * Math.pow(1.5, lv-1)),
+        zeljezo: Math.floor(50 * Math.pow(1.5, lv-1)) 
+    }),
+    bazaProizvodnja: 0.5 }
 ];
 
+const BAZA_MISIJA = [
+    { opis: 'Zavrti automat 20 puta', tip: 'spin', cilj: 20, nagrada: { dijamanti: 2 } },
+    { opis: 'Zavrti automat 50 puta', tip: 'spin', cilj: 50, nagrada: { dijamanti: 5 } },
+    { opis: 'Prikupi 1000 zlata', tip: 'zlato', cilj: 1000, nagrada: { energija: 30 } },
+    { opis: 'Prikupi 2500 zlata', tip: 'zlato', cilj: 2500, nagrada: { energija: 80 } },
+    { opis: 'Izgradi/Nadogradi zgradu', tip: 'zgrada', cilj: 1, nagrada: { dijamanti: 3, zlato: 500 } },
+    { opis: 'Kupi ili nadogradi opremu', tip: 'oprema', cilj: 1, nagrada: { dijamanti: 3, energija: 50 } },
+    { opis: 'Ostvari 5 dobitnih linija', tip: 'dobitak', cilj: 5, nagrada: { drvo: 100, kamen: 100 } }
+];
+
+const generirajMisiju = () => {
+    const sablon = BAZA_MISIJA[Math.floor(Math.random() * BAZA_MISIJA.length)];
+    return { id: Date.now() + Math.random(), ...sablon, trenutno: 0, zavrseno: false };
+};
+
+const screenWidth = Dimensions.get('window').width;
+const slotSize = (screenWidth - 80) / 5; 
+
+const delay = ms => new Promise(res => setTimeout(res, ms));
+
+const IconBadge = ({ Ikona, boja, velicina = 24 }) => (
+  <View style={[styles.iconBadge, { backgroundColor: boja + '15', borderColor: boja + '50', borderWidth: 1 }]}>
+    <Ikona size={velicina} color={boja} strokeWidth={2} />
+  </View>
+);
+
+const PrikazCijene = ({ Ikona, boja, iznos, trenutno }) => {
+  if (iznos <= 0) return null;
+  const nedostaje = trenutno < iznos;
+  return (
+    <View style={[styles.costPill, nedostaje && styles.costPillMissing]}>
+      <Ikona size={12} color={nedostaje ? BOJE.slotVatra : boja} strokeWidth={2.5} />
+      <Text style={[styles.costTxt, nedostaje && styles.costMissing]}>{iznos}</Text>
+    </View>
+  );
+};
+
 export default function App() {
-  const [pogled, setPogled] = useState('igra');
-  const [energija, setEnergija] = useState(100); 
-  const [bodovi, setBodovi] = useState(500); 
-  const [zdravlje, setZdravlje] = useState(5);
-  const [grid, setGrid] = useState(Array(15).fill('⭐'));
+  const [ucitavam, setUcitavam] = useState(true);
+  const [pogled, setPogled] = useState('automat'); 
   
-  const [vrtiSe, setVrtiSe] = useState(false);
-  const [ulog, setUlog] = useState(10);
-  const [dobitniIndeksi, setDobitniIndeksi] = useState([]);
-  const [poruka, setPoruka] = useState('Sreća je na tvojoj strani!');
+  const [igracRazina, setIgracRazina] = useState(1);
+  const [prestigeRazina, setPrestigeRazina] = useState(0); 
+  const [xp, setXp] = useState(0);
 
-  const [razine, setRazine] = useState({ skupljac: 0, pojacalo: 0, baterija: 0, oklop: 0 });
-  const maxEnergija = 100 + (razine.baterija * 50);
-  const maxZdravlje = 5 + razine.oklop;
+  const [energija, setEnergija] = useState(10); 
+  const [zlato, setZlato] = useState(50); 
+  const [dijamanti, setDijamanti] = useState(5);
+  const [resursi, setResursi] = useState({ drvo: 0, kamen: 0, zeljezo: 0 });
+  const [stitovi, setStitovi] = useState(1);
+  
+  const [gradevine, setGradevine] = useState({ pilana: 1, kamenolom: 0, rudnik: 0 });
+  const [ostecenja, setOstecenja] = useState({ pilana: false, kamenolom: false, rudnik: false });
+  const [razine, setRazine] = useState({ sreca: 0, pojacalo: 0, baterija: 0, oklop: 0 });
+  const [misije, setMisije] = useState([generirajMisiju(), generirajMisiju(), generirajMisiju()]);
 
-  const [nizGubitaka, setNizGubitaka] = useState(0);
-  const MAX_GUBITAKA_ZA_PITY = 3; 
-  const baznaSansa = 0.45;
-  const ukupnaSansaZaDobitak = baznaSansa + (razine.skupljac * 0.05);
+  const [tecaj, setTecaj] = useState(BAZA_TECAJ);
+  const [trend, setTrend] = useState({ drvo: 0, kamen: 0, zeljezo: 0, dijamant: 0 });
 
-  const [dogadaj, setDogadaj] = useState(null);
-
+  const [simboli, setSimboli] = useState(Array(15).fill('gold'));
+  const [vrti, setVrti] = useState(false);
+  const [ulog, setUlog] = useState(1);
+  const [dobitnaPolja, setDobitnaPolja] = useState([]);
+  const [poruka, setPoruka] = useState('SPREMAN ZA VRTNJU');
+  const [dobitakNaCekanju, setDobitakNaCekanju] = useState(null); 
+  
   const shakeAnim = useRef(new Animated.Value(0)).current;
+  const flashAnim = useRef(new Animated.Value(0)).current; 
+  const [flashBoja, setFlashBoja] = useState('rgba(0,0,0,0)');
 
-  // Sustav Radionice (Mini-igra vještine)
-  const [toplina, setToplina] = useState(0); 
-  const [napredak, setNapredak] = useState(0);
-  const [aktivniPosao, setAktivniPosao] = useState(null);
-  const [miniIgra, setMiniIgra] = useState(null);
-  const cursorAnim = useRef(new Animated.Value(0)).current;
-  const [rezultatMiniIgre, setRezultatMiniIgre] = useState(null);
+  const stupciAnims = useRef([...Array(5)].map(() => new Animated.Value(0))).current; 
+  const stupciBlurs = useRef([...Array(5)].map(() => new Animated.Value(1))).current; 
+  const winScaleAnims = useRef([...Array(15)].map(() => new Animated.Value(1))).current; 
 
-  // --- NOVI SUSTAV: KOLEKCIJA KARATA ---
-  const [kolekcija, setKolekcija] = useState([]); // Niz znakova (karata) koje igrač posjeduje
-  const [preuzetiSetovi, setPreuzetiSetovi] = useState([]); // Niz ID-eva preuzetih setova
-  const [prikazKarte, setPrikazKarte] = useState(null); // Karta koja se upravo prikazuje preko ekrana
-
-  const [dvoracNivo, setDvoracNivo] = useState(1);
-  const [gradevine, setGradevine] = useState({ zidine: 0, kula: 0, kovacnica: 0, prijestolje: 0 });
-
-  const pustiZvuk = async (tip) => {
-    try {
-      let z;
-      switch(tip) {
-        case 'klik': z = require('./assets/klik.mp3'); break;
-        case 'spin': z = require('./assets/spin.mp3'); break;
-        case 'dobitak': z = require('./assets/dobitak.mp3'); break;
-        case 'steta': z = require('./assets/steta.mp3'); break;
-        case 'gradnja': z = require('./assets/gradnja.mp3'); break;
-        case 'levelUp': z = require('./assets/levelup.mp3'); break;
-        default: return;
-      }
-      const { sound } = await Audio.Sound.createAsync(z);
-      await sound.playAsync();
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.didJustFinish) sound.unloadAsync();
-      });
-    } catch (e) { }
-  };
+  const maxEnergija = 100 + ((razine.baterija||0) * 50);
+  const maxStitova = 1 + (razine.oklop||0);
+  const sansaZaDobitak = 0.25 + ((razine.sreca||0) * 0.03); 
+  const potrebanXp = Math.floor(100 * Math.pow(1.3, igracRazina - 1)); 
+  
+  const prestigeMnožitelj = 1 + (prestigeRazina * 0.5);
+  const pasivniMnožitelj = (1 + (igracRazina * 0.05)) * prestigeMnožitelj; 
 
   useEffect(() => {
-    const timer = setInterval(() => setEnergija(e => Math.min(maxEnergija, e + 1)), 2000);
-    return () => clearInterval(timer);
-  }, [maxEnergija]);
-
-  useEffect(() => {
-    let interval;
-    if (aktivniPosao) interval = setInterval(() => setToplina(t => Math.max(0, t - 2)), 150);
-    return () => clearInterval(interval);
-  }, [aktivniPosao]);
-
-  useEffect(() => {
-    const eventTimer = setInterval(() => {
-      setDogadaj(trenutni => {
-        if (trenutni) {
-          if (trenutni.trajanje <= 1) {
-            setPoruka("Događaj je završio. Vraćamo se na normalu.");
-            return null; 
-          }
-          return { ...trenutni, trajanje: trenutni.trajanje - 1 };
-        } else {
-          if (Math.random() < 0.03) {
-            const tip = Math.random() > 0.5 ? 'zetva' : 'kostur';
-            if (tip === 'zetva') return { id: 'zetva', naziv: '✨ ZLATNA ŽETVA ✨', opis: 'Svi dobici x2!', trajanje: 45, mnozitelj: 2, stetaMnozitelj: 1, boja: '#f59e0b' };
-            else return { id: 'kostur', naziv: '☠️ BIJES KOSTURA ☠️', opis: 'Dobici x3, ali dupla šteta oklopu!', trajanje: 30, mnozitelj: 3, stetaMnozitelj: 2, boja: '#ef4444' };
-          }
-          return null;
+    const ucitaj = async () => {
+      try {
+        const p = await AsyncStorage.getItem('@save_game_eco_v29'); 
+        if (p) {
+          const d = JSON.parse(p);
+          if(d.igracRazina) setIgracRazina(d.igracRazina);
+          if(d.prestigeRazina) setPrestigeRazina(d.prestigeRazina);
+          if(d.xp) setXp(d.xp);
+          if(d.energija !== undefined && !isNaN(d.energija)) setEnergija(d.energija);
+          if(d.zlato !== undefined && !isNaN(d.zlato)) setZlato(d.zlato);
+          if(d.dijamanti !== undefined && !isNaN(d.dijamanti)) setDijamanti(d.dijamanti);
+          if(d.resursi) setResursi(r => ({...r, ...d.resursi}));
+          if(d.gradevine) setGradevine(g => ({...g, ...d.gradevine}));
+          if(d.ostecenja) setOstecenja(o => ({...o, ...d.ostecenja}));
+          if(d.razine) setRazine(r => ({...r, ...d.razine}));
+          if(d.stitovi !== undefined) setStitovi(d.stitovi);
+          if(d.misije && d.misije.length > 0) setMisije(d.misije);
+          if(d.tecaj) setTecaj(d.tecaj);
+          if(d.trend) setTrend(d.trend);
         }
-      });
-    }, 1000);
-    return () => clearInterval(eventTimer);
+      } catch (e) { console.error(e); } finally { setUcitavam(false); }
+    };
+    ucitaj();
   }, []);
 
+  useEffect(() => {
+    if(ucitavam) return;
+    const spremi = async () => {
+      try { await AsyncStorage.setItem('@save_game_eco_v29', JSON.stringify({ igracRazina, prestigeRazina, xp, energija, zlato, dijamanti, resursi, gradevine, ostecenja, razine, stitovi, misije, tecaj, trend })); } 
+      catch (e) { }
+    };
+    spremi();
+  }, [igracRazina, prestigeRazina, xp, energija, zlato, dijamanti, resursi, gradevine, ostecenja, razine, stitovi, misije, tecaj, trend, ucitavam]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setEnergija(e => e < maxEnergija ? e + 1 : e); 
+      setResursi(r => ({
+        drvo: r.drvo + (!ostecenja.pilana ? (gradevine.pilana * ZGRADE[0].bazaProizvodnja * pasivniMnožitelj) : 0),
+        kamen: r.kamen + (!ostecenja.kamenolom ? (gradevine.kamenolom * ZGRADE[1].bazaProizvodnja * pasivniMnožitelj) : 0),
+        zeljezo: r.zeljezo + (!ostecenja.rudnik ? (gradevine.rudnik * ZGRADE[2].bazaProizvodnja * pasivniMnožitelj) : 0)
+      }));
+      setStitovi(s => {
+          if (s < maxStitova && Math.random() < 0.10) return s + 1;
+          return s;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [maxEnergija, maxStitova, gradevine, ostecenja, pasivniMnožitelj]);
+
+  useEffect(() => {
+      const marketTimer = setInterval(() => {
+          setTecaj(stariTecaj => {
+              let noviTecaj = { ...stariTecaj };
+              let noviTrend = {};
+              ['drvo', 'kamen', 'zeljezo', 'dijamant'].forEach(res => {
+                  const promjena = 0.7 + (Math.random() * 0.6); 
+                  const novaKupi = Math.max(1, Math.floor(BAZA_TECAJ[res].kupi * promjena));
+                  const novaProdaj = Math.max(1, Math.floor(BAZA_TECAJ[res].prodaj * promjena));
+                  
+                  noviTrend[res] = novaKupi > stariTecaj[res].kupi ? 1 : (novaKupi < stariTecaj[res].kupi ? -1 : 0);
+                  noviTecaj[res] = { kupi: novaKupi, prodaj: novaProdaj };
+              });
+              setTrend(noviTrend);
+              return noviTecaj;
+          });
+      }, 45000);
+      return () => clearInterval(marketTimer);
+  }, []);
+
+  useEffect(() => {
+      if (xp >= potrebanXp) {
+          setXp(x => x - potrebanXp);
+          setIgracRazina(l => l + 1);
+          setDijamanti(d => d + 5); 
+          setEnergija(maxEnergija); 
+          setPoruka(`LEVEL UP! RAZINA ${igracRazina + 1}`);
+      }
+  }, [xp, potrebanXp, igracRazina, maxEnergija]);
+
+  const dodajXp = (iznos) => setXp(x => x + iznos);
+
+  const azurirajMisiju = (tip, kolicina = 1) => {
+    setMisije(prev => prev.map(m => {
+        if (m.tip === tip && !m.zavrseno && m.trenutno < m.cilj) {
+            return { ...m, trenutno: Math.min(m.cilj, m.trenutno + kolicina) };
+        }
+        return m;
+    }));
+  };
+
+  const preuzmiNagraduMisije = (id, nagrada) => {
+      if (nagrada.dijamanti) setDijamanti(d => d + nagrada.dijamanti);
+      if (nagrada.energija) setEnergija(e => e + nagrada.energija);
+      if (nagrada.zlato) setZlato(z => z + nagrada.zlato);
+      if (nagrada.drvo) setResursi(r => ({...r, drvo: r.drvo + nagrada.drvo}));
+      if (nagrada.kamen) setResursi(r => ({...r, kamen: r.kamen + nagrada.kamen}));
+
+      setPoruka('MISIJA ZAVRŠENA! NAGRADA PREUZETA.');
+      setMisije(prev => prev.map(m => m.id === id ? generirajMisiju() : m));
+  };
+
+  const prikaziUdarac = (boja) => {
+    setFlashBoja(boja);
+    flashAnim.setValue(1);
+    Animated.timing(flashAnim, { toValue: 0, duration: 800, useNativeDriver: false }).start();
+  };
+
   const trziEkran = () => {
-    pustiZvuk('steta'); 
     Animated.sequence([
-      Animated.timing(shakeAnim, { toValue: 8, duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: -8, duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: 8, duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: -8, duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true })
+      Animated.timing(shakeAnim, { toValue: 15, duration: 40, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -15, duration: 40, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 15, duration: 40, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 0, duration: 40, useNativeDriver: true })
     ]).start();
   };
 
-  const promijeniPogled = (novi) => {
-    pustiZvuk('klik');
-    setPogled(novi);
-  };
-
-  const pokreniKupnju = (stavka, trenutnaCijena) => {
-      if (bodovi < trenutnaCijena) {
-          pustiZvuk('steta');
-          setPoruka("Nedovoljno bodova!");
-          return;
-      }
-      pustiZvuk('klik');
-      cursorAnim.setValue(0);
-      setRezultatMiniIgre(null);
-      setMiniIgra({ ...stavka, trenutnaCijena });
-      
-      Animated.loop(
-          Animated.sequence([
-              Animated.timing(cursorAnim, { toValue: 100, duration: 600, useNativeDriver: false }),
-              Animated.timing(cursorAnim, { toValue: 0, duration: 600, useNativeDriver: false })
-          ])
-      ).start();
-  };
-
-  const zaustaviKazaljku = () => {
-      pustiZvuk('klik');
-      cursorAnim.stopAnimation(vrijednost => {
-          let popust = 0;
-          let msg = "";
-          let boja = "";
-          
-          if (vrijednost >= 42 && vrijednost <= 58) {
-              popust = 0.5; 
-              msg = "SAVRŠEN TAJMING! 50% popusta!";
-              boja = "#22c55e";
-              pustiZvuk('dobitak');
-          } else if (vrijednost >= 25 && vrijednost <= 75) {
-              popust = 0.2; 
-              msg = "DOBAR REFLEKS! 20% popusta!";
-              boja = "#eab308";
-              pustiZvuk('levelUp'); 
-          } else {
-              popust = 0;
-              msg = "PROMAŠAJ! Puna cijena.";
-              boja = "#ef4444";
-              pustiZvuk('steta');
-          }
-
-          setRezultatMiniIgre({ msg, boja, popust });
-          
-          setTimeout(() => {
-              const finalnaCijena = Math.floor(miniIgra.trenutnaCijena * (1 - popust));
-              setBodovi(b => b - finalnaCijena);
-              setAktivniPosao({ ...miniIgra, cijena: finalnaCijena });
-              setNapredak(0);
-              setToplina(0);
-              setPoruka(`Započeta izrada: ${miniIgra.n} za ${finalnaCijena} bodova!`);
-              setMiniIgra(null);
-              setRezultatMiniIgre(null);
-          }, 1800);
-      });
-  };
-
-  const odustaniOdKupnje = () => {
-      pustiZvuk('klik');
-      cursorAnim.stopAnimation();
-      setMiniIgra(null);
-  };
-
-  const nadogradiZgradu = (zgrada) => {
-    const trenutniLv = gradevine[zgrada.id];
-    if (trenutniLv >= zgrada.maxLv) return;
-
-    const cijena = Math.floor(zgrada.baznaCijena * Math.pow(1.8, trenutniLv) * Math.pow(1.5, dvoracNivo - 1));
-    if (bodovi >= cijena) {
-        setBodovi(b => b - cijena);
-        setGradevine(g => {
-            const nove = { ...g, [zgrada.id]: trenutniLv + 1 };
-            provjeriPrijelazNivoa(nove);
-            return nove;
-        });
-        pustiZvuk('gradnja'); 
-        setPoruka(`Izgrađeno: ${zgrada.naziv} (Lv.${trenutniLv + 1})!`);
-    } else {
-        pustiZvuk('steta'); 
-        setPoruka("Nemaš dovoljno bodova za ovu gradnju!");
-    }
-  };
-
-  const provjeriPrijelazNivoa = (trenutneGradevine) => {
-    const sveNaMaksimumu = ZGRADE.every(z => trenutneGradevine[z.id] === z.maxLv);
-    if (sveNaMaksimumu) {
-        setTimeout(() => {
-            pustiZvuk('levelUp'); 
-            setDvoracNivo(n => n + 1);
-            setGradevine({ zidine: 0, kula: 0, kovacnica: 0, prijestolje: 0 });
-            setPoruka(`NOVO DOBA! Dvorac je unaprijeđen na razinu ${dvoracNivo + 1}!`);
-            setEnergija(e => Math.min(maxEnergija, e + 200));
-        }, 800);
-    }
-  };
-
-  const dvoracUkupniNapredak = () => {
-    const maxZbroj = ZGRADE.reduce((acc, z) => acc + z.maxLv, 0);
-    const trenutniZbroj = Object.values(gradevine).reduce((acc, val) => acc + val, 0);
-    return (trenutniZbroj / maxZbroj) * 100;
-  };
-
-  const udariCekicem = () => {
-    if (!aktivniPosao) return;
-    pustiZvuk('gradnja');
-    setToplina(t => {
-      const nova = Math.min(100, t + 18);
-      if (nova > 55) {
-        setNapredak(n => {
-          const skok = nova > 80 ? 15 : 8; 
-          const noviNapredak = n + skok;
-          if (noviNapredak >= 100) {
-            setTimeout(() => zavrsiPosao(aktivniPosao), 0);
-            return 0;
-          }
-          return noviNapredak;
-        });
-      }
-      return nova;
+  const animirajDobitak = (polja) => {
+    polja.forEach(idx => {
+      Animated.sequence([
+        Animated.spring(winScaleAnims[idx], { toValue: 1.25, friction: 3, tension: 40, useNativeDriver: true }),
+        Animated.timing(winScaleAnims[idx], { toValue: 1.15, duration: 200, useNativeDriver: true })
+      ]).start();
     });
   };
 
-  const zavrsiPosao = (posao) => {
-    if (!posao) return;
-    pustiZvuk('levelUp');
-    setRazine(r => ({ ...r, [posao.id]: r[posao.id] + 1 }));
-    setPoruka(`Unaprijeđeno: ${posao.n}!`);
-    if(posao.id === 'baterija') setEnergija(maxEnergija + 50); 
-    if(posao.id === 'oklop') setZdravlje(maxZdravlje + 1); 
-    setAktivniPosao(null);
-    setToplina(0);
-    setNapredak(0);
+  const preuzmiDobitak = () => {
+      if (!dobitakNaCekanju) return;
+      const d = dobitakNaCekanju;
+      if (d.zlato > 0) { setZlato(z => z + d.zlato); azurirajMisiju('zlato', d.zlato); }
+      if (d.dijamanti > 0) setDijamanti(dia => dia + d.dijamanti);
+      if (d.energija > 0) setEnergija(e => e + d.energija);
+      if (d.stitovi > 0) setStitovi(s => Math.min(maxStitova, s + d.stitovi));
+      if (d.linije > 0) azurirajMisiju('dobitak', d.linije);
+
+      setResursi(r => ({ drvo: r.drvo + d.drvo, kamen: r.kamen + d.kamen, zeljezo: r.zeljezo + d.zeljezo }));
+
+      setPoruka(`DOBITAK PREUZET!`);
+      setDobitakNaCekanju(null);
+      setDobitnaPolja([]);
   };
 
-  const prekiniRad = () => {
-    if (!aktivniPosao) return;
-    pustiZvuk('klik');
-    setBodovi(b => b + aktivniPosao.cijena);
-    setAktivniPosao(null);
-    setNapredak(0);
-    setToplina(0);
-    setPoruka("Rad prekinut. Bodovi su vraćeni.");
+  const igrajGamble = (odabranaBoja) => {
+      const izvucenaKarta = Math.random() < 0.5 ? 'red' : 'black';
+      if (izvucenaKarta === odabranaBoja) {
+          prikaziUdarac(izvucenaKarta === 'red' ? 'rgba(255, 42, 85, 0.5)' : 'rgba(100, 100, 100, 0.7)');
+          setDobitakNaCekanju(prev => ({
+              zlato: prev.zlato * 2, dijamanti: prev.dijamanti * 2, energija: prev.energija * 2,
+              stitovi: prev.stitovi * 2, drvo: prev.drvo * 2, kamen: prev.kamen * 2, zeljezo: prev.zeljezo * 2, linije: prev.linije 
+          }));
+          setPoruka(`POGODAK! IZVUČENA JE ${izvucenaKarta === 'red' ? 'CRVENA' : 'CRNA'}! x2!`);
+      } else {
+          prikaziUdarac(izvucenaKarta === 'red' ? 'rgba(255, 42, 85, 0.5)' : 'rgba(100, 100, 100, 0.7)');
+          setDobitakNaCekanju(null);
+          setDobitnaPolja([]);
+          setPoruka(`GUBITAK! IZVUČENA JE ${izvucenaKarta === 'red' ? 'CRVENA' : 'CRNA'}.`);
+      }
   };
 
-  // --- LOGIKA ZA PREUZIMANJE NAGRADE ZA SET KARATA ---
-  const preuzmiNagraduZaSet = (set) => {
-      pustiZvuk('levelUp');
-      setEnergija(e => Math.min(maxEnergija + 500, e + set.nagradaEnergija));
-      setBodovi(b => b + set.nagradaBodovi);
-      setPreuzetiSetovi(prev => [...prev, set.id]);
-      setPoruka(`Kolekcija "${set.naziv}" dovršena! Osvojio si ogromnu nagradu!`);
-  };
-
-  const zavrtiKolo = async () => {
-    if (vrtiSe) return;
-    if (energija < ulog) {
-        pustiZvuk('steta');
-        setPoruka('Nemaš dovoljno energije za ovaj ulog!');
-        return;
+  const zavrtiMasinu = async () => {
+    if (dobitakNaCekanju) return; 
+    if (vrti || energija < ulog) { 
+      if(!vrti) setPoruka('NEDOVOLJNO ENERGIJE'); 
+      return; 
     }
-
-    pustiZvuk('spin'); 
+    
     setEnergija(e => e - ulog);
-    setVrtiSe(true);
-    setDobitniIndeksi([]);
-    setPoruka('Kolo sreće se okreće...');
+    azurirajMisiju('spin'); 
+    let dobijeniXp = ulog * 2; 
+    
+    setVrti(true); 
+    setDobitnaPolja([]); 
+    setPoruka('VRTNJA...');
+
+    winScaleAnims.forEach(anim => anim.setValue(1));
+    stupciAnims.forEach(anim => { anim.setValue(0); });
+    
+    Animated.parallel(
+      stupciAnims.map((anim, i) => 
+        Animated.loop(Animated.timing(anim, { toValue: 300, duration: 250, easing: Easing.linear, useNativeDriver: true }))
+      ).concat(stupciBlurs.map((anim) => Animated.timing(anim, { toValue: 0.3, duration: 200, useNativeDriver: true })))
+    ).start();
+
+    await delay(600); 
     
     try {
-        let noviGrid = Array(15).fill(null).map(() => SIMBOLI[Math.floor(Math.random() * SIMBOLI.length)]);
+        let noviSimboli = Array(15).fill(null).map(() => SVO_BLAGO[Math.floor(Math.random() * SVO_BLAGO.length)]);
         
-        const zajamcenDobitak = nizGubitaka >= MAX_GUBITAKA_ZA_PITY;
-        const srecaJeProsla = Math.random() < ukupnaSansaZaDobitak;
+        const linije = [
+            [5, 6, 7, 8, 9], [0, 1, 2, 3, 4], [10, 11, 12, 13, 14], [0, 6, 12, 8, 4], [10, 6, 2, 8, 14]      
+        ];
+
+        if (Math.random() < sansaZaDobitak) {
+            const ponudjenoBlago = SVO_BLAGO.filter(s => s !== 'skull');
+            const dob = ponudjenoBlago[Math.floor(Math.random() * ponudjenoBlago.length)];
+            const rLinija = linije[Math.floor(Math.random() * linije.length)];
+            const rand = Math.random();
+            const raspon = rand > 0.95 ? [0,1,2,3,4] : (rand > 0.7 ? [0,1,2,3] : [0,1,2]);
+            raspon.forEach(i => noviSimboli[rLinija[i]] = dob);
+        }
         
-        if (zajamcenDobitak || srecaJeProsla) {
-            const dobitniSimboli = SIMBOLI.filter(s => s !== '💀');
-            const pobjednickiSimbol = dobitniSimboli[Math.floor(Math.random() * dobitniSimboli.length)];
-            const brojIstih = 3 + Math.floor(Math.random() * 3); 
-            let middleIndices = [5, 6, 7, 8, 9];
-            middleIndices.sort(() => Math.random() - 0.5);
-            for (let i = 0; i < brojIstih; i++) {
-                noviGrid[middleIndices[i]] = pobjednickiSimbol;
-            }
+        setSimboli(noviSimboli); 
+
+        for (let i = 0; i < 5; i++) {
+            stupciAnims[i].stopAnimation();
+            stupciAnims[i].setValue(-200); 
+            Animated.parallel([
+                Animated.spring(stupciAnims[i], { toValue: 0, friction: 5, tension: 80, useNativeDriver: true }),
+                Animated.timing(stupciBlurs[i], { toValue: 1, duration: 100, useNativeDriver: true })
+            ]).start();
+            await delay(250); 
         }
 
-        setGrid(noviGrid);
-        await delay(500); 
+        await delay(300); 
 
-        let trenutniGrid = [...noviGrid];
-        let iteracija = 0;
-        let rundaDobitak = 0;
-        const trenutniMnoziteljDogadaja = dogadaj ? dogadaj.mnozitelj : 1;
-        const trenutniMnoziteljStete = dogadaj ? dogadaj.stetaMnozitelj : 1;
+        let ukupnoZlato = 0, ukupnoDijamanata = 0, ukupnoEnergije = 0, ukupnoStitova = 0;
+        let resursiDobitak = { drvo: 0, kamen: 0, zeljezo: 0 };
+        let dobijenaPoljaPrivremena = [];
+        let linijaDobitnih = 0;
 
-        while (true) {
-            const srednjiRed = trenutniGrid.slice(5, 10);
-            const counts = srednjiRed.reduce((acc, val) => ({ ...acc, [val]: (acc[val] || 0) + 1 }), {});
+        linije.forEach(linija => {
+            let prviSimbol = noviSimboli[linija[0]];
             
-            let maxCount = 0;
-            let winningSymbol = null;
-            
-            for (const [sym, count] of Object.entries(counts)) {
-                if (sym !== '💀' && count > maxCount) {
-                    maxCount = count;
-                    winningSymbol = sym;
+            let targetSymbol = prviSimbol;
+            if (targetSymbol === 'wild') {
+                for (let i = 1; i < 5; i++) {
+                    if (noviSimboli[linija[i]] !== 'wild') {
+                        targetSymbol = noviSimboli[linija[i]];
+                        break;
+                    }
                 }
             }
 
-            if (maxCount >= 3) {
-                pustiZvuk('dobitak'); 
-                if (iteracija === 0) setNizGubitaka(0); 
-                
-                // KOLEKCIJA: AKO JE IGRAČ DOBIO ŠKRINJE 📦
-                if (winningSymbol === '📦') {
-                    const sveKarte = SETOVI_KARATA.flatMap(s => s.karte);
-                    const novaKarta = sveKarte[Math.floor(Math.random() * sveKarte.length)];
-                    
-                    setKolekcija(prev => [...prev, novaKarta]);
-                    setPrikazKarte(novaKarta);
-                    setPoruka(`PRONAŠAO SI ŠKRINJU! Nova karta: ${novaKarta}`);
-                    pustiZvuk('levelUp');
-                    
-                    // Pauziramo igru na 2 sekunde da igrač vidi kartu
-                    await delay(2000);
-                    setPrikazKarte(null);
-                }
+            if (targetSymbol === 'skull') return; 
 
-                const osnovica = VRIJEDNOST_SIMBOLA[winningSymbol] * maxCount * ulog;
-                const bonusRazine = razine.pojacalo * 25;
-                const dobitak = (osnovica + bonusRazine) * trenutniMnoziteljDogadaja;
-                
-                rundaDobitak += dobitak;
-                setBodovi(b => b + dobitak); 
-
-                let winIdxs = [];
-                for (let i = 0; i < 5; i++) {
-                    if (trenutniGrid[5 + i] === winningSymbol) winIdxs.push(5 + i);
-                }
-                
-                setDobitniIndeksi(winIdxs);
-                
-                if (winningSymbol !== '📦') {
-                    let porukaDobitka = `POGODAK! +${dobitak} 🏆 (x${iteracija + 1} Combo)`;
-                    if (trenutniMnoziteljDogadaja > 1) porukaDobitka += ` [DOGAĐAJ x${trenutniMnoziteljDogadaja}]`;
-                    setPoruka(porukaDobitka);
-                }
-                
-                await delay(700); 
-
-                let gridNakonPopa = [...trenutniGrid];
-                winIdxs.forEach(idx => gridNakonPopa[idx] = '✨');
-                setGrid(gridNakonPopa);
-                
-                await delay(300);
-
-                let nextGrid = [...gridNakonPopa];
-                winIdxs.forEach(idx => {
-                    const gornjiIdx = idx - 5;
-                    const donjiIdx = idx + 5;
-                    nextGrid[idx] = nextGrid[gornjiIdx]; 
-                    nextGrid[gornjiIdx] = SIMBOLI[Math.floor(Math.random() * SIMBOLI.length)]; 
-                    nextGrid[donjiIdx] = SIMBOLI[Math.floor(Math.random() * SIMBOLI.length)]; 
-                });
-
-                setGrid(nextGrid);
-                setDobitniIndeksi([]); 
-                trenutniGrid = nextGrid; 
-                
-                await delay(500); 
-                iteracija++;
-
-            } else {
-                const brojOsnovnihKostura = srednjiRed.filter(s => s === '💀').length;
-                const brojKostura = brojOsnovnihKostura * trenutniMnoziteljStete;
-                
-                if (iteracija === 0) setNizGubitaka(prev => prev + 1);
-
-                if (brojKostura > 0) {
-                    trziEkran(); 
-                    setZdravlje(z => {
-                        const novoZdravlje = z - brojKostura;
-                        if (novoZdravlje <= 0) {
-                            setBodovi(b => Math.max(0, Math.floor(b * 0.5)));
-                            setPoruka('KOLAPS! Oklop probijen, izgubio si 50% bodova!');
-                            return maxZdravlje; 
-                        }
-                        if (iteracija > 0) setPoruka(`KRAJ NIZA: +${rundaDobitak} bodova. Kostur udara: -${brojKostura} HP!`);
-                        else setPoruka(`AU! Kostur ti je oštetio oklop za ${brojKostura}!`);
-                        return novoZdravlje;
-                    });
+            let consecutiveCount = 0;
+            for (let i = 0; i < 5; i++) {
+                if (noviSimboli[linija[i]] === targetSymbol || noviSimboli[linija[i]] === 'wild') {
+                    consecutiveCount++;
                 } else {
-                    if (iteracija > 0) setPoruka(`KRAJ NIZA! Ukupno osvojeno: +${rundaDobitak} bodova!`);
-                    else setPoruka('Zamalo! Pokušaj ponovo.');
+                    break; 
                 }
-                break; 
             }
+            
+            if (consecutiveCount >= 3) {
+                linijaDobitnih++;
+                const isAllWilds = targetSymbol === 'wild';
+                const detalji = isAllWilds ? BLAGO['gem'] : BLAGO[targetSymbol];
+                const multiplier = consecutiveCount === 5 ? 15 : (consecutiveCount === 4 ? 4 : 1);
+                dobijeniXp += (consecutiveCount * ulog * 3);
+
+                if (targetSymbol === 'shield' && !isAllWilds) {
+                    ukupnoStitova += (ulog >= 10 ? 2 : 1) * (consecutiveCount - 2); 
+                } else if (targetSymbol === 'energy' && !isAllWilds) {
+                    ukupnoEnergije += Math.floor(detalji.baza * ulog * 0.5 * multiplier * prestigeMnožitelj);
+                } else if (targetSymbol === 'gem' || isAllWilds) {
+                    ukupnoDijamanata += Math.max(1, Math.floor((isAllWilds ? 5 : detalji.baza) * (ulog * 0.1) * multiplier * prestigeMnožitelj));
+                } else {
+                    const kolicina = Math.floor(detalji.baza * ulog * multiplier * (1 + (razine.pojacalo || 0) * 0.1) * prestigeMnožitelj);
+                    if (targetSymbol === 'gold') ukupnoZlato += kolicina;
+                    else resursiDobitak[detalji.tip] += kolicina;
+                }
+                
+                linija.slice(0, consecutiveCount).forEach(idx => dobijenaPoljaPrivremena.push(idx));
+            }
+        });
+
+        dodajXp(dobijeniXp);
+
+        const brojLubanja = noviSimboli.filter(s => s === 'skull').length;
+        
+        if (dobijenaPoljaPrivremena.length > 0) {
+            const jedinstvenaPolja = [...new Set(dobijenaPoljaPrivremena)];
+            setDobitnaPolja(jedinstvenaPolja);
+            animirajDobitak(jedinstvenaPolja);
+            
+            setDobitakNaCekanju({
+                zlato: ukupnoZlato, dijamanti: ukupnoDijamanata, energija: ukupnoEnergije,
+                stitovi: ukupnoStitova, drvo: resursiDobitak.drvo, kamen: resursiDobitak.kamen,
+                zeljezo: resursiDobitak.zeljezo, linije: linijaDobitnih
+            });
+
+            setPoruka('DOBITAK! PREUZMI ILI DUPLAJ!');
+
+        } else if (brojLubanja >= 3) {
+            trziEkran(); 
+            let novaPoruka = "";
+            let noviStitovi = stitovi;
+
+            if (stitovi <= 0) {
+                prikaziUdarac('rgba(255, 51, 0, 0.4)'); 
+                const gubitakZlata = Math.floor(zlato * (0.05 * brojLubanja)); 
+                setZlato(zl => Math.max(0, zl - gubitakZlata));
+                noviStitovi = 0;
+
+                const izgradeneINeostecene = ZGRADE.filter(zg => gradevine[zg.id] > 0 && !ostecenja[zg.id]);
+                if (izgradeneINeostecene.length > 0) {
+                    const meta = izgradeneINeostecene[Math.floor(Math.random() * izgradeneINeostecene.length)];
+                    setOstecenja(prev => ({...prev, [meta.id]: true}));
+                    novaPoruka = `KATASTROFA! -${gubitakZlata} 🪙 I OŠTEĆEN(A) ${meta.naziv.toUpperCase()}!`;
+                } else {
+                    novaPoruka = `NAPAD! ODUZETO ${gubitakZlata} 🪙`;
+                }
+            } else {
+                prikaziUdarac('rgba(0, 212, 255, 0.4)'); 
+                const steta = Math.min(stitovi, Math.floor(brojLubanja / 2) || 1);
+                noviStitovi = stitovi - steta;
+                novaPoruka = `OBRANA AKTIVNA! -${steta} ŠTITA`;
+            }
+            
+            setStitovi(noviStitovi);
+            setPoruka(novaPoruka);
+            const skullP = noviSimboli.map((v, i) => v === 'skull' ? i : null).filter(v => v !== null);
+            setDobitnaPolja(skullP);
+            animirajDobitak(skullP);
+        } else {
+            setPoruka('NEMA DOBITKA. POKUŠAJ PONOVO.');
         }
-    } finally {
-        setVrtiSe(false);
-        setDobitniIndeksi([]);
+    } finally { 
+      setVrti(false); 
     }
   };
+
+  const popraviZgradu = (zgrada) => {
+    const lv = gradevine[zgrada.id];
+    const cPopravakZlato = lv * 50;
+    const cPopravakDrvo = lv * 20;
+
+    if (zlato >= cPopravakZlato && resursi.drvo >= cPopravakDrvo) {
+        setZlato(z => z - cPopravakZlato);
+        setResursi(r => ({ ...r, drvo: r.drvo - cPopravakDrvo }));
+        setOstecenja(prev => ({ ...prev, [zgrada.id]: false }));
+        setPoruka(`${zgrada.naziv.toUpperCase()} USPJEŠNO POPRAVLJEN!`);
+    } else {
+        setPoruka("NEMAŠ DOVOLJNO RESURSA ZA POPRAVAK");
+    }
+  };
+
+  const nadogradiZgradu = (zgrada) => {
+    const lv = gradevine[zgrada.id] || 0; 
+    if (lv >= zgrada.maxLv) return; 
+    const c = zgrada.cijena(lv + 1);
+    const faliZlata = zlato < c.zlato;
+    const faliDrva = (c.drvo || 0) > resursi.drvo;
+    const faliKamena = (c.kamen || 0) > resursi.kamen;
+    const faliZeljeza = (c.zeljezo || 0) > resursi.zeljezo;
+
+    if (!faliZlata && !faliDrva && !faliKamena && !faliZeljeza) { 
+        setZlato(z => z - c.zlato); 
+        setResursi(r => ({ drvo: r.drvo - (c.drvo||0), kamen: r.kamen - (c.kamen||0), zeljezo: r.zeljezo - (c.zeljezo||0) })); 
+        setGradevine(g => ({ ...g, [zgrada.id]: lv + 1 })); 
+        azurirajMisiju('zgrada');
+        setPoruka(`${zgrada.naziv.toUpperCase()} NADOGRAĐEN!`); 
+    } else setPoruka("FALE RESURSI ZA NADOGRADNJU");
+  };
+
+  const izvrsiPrestige = () => {
+    setPrestigeRazina(p => p + 1);
+    setIgracRazina(1);
+    setXp(0);
+    setGradevine({ pilana: 0, kamenolom: 0, rudnik: 0 });
+    setOstecenja({ pilana: false, kamenolom: false, rudnik: false });
+    setResursi({ drvo: 0, kamen: 0, zeljezo: 0 });
+    setZlato(50);
+    setEnergija(10);
+    setPoruka(`PRESTIGE USPJEŠAN! NOVI MNOŽITELJ x${1 + ((prestigeRazina + 1) * 0.5)}`);
+  };
+
+  const trgovina = (akcija, resurs, iznos) => {
+    const cijenaPoKomadu = tecaj[resurs][akcija];
+    let ukupnaCijena = cijenaPoKomadu * (iznos === 1 ? 1 : 10);
+
+    if (akcija === 'kupi') {
+      if (zlato >= ukupnaCijena) { 
+          setZlato(z => z - ukupnaCijena); 
+          if (resurs === 'dijamant') setDijamanti(d => (d||0) + iznos); 
+          else setResursi(r => ({...r, [resurs]: (r[resurs]||0) + iznos})); 
+          setPoruka(`KUPLJENO ${iznos} ${resurs.toUpperCase()}`); 
+      } else setPoruka('NEDOVOLJNO ZLATA');
+    } else {
+      if ((resurs === 'dijamant' ? dijamanti : resursi[resurs]) >= iznos) { 
+          setZlato(z => (z||0) + ukupnaCijena); 
+          if (resurs === 'dijamant') setDijamanti(d => d - iznos); 
+          else setResursi(r => ({...r, [resurs]: r[resurs] - iznos})); 
+          setPoruka(`PRODANO ZA ${ukupnaCijena} 🪙`); 
+          azurirajMisiju('zlato', ukupnaCijena);
+      } else setPoruka('NEDOVOLJNO RESURSA');
+    }
+  };
+
+  const kupiAlat = (alat) => {
+    const mult = Math.pow(1.6, razine[alat.id] || 0); 
+    const zl = Math.floor(alat.cZlato * mult);
+    const ka = Math.floor(alat.cKamen * mult);
+    const ze = Math.floor(alat.cZeljezo * mult);
+
+    if (zlato >= zl && resursi.kamen >= ka && resursi.zeljezo >= ze) { 
+        setZlato(z => z - zl); 
+        setResursi(r => ({...r, kamen: r.kamen - ka, zeljezo: r.zeljezo - ze})); 
+        setRazine(r => ({...r, [alat.id]: (r[alat.id]||0) + 1})); 
+        if(alat.id === 'oklop') setStitovi(maxStitova + 1); 
+        azurirajMisiju('oprema');
+        setPoruka(`OPREMA POBOLJŠANA`); 
+    } else setPoruka("FALE RESURSI");
+  };
+
+  const spremanZaPrestige = gradevine.pilana === ZGRADE[0].maxLv && gradevine.kamenolom === ZGRADE[1].maxLv && gradevine.rudnik === ZGRADE[2].maxLv;
+
+  if (ucitavam) return <View style={styles.container}><ActivityIndicator size="large" color={BOJE.drvo} style={{marginTop: 50}} /></View>;
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={BOJE.bg} />
+      
+      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: flashBoja, opacity: flashAnim, zIndex: 100 }]} pointerEvents="none" />
+
       <Animated.View style={[styles.mainWrapper, { transform: [{ translateX: shakeAnim }] }]}>
         
-        {/* OVERLAY ZA PRIKAZ NOVE KARTE */}
-        {prikazKarte && (
-          <View style={styles.cardOverlay}>
-             <Text style={styles.cardOverlayTitle}>OTVORIO SI ŠKRINJU!</Text>
-             <View style={styles.cardReveal}>
-                <Text style={styles.cardRevealIcon}>{prikazKarte}</Text>
-             </View>
-             <Text style={styles.cardOverlayDesc}>Nova karta je dodana u tvoju kolekciju!</Text>
-          </View>
-        )}
-
-        {/* HEADER */}
+        {/* --- PREMIUM ZAGLAVLJE --- */}
         <View style={styles.header}>
-          <View>
-            <View style={styles.statRow}>
-              <Zap size={18} color={BOJE.energija} />
-              <Text style={[styles.statText, { color: BOJE.energija }]}>{energija}</Text>
-            </View>
-            <View style={styles.statRow}>
-              <Circle size={18} color={BOJE.bodovi} />
-              <Text style={[styles.statText, { color: BOJE.bodovi }]}>{bodovi}</Text>
-            </View>
-          </View>
-          <View style={styles.armorContainer}>
-            <View style={styles.armorDots}>
-              {[...Array(maxZdravlje)].map((_, i) => (
-                <View key={i} style={[styles.armorDot, { backgroundColor: i < zdravlje ? '#ef4444' : '#cbd5e1' }]} />
-              ))}
-            </View>
-            <Text style={styles.armorText}>OKLOP</Text>
-          </View>
-        </View>
-
-        {dogadaj && (
-          <View style={[styles.eventBanner, { backgroundColor: dogadaj.boja }]}>
-             <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
-                <Timer size={16} color="#fff" />
-                <Text style={styles.eventTitle}>{dogadaj.naziv} ({dogadaj.trajanje}s)</Text>
-             </View>
-             <Text style={styles.eventDesc}>{dogadaj.opis}</Text>
-          </View>
-        )}
-
-        <View style={styles.messageArea}>
-          <Text style={styles.messageText}>{poruka}</Text>
-        </View>
-
-        {/* GLAVNI SADRŽAJ */}
-        <View style={styles.content}>
-          {pogled === 'igra' && (
-            <View style={styles.gameContainer}>
-              <View style={[styles.gridContainer, dogadaj && {borderColor: dogadaj.boja, borderWidth: 3}]}>
-                {[0, 1, 2].map(r => (
-                  <View key={r} style={[styles.gridRow, r === 1 && styles.middleGridRow]}>
-                    {grid.slice(r * 5, (r + 1) * 5).map((s, i) => {
-                      const apsolutniIndex = r * 5 + i;
-                      const jeDobitni = dobitniIndeksi.includes(apsolutniIndex);
-                      return (
-                        <View key={i} style={[styles.slotItem, jeDobitni && styles.slotItemWinning]}>
-                          <Text style={[styles.slotSymbol, { opacity: (vrtiSe && !jeDobitni && r === 1) ? 0.3 : (r !== 1 ? 0.5 : 1) }]}>{s}</Text>
-                          {s !== '💀' && s !== '✨' && <Text style={styles.slotValue}>{VRIJEDNOST_SIMBOLA[s]}</Text>}
-                          {r === 1 && !vrtiSe && !jeDobitni && <View style={styles.middleHighlightBorder} />}
-                        </View>
-                      );
-                    })}
-                  </View>
-                ))}
-              </View>
-
-              <View style={styles.statsContainer}>
-                 <View style={styles.statsHeader}>
-                    <BarChart2 size={14} color={BOJE.statistika} />
-                    <Text style={styles.statsTitle}>PREGLED VJEROJATNOSTI</Text>
-                 </View>
-                 <View style={styles.statsRow}>
-                    <Text style={styles.statsLabel}>Šansa za pobjedu na vrtnji:</Text>
-                    <Text style={[styles.statsValue, nizGubitaka >= MAX_GUBITAKA_ZA_PITY && {color: '#22c55e'}]}>
-                       {nizGubitaka >= MAX_GUBITAKA_ZA_PITY ? '100' : (ukupnaSansaZaDobitak * 100).toFixed(0)}%
-                    </Text>
-                 </View>
-                 <View style={styles.pityBarContainer}>
-                    <View style={styles.pityBarBg}>
-                       <View style={[styles.pityBarFill, { width: `${(nizGubitaka / MAX_GUBITAKA_ZA_PITY) * 100}%`, backgroundColor: nizGubitaka >= MAX_GUBITAKA_ZA_PITY ? '#22c55e' : BOJE.statistika }]} />
-                    </View>
-                    <Text style={styles.pityHelperText}>
-                       {nizGubitaka >= MAX_GUBITAKA_ZA_PITY ? "✨ Zajamčen dobitak aktivan! ✨" : `Pokušaja do zajamčenog dobitka: ${MAX_GUBITAKA_ZA_PITY - nizGubitaka}`}
-                    </Text>
-                 </View>
-              </View>
-
-              <View style={styles.betContainer}>
-                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.betScroll}>
-                     {OPCIJE_ULOGA.map(opcija => (
-                         <TouchableOpacity key={opcija} onPress={() => { setUlog(opcija); pustiZvuk('klik'); }} disabled={vrtiSe} style={[styles.betBtn, ulog === opcija ? styles.betBtnActive : styles.betBtnInactive]}>
-                             <Text style={[styles.betBtnText, ulog === opcija ? styles.betBtnTextActive : styles.betBtnTextInactive]}>{opcija} E</Text>
-                         </TouchableOpacity>
-                     ))}
-                 </ScrollView>
-              </View>
-
-              <TouchableOpacity style={[styles.spinBtn, vrtiSe && styles.spinBtnDisabled, dogadaj && {backgroundColor: dogadaj.boja}]} onPress={zavrtiKolo} disabled={vrtiSe} activeOpacity={0.8}>
-                  <Star size={24} color={BOJE.zlato} fill={BOJE.zlato} />
-                  <Text style={styles.spinBtnText}>{vrtiSe ? 'VRTI SE...' : `ZAVRTI KOLO`}</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* NOVI POGLED - KOLEKCIJA KARATA */}
-          {pogled === 'karte' && (
-            <View style={styles.workshopContainer}>
-              <View style={styles.dvoracHeader}>
-                <View>
-                  <Text style={[styles.dvoracTitle, {color: BOJE.karte}]}>KOLEKCIJA KARATA</Text>
-                  <Text style={styles.dvoracSubtitle}>Skupljaj i osvoji!</Text>
+          
+          <View style={styles.levelContainer}>
+             <View style={styles.levelBadgeOuter}><Text style={styles.levelBadgeTxt}>{igracRazina}</Text></View>
+             
+             {prestigeRazina > 0 && (
+                <View style={styles.prestigeBadgeOuter}>
+                   <Crown size={14} color="#000" style={{marginRight: 2}}/>
+                   <Text style={styles.levelBadgeTxt}>{prestigeRazina}</Text>
                 </View>
-                <Book size={32} color={BOJE.karte} />
+             )}
+
+             <View style={styles.xpBarContainer}>
+                <View style={[styles.xpBarFill, { width: `${Math.min(100, (xp / potrebanXp) * 100)}%` }]} />
+                <Text style={styles.xpText}>{xp} / {potrebanXp} XP</Text>
+             </View>
+             <View style={[styles.multiplierBadge, prestigeRazina > 0 && {backgroundColor: BOJE.prestige}]}>
+                <TrendingUp size={12} color="#000" style={{marginRight: 2}} />
+                <Text style={styles.multiplierTxt}>{(pasivniMnožitelj).toFixed(2)}x</Text>
+             </View>
+          </View>
+
+          <View style={styles.headerMainStats}>
+            <View style={styles.statChip}><Zap size={16} color={BOJE.energija} strokeWidth={2.5} /><Text style={styles.statChipTxt}>{Math.floor(energija)}</Text></View>
+            <View style={styles.statChip}><Coins size={16} color={BOJE.zlato} strokeWidth={2.5} /><Text style={styles.statChipTxt}>{Math.floor(zlato)}</Text></View>
+            <View style={styles.statChip}><Gem size={16} color={BOJE.dijamant} strokeWidth={2.5} /><Text style={styles.statChipTxt}>{dijamanti}</Text></View>
+          </View>
+          
+          <View style={styles.resourceHeaderRow}>
+               <View style={styles.resMiniChip}><TreePine size={14} color={BOJE.drvo} strokeWidth={2.5} /><Text style={styles.resChipTxt}>{Math.floor(resursi.drvo)}</Text></View>
+               <View style={styles.resMiniChip}><Mountain size={14} color={BOJE.kamen} strokeWidth={2.5} /><Text style={styles.resChipTxt}>{Math.floor(resursi.kamen)}</Text></View>
+               <View style={styles.resMiniChip}><Pickaxe size={14} color={BOJE.zeljezo} strokeWidth={2.5} /><Text style={styles.resChipTxt}>{Math.floor(resursi.zeljezo)}</Text></View>
+          </View>
+
+          <View style={styles.defenseMatrix}>
+             <Shield size={16} color={BOJE.stit} strokeWidth={2.5} style={{marginRight: 8}} />
+             <Text style={styles.defenseTitle}>OBRANA</Text>
+             <View style={styles.shieldSlotsContainer}>
+                {[...Array(maxStitova)].map((_, i) => (
+                   <View key={i} style={[styles.shieldSlot, i < stitovi ? styles.shieldActive : styles.shieldEmpty]}>
+                      {i < stitovi && <View style={styles.shieldGlow} />}
+                   </View>
+                ))}
+             </View>
+          </View>
+        </View>
+
+        {/* --- GLAVNI SADRŽAJ --- */}
+        <View style={styles.content}>
+          
+          {pogled === 'automat' && (
+            <View style={styles.gameContainer}>
+              <View style={styles.messageBubble}>
+                <Sparkles size={16} color={BOJE.slotVatra} style={{marginRight: 8}} />
+                <Text style={styles.messageText} numberOfLines={1}>{poruka}</Text>
+                <Sparkles size={16} color={BOJE.slotVatra} style={{marginLeft: 8}} />
+              </View>
+
+              <View style={styles.slotMachineOuter}>
+                <View style={styles.slotMachineInner}>
+                  <View style={styles.gridColumnsWrapper}>
+                    {[0, 1, 2, 3, 4].map(stupacIndex => (
+                      <Animated.View key={stupacIndex} style={[styles.gridColumn, { transform: [{ translateY: stupciAnims[stupacIndex] }], opacity: stupciBlurs[stupacIndex] }]}>
+                        {[0, 1, 2].map(redIndex => {
+                          const apsolutniIndeks = redIndex * 5 + stupacIndex;
+                          const simbolId = simboli[apsolutniIndeks];
+                          const isWin = dobitnaPolja.includes(apsolutniIndeks);
+                          const hasWinAnywhere = dobitnaPolja.length > 0;
+                          const SIcon = BLAGO[simbolId].Ikona;
+                          const boja = BLAGO[simbolId].boja;
+                          const bgBoja = BLAGO[simbolId].raritet;
+                          
+                          const isWild = simbolId === 'wild';
+                          const opacityStyle = (!isWin && hasWinAnywhere) ? 0.2 : 1;
+                          
+                          return (
+                            <Animated.View 
+                              key={apsolutniIndeks} 
+                              style={[
+                                  styles.slotItem, 
+                                  { backgroundColor: bgBoja, borderColor: boja + (isWild ? '80' : '40') }, 
+                                  isWin && [styles.slotItemWinning, { borderColor: BOJE.slotVatra, shadowColor: BOJE.slotVatra }], 
+                                  { transform: [{ scale: winScaleAnims[apsolutniIndeks] }], opacity: opacityStyle }
+                                ]}
+                            >
+                              <SIcon size={slotSize * (isWild ? 0.65 : 0.55)} color={isWin ? '#FFF' : boja} strokeWidth={isWin ? 2.5 : 2} />
+                            </Animated.View>
+                          );
+                        })}
+                      </Animated.View>
+                    ))}
+                  </View>
+                </View>
               </View>
               
-              <Text style={styles.kolekcijaUputa}>Zavrti kolo, pronađi škrinje (📦) i popuni setove za ogromne nagrade!</Text>
-
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{gap: 16, paddingBottom: 20}}>
-                {SETOVI_KARATA.map(set => {
-                   const sakupljenoUSetu = set.karte.filter(k => kolekcija.includes(k)).length;
-                   const jePun = sakupljenoUSetu === set.karte.length;
-                   const jePreuzet = preuzetiSetovi.includes(set.id);
-
-                   return (
-                     <View key={set.id} style={[styles.cardSetContainer, jePun && !jePreuzet && styles.cardSetReady]}>
-                        <View style={styles.cardSetHeader}>
-                           <Text style={styles.cardSetTitle}>{set.naziv}</Text>
-                           <Text style={styles.cardSetProgress}>{sakupljenoUSetu} / {set.karte.length}</Text>
-                        </View>
-                        
-                        <View style={styles.cardSlotsRow}>
-                           {set.karte.map((karta, idx) => {
-                               const posjeduje = kolekcija.includes(karta);
-                               return (
-                                  <View key={idx} style={[styles.singleCardSlot, posjeduje ? styles.singleCardOwned : styles.singleCardMissing]}>
-                                     <Text style={[styles.singleCardIcon, !posjeduje && {opacity: 0.2}]}>{posjeduje ? karta : '❓'}</Text>
-                                  </View>
-                               );
-                           })}
-                        </View>
-
-                        {jePun && !jePreuzet && (
-                           <TouchableOpacity 
-                             style={styles.claimRewardBtn}
-                             activeOpacity={0.8}
-                             onPress={() => preuzmiNagraduZaSet(set)}
-                           >
-                              <Text style={styles.claimRewardText}>PREUZMI NAGRADU!</Text>
-                              <View style={{flexDirection: 'row', gap: 10, marginTop: 4}}>
-                                 <Text style={styles.claimRewardSubText}>+{set.nagradaBodovi} 🏆</Text>
-                                 <Text style={styles.claimRewardSubText}>+{set.nagradaEnergija} ⚡</Text>
-                              </View>
-                           </TouchableOpacity>
-                        )}
-                        {jePreuzet && (
-                           <View style={styles.claimedBadge}>
-                              <Text style={styles.claimedBadgeText}>NAGRADA PREUZETA ✓</Text>
-                           </View>
-                        )}
-                     </View>
-                   );
-                })}
-              </ScrollView>
-            </View>
-          )}
-
-          {pogled === 'radionica' && (
-            <View style={styles.workshopContainer}>
-              <View style={styles.tabHeader}>
-                 <Wrench size={16} color={BOJE.siva} />
-                 <Text style={styles.tabHeaderText}>RADIONICA NADOGRADNJI</Text>
-              </View>
-              
-              {miniIgra ? (
-                 <View style={styles.miniGameCard}>
-                    <View style={styles.miniGameHeader}>
-                       <Crosshair size={20} color={BOJE.vjestina} />
-                       <Text style={styles.miniGameTitle}>KOVANJE CIJENE</Text>
+              {dobitakNaCekanju ? (
+                 <View style={styles.gambleContainer}>
+                    <Text style={styles.gambleTitle}>TRENUTNI DOBITAK</Text>
+                    <View style={styles.gamblePrizesRow}>
+                        {dobitakNaCekanju.zlato > 0 && <Text style={styles.gamblePrizeTxt}>{dobitakNaCekanju.zlato} 🪙</Text>}
+                        {dobitakNaCekanju.dijamanti > 0 && <Text style={[styles.gamblePrizeTxt, {color: BOJE.dijamant}]}>{dobitakNaCekanju.dijamanti} 💎</Text>}
+                        {dobitakNaCekanju.energija > 0 && <Text style={[styles.gamblePrizeTxt, {color: BOJE.energija}]}>{dobitakNaCekanju.energija} ⚡</Text>}
+                        {dobitakNaCekanju.drvo > 0 && <Text style={[styles.gamblePrizeTxt, {color: BOJE.drvo}]}>{dobitakNaCekanju.drvo} 🌲</Text>}
+                        {dobitakNaCekanju.kamen > 0 && <Text style={[styles.gamblePrizeTxt, {color: BOJE.kamen}]}>{dobitakNaCekanju.kamen} ⛰️</Text>}
+                        {dobitakNaCekanju.zeljezo > 0 && <Text style={[styles.gamblePrizeTxt, {color: BOJE.zeljezo}]}>{dobitakNaCekanju.zeljezo} ⛏️</Text>}
                     </View>
-                    <Text style={styles.miniGameItemName}>{miniIgra.n}</Text>
-                    <Text style={styles.miniGameDesc}>Zaustavi alat u sredini za nevjerojatnih 50% popusta na cijenu od {miniIgra.trenutnaCijena} bodova!</Text>
-                    
-                    <View style={styles.barContainer}>
-                        <View style={styles.redZone} />
-                        <View style={styles.yellowZone} />
-                        <View style={styles.greenZone} />
-                        <View style={styles.yellowZone} />
-                        <View style={styles.redZone} />
-                        <Animated.View style={[styles.cursor, { left: cursorAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '96%'] }) }]} />
+                    <View style={styles.gambleButtonsRow}>
+                        <TouchableOpacity activeOpacity={0.8} style={[styles.gambleBtn, {backgroundColor: '#FF2A55'}]} onPress={() => igrajGamble('red')}><Text style={styles.gambleBtnTxt}>CRVENA (x2)</Text></TouchableOpacity>
+                        <TouchableOpacity activeOpacity={0.8} style={[styles.gambleBtn, {backgroundColor: '#1A1A24', borderWidth: 2, borderColor: '#333'}]} onPress={() => igrajGamble('black')}><Text style={styles.gambleBtnTxt}>CRNA (x2)</Text></TouchableOpacity>
                     </View>
-
-                    {!rezultatMiniIgre ? (
-                        <TouchableOpacity style={styles.stopSkillBtn} onPress={zaustaviKazaljku}>
-                            <Text style={styles.stopSkillBtnText}>UDARI ČEKIĆ!</Text>
-                        </TouchableOpacity>
-                    ) : (
-                        <View style={styles.resultContainer}>
-                           <Text style={[styles.resultText, { color: rezultatMiniIgre.boja }]}>{rezultatMiniIgre.msg}</Text>
-                           {rezultatMiniIgre.popust > 0 && <Text style={styles.savedPointsText}>Ušteda: {Math.floor(miniIgra.trenutnaCijena * rezultatMiniIgre.popust)} bodova</Text>}
-                        </View>
-                    )}
-                    
-                    {!rezultatMiniIgre && (
-                        <TouchableOpacity style={{marginTop: 15}} onPress={odustaniOdKupnje}>
-                            <Text style={styles.cancelWorkText}>Odustani</Text>
-                        </TouchableOpacity>
-                    )}
-                 </View>
-              ) : aktivniPosao ? (
-                 <View style={styles.activeJobCard}>
-                    <Text style={styles.activeJobTitle}>{aktivniPosao.n}</Text>
-                    <View style={styles.progressBars}>
-                       <Text style={styles.progressLabel}>Intenzitet plamena: {toplina}%</Text>
-                       <View style={styles.progressBarBg}>
-                          <View style={[styles.progressBarFill, { width: `${toplina}%`, backgroundColor: toplina > 80 ? '#ef4444' : toplina > 55 ? '#f97316' : '#fbbf24' }]} />
-                       </View>
-                       <Text style={[styles.progressLabel, {marginTop: 10}]}>Napredak izrade: {napredak}%</Text>
-                       <View style={styles.progressBarBg}>
-                          <View style={[styles.progressBarFill, { width: `${napredak}%`, backgroundColor: '#22c55e' }]} />
-                       </View>
-                    </View>
-                    <TouchableOpacity onPress={udariCekicem} activeOpacity={0.7} style={styles.hammerBtn}>
-                       <Hammer size={40} color="#fff" />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={prekiniRad} style={{marginTop: 20}}>
-                       <Text style={styles.cancelWorkText}>Prekini rad (Vrati bodove)</Text>
-                    </TouchableOpacity>
+                    <TouchableOpacity activeOpacity={0.8} style={styles.collectBtn} onPress={preuzmiDobitak}><Text style={styles.collectBtnTxt}>PREUZMI DOBITAK</Text></TouchableOpacity>
                  </View>
               ) : (
-                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{gap: 12, paddingBottom: 20}}>
-                  {[
-                    {id:'skupljac', n:'Magnet Sreće', d: 'Povećava osnovne šanse za dobitak.', osnovnaCijena: 150, ikona: <Star size={20} color={BOJE.zlato}/>},
-                    {id:'pojacalo', n:'Super Dobitak', d: 'Uvećava svaku nagradu za +25.', osnovnaCijena: 300, ikona: <Flame size={20} color={BOJE.vatra}/>},
-                    {id:'baterija', n:'Baterija', d: 'Povećava max energiju i puni je.', osnovnaCijena: 200, ikona: <Zap size={20} color={BOJE.energija}/>},
-                    {id:'oklop', n:'Oklop', d: 'Dodaje +1 max oklop i obnavlja.', osnovnaCijena: 250, ikona: <Shield size={20} color={BOJE.zdravlje}/>}
-                  ].map(p => {
-                      const trenutnaCijena = Math.floor(p.osnovnaCijena * Math.pow(1.5, razine[p.id]));
-                      const mozeKupiti = bodovi >= trenutnaCijena;
-                      
-                      return (
-                          <TouchableOpacity 
-                              key={p.id} 
-                              activeOpacity={mozeKupiti ? 0.7 : 1}
-                              onPress={() => { if (mozeKupiti) pokreniKupnju(p, trenutnaCijena); else { pustiZvuk('steta'); setPoruka("Nedovoljno bodova!"); } }}
-                              style={[styles.upgradeCard, !mozeKupiti && {opacity: 0.5}]}
-                          >
-                              <View style={styles.upgradeIconBg}>{p.ikona}</View>
-                              <View style={styles.upgradeInfo}>
-                                 <Text style={styles.upgradeTitle}>{p.n} (Lv.{razine[p.id]})</Text>
-                                 <Text style={styles.upgradeDesc}>{p.d}</Text>
-                              </View>
-                              <View style={styles.priceTag}>
-                                 <Text style={styles.priceText}>{trenutnaCijena}</Text>
-                              </View>
-                          </TouchableOpacity>
-                      );
-                  })}
-                 </ScrollView>
+                 <View style={{width: '100%'}}>
+                    <View style={styles.betContainer}>
+                       {[1, 10, 20, 50].map(op => (
+                           <TouchableOpacity activeOpacity={0.7} key={op} onPress={() => setUlog(op)} style={[styles.betBtn, ulog === op && styles.betBtnActive]}><Text style={[styles.betBtnText, ulog === op && styles.betBtnTextActive]}>x{op}</Text></TouchableOpacity>
+                       ))}
+                    </View>
+                    <TouchableOpacity activeOpacity={0.8} style={[styles.spinBtn, (vrti || energija < ulog) && styles.spinBtnDisabled]} onPress={zavrtiMasinu} disabled={vrti}>
+                        <Zap size={24} color="#000" fill="#000" style={{position: 'absolute', left: 24}} /><Text style={styles.spinBtnText}>{vrti ? 'VRTIM...' : 'SPIN'}</Text>
+                        <View style={styles.spinCostBadge}><Text style={styles.spinCostTxt}>-{ulog}</Text><Zap size={10} color="#000" fill="#000" /></View>
+                    </TouchableOpacity>
+                 </View>
               )}
             </View>
           )}
 
-          {pogled === 'dvorac' && (
-            <View style={styles.workshopContainer}>
-              <View style={styles.dvoracHeader}>
-                <View>
-                  <Text style={styles.dvoracTitle}>KRALJEVSTVO</Text>
-                  <Text style={styles.dvoracSubtitle}>Razina {dvoracNivo}</Text>
-                </View>
-                <Crown size={32} color={BOJE.dvorac} />
-              </View>
-
-              <View style={styles.dvoracProgressContainer}>
-                <Text style={styles.progressLabel}>Napredak prema razini {dvoracNivo + 1}:</Text>
-                <View style={styles.progressBarBg}>
-                  <View style={[styles.progressBarFill, { width: `${dvoracUkupniNapredak()}%`, backgroundColor: BOJE.dvorac }]} />
-                </View>
-              </View>
+          {pogled === 'selo' && (
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+              <Text style={[styles.subTitle, { marginTop: 10 }]}>Infrastruktura</Text>
               
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{gap: 12, paddingBottom: 20}}>
-                {ZGRADE.map(zgrada => {
-                  const trenutniLv = gradevine[zgrada.id];
-                  const jeMax = trenutniLv === zgrada.maxLv;
-                  const cijena = Math.floor(zgrada.baznaCijena * Math.pow(1.8, trenutniLv) * Math.pow(1.5, dvoracNivo - 1));
-                  const mozeKupiti = bodovi >= cijena && !jeMax;
+              {ZGRADE.map(z => {
+                const lv = gradevine[z.id] || 0; 
+                const jeOstecena = ostecenja[z.id]; 
+                const c = z.cijena(lv + 1); 
+                const ZIcon = z.ikona;
+                const jeMax = lv >= z.maxLv;
+                const mozeKupiti = zlato >= c.zlato && resursi.drvo >= (c.drvo||0) && resursi.kamen >= (c.kamen||0) && resursi.zeljezo >= (c.zeljezo||0);
+                const cPopravakZlato = lv * 50;
+                const cPopravakDrvo = lv * 20;
+                const mozePopraviti = zlato >= cPopravakZlato && resursi.drvo >= cPopravakDrvo;
+                const trenutnaProizvodnja = (lv * z.bazaProizvodnja * pasivniMnožitelj).toFixed(1);
+
+                return (
+                  <View key={z.id} style={[styles.card, jeMax && styles.cardMaxed, jeOstecena && styles.cardDamaged]}>
+                     <View style={styles.cardTop}>
+                        <View style={[styles.zgradaIconBg, {backgroundColor: z.bazaBoja + '15', borderColor: z.bazaBoja + '50'}, jeOstecena && {backgroundColor: BOJE.slotVatra + '20', borderColor: BOJE.slotVatra}]}>
+                           {jeOstecena ? <Flame size={26} color={BOJE.slotVatra} strokeWidth={2.5} /> : <ZIcon size={26} color={z.bazaBoja} strokeWidth={2} />}
+                        </View>
+                        <View style={{flex: 1, paddingLeft: 16}}>
+                           <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
+                             <Text style={[styles.cardTitle, jeOstecena && {color: BOJE.slotVatra}]}>{z.naziv}</Text>
+                             <View style={styles.levelBadge}><Text style={styles.buildCardLevel}>LVL {lv}/{z.maxLv}</Text></View>
+                           </View>
+                           <Text style={[styles.perkText, jeOstecena && {color: BOJE.slotVatra, fontWeight: '800'}]}>
+                             {jeOstecena ? 'ZGRADA U PLAMENU! Proizvodnja stala.' : (lv > 0 ? `Proizvodi: +${trenutnaProizvodnja}/s` : 'Zgrada nije izgrađena')}
+                           </Text>
+                        </View>
+                     </View>
+                     
+                     <View style={styles.cardBottom}>
+                        {jeOstecena ? (
+                          <View style={styles.costRow}>
+                             <View style={styles.repairBadge}><AlertTriangle size={14} color="#FFF" /><Text style={styles.repairBadgeTxt}>POPRAVAK:</Text></View>
+                             <PrikazCijene Ikona={Coins} boja={BOJE.zlato} iznos={cPopravakZlato} trenutno={zlato} />
+                             <PrikazCijene Ikona={TreePine} boja={BOJE.drvo} iznos={cPopravakDrvo} trenutno={resursi.drvo} />
+                          </View>
+                        ) : !jeMax ? (
+                          <View style={styles.costRow}>
+                             <PrikazCijene Ikona={Coins} boja={BOJE.zlato} iznos={c.zlato} trenutno={zlato} />
+                             <PrikazCijene Ikona={TreePine} boja={BOJE.drvo} iznos={c.drvo} trenutno={resursi.drvo} />
+                             <PrikazCijene Ikona={Mountain} boja={BOJE.kamen} iznos={c.kamen} trenutno={resursi.kamen} />
+                             <PrikazCijene Ikona={Pickaxe} boja={BOJE.zeljezo} iznos={c.zeljezo} trenutno={resursi.zeljezo} />
+                          </View>
+                        ) : <Text style={styles.maxTxt}>MAKSIMALNA RAZINA</Text>}
+                        
+                        {jeOstecena ? (
+                          <TouchableOpacity activeOpacity={0.7} style={[styles.actionBtn, mozePopraviti ? {backgroundColor: BOJE.slotVatra} : {backgroundColor: BOJE.slotOkvirZlato}]} onPress={() => popraviZgradu(z)}>
+                             <Text style={[styles.actionBtnTxt, !mozePopraviti && {color: BOJE.textMuted}, mozePopraviti && {color: '#FFF'}]}>POPRAVI</Text>
+                          </TouchableOpacity>
+                        ) : !jeMax && (
+                          <TouchableOpacity activeOpacity={0.7} style={[styles.actionBtn, mozeKupiti ? {backgroundColor: z.bazaBoja} : {backgroundColor: BOJE.slotOkvirZlato}]} onPress={() => nadogradiZgradu(z)}>
+                             <Text style={[styles.actionBtnTxt, !mozeKupiti && {color: BOJE.textMuted}]}>{lv === 0 ? 'IZGRADI' : 'UPGRADE'}</Text>
+                          </TouchableOpacity>
+                        )}
+                     </View>
+                  </View>
+                )
+              })}
+
+              {spremanZaPrestige && (
+                 <View style={[styles.card, {borderColor: BOJE.prestige, backgroundColor: BOJE.prestige + '10', marginTop: 10}]}>
+                    <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 16}}>
+                        <View style={[styles.iconBadge, { backgroundColor: BOJE.prestige + '20', borderColor: BOJE.prestige, borderWidth: 1 }]}>
+                            <Crown size={26} color={BOJE.prestige} />
+                        </View>
+                        <View style={{flex: 1, paddingLeft: 16}}>
+                            <Text style={[styles.cardTitle, {color: BOJE.prestige}]}>KRUNIDBA (PRESTIGE)</Text>
+                            <Text style={styles.upgradeDesc}>Resetiraj bazu i vrati se na Level 1, ali dobij trajni x1.5 množitelj na SVE nagrade i proizvodnju u igri!</Text>
+                        </View>
+                    </View>
+                    <TouchableOpacity activeOpacity={0.8} style={[styles.actionBtn, {backgroundColor: BOJE.prestige, width: '100%', alignItems: 'center'}]} onPress={izvrsiPrestige}>
+                        <Text style={[styles.actionBtnTxt, {fontSize: 15}]}>IZVRŠI PRESTIGE</Text>
+                    </TouchableOpacity>
+                 </View>
+              )}
+            </ScrollView>
+          )}
+
+          {pogled === 'misije' && (
+             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+               <Text style={[styles.subTitle, { marginTop: 10 }]}>Dnevni Zadaci</Text>
+               {misije.map((m) => {
+                  const napredakPostotak = Math.min(100, (m.trenutno / m.cilj) * 100);
+                  const gotovo = m.trenutno >= m.cilj;
 
                   return (
-                    <View key={zgrada.id} style={styles.upgradeCard}>
-                      <View style={[styles.upgradeIconBg, jeMax && {backgroundColor: 'rgba(139, 92, 246, 0.2)'}]}>
-                        {zgrada.ikona}
-                      </View>
-                      <View style={styles.upgradeInfo}>
-                        <Text style={styles.upgradeTitle}>{zgrada.naziv}</Text>
-                        <View style={styles.zgradaLvBarContainer}>
-                          {[...Array(zgrada.maxLv)].map((_, i) => (<View key={i} style={[styles.zgradaLvDot, { backgroundColor: i < trenutniLv ? BOJE.dvorac : BOJE.bgLight }]} />))}
+                     <View key={m.id} style={[styles.card, gotovo && {borderColor: BOJE.misije, shadowColor: BOJE.misije, shadowOpacity: 0.2, shadowRadius: 10, elevation: 5}]}>
+                        <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 16}}>
+                           <View style={[styles.iconBadge, { backgroundColor: (gotovo ? BOJE.misije : BOJE.textMuted) + '15', borderColor: (gotovo ? BOJE.misije : BOJE.textMuted) + '50', borderWidth: 1 }]}>
+                              {gotovo ? <Check size={24} color={BOJE.misije} strokeWidth={3} /> : <Target size={24} color={BOJE.textMuted} strokeWidth={2} />}
+                           </View>
+                           <View style={{flex: 1, paddingLeft: 16}}>
+                              <Text style={[styles.cardTitle, gotovo && {color: BOJE.misije}]}>{m.opis}</Text>
+                              <View style={styles.missionProgressContainer}>
+                                 <View style={[styles.missionProgressBar, { width: `${napredakPostotak}%`, backgroundColor: gotovo ? BOJE.misije : BOJE.xp }]} />
+                              </View>
+                              <Text style={styles.missionProgressTxt}>{Math.floor(m.trenutno)} / {m.cilj}</Text>
+                           </View>
                         </View>
-                      </View>
-                      <TouchableOpacity activeOpacity={0.7} disabled={!mozeKupiti && !jeMax} onPress={() => nadogradiZgradu(zgrada)} style={[styles.gradnjaBtn, jeMax ? styles.gradnjaBtnMax : mozeKupiti ? styles.gradnjaBtnActive : styles.gradnjaBtnInactive]}>
-                        {jeMax ? <Text style={styles.gradnjaBtnTextMax}>MAX</Text> : <><Hammer size={12} color={mozeKupiti ? '#fff' : BOJE.textMuted} /><Text style={[styles.gradnjaBtnText, { color: mozeKupiti ? '#fff' : BOJE.textMuted }]}>{cijena}</Text></>}
-                      </TouchableOpacity>
-                    </View>
+                        <View style={styles.cardBottom}>
+                           <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
+                               <Text style={{color: BOJE.textMuted, fontSize: 12, fontWeight: '800'}}>NAGRADA:</Text>
+                               {m.nagrada.dijamanti && <View style={styles.rewardChip}><Gem size={14} color={BOJE.dijamant}/><Text style={[styles.rewardTxt, {color: BOJE.dijamant}]}>{m.nagrada.dijamanti}</Text></View>}
+                               {m.nagrada.energija && <View style={styles.rewardChip}><Zap size={14} color={BOJE.energija}/><Text style={[styles.rewardTxt, {color: BOJE.energija}]}>{m.nagrada.energija}</Text></View>}
+                               {m.nagrada.zlato && <View style={styles.rewardChip}><Coins size={14} color={BOJE.zlato}/><Text style={[styles.rewardTxt, {color: BOJE.zlato}]}>{m.nagrada.zlato}</Text></View>}
+                               {m.nagrada.drvo && <View style={styles.rewardChip}><TreePine size={14} color={BOJE.drvo}/><Text style={[styles.rewardTxt, {color: BOJE.drvo}]}>{m.nagrada.drvo}</Text></View>}
+                           </View>
+                           <TouchableOpacity activeOpacity={0.7} style={[styles.actionBtn, gotovo ? {backgroundColor: BOJE.misije} : {backgroundColor: BOJE.slotOkvirZlato, opacity: 0.5}]} disabled={!gotovo} onPress={() => preuzmiNagraduMisije(m.id, m.nagrada)}>
+                              <Text style={[styles.actionBtnTxt, !gotovo && {color: BOJE.textMuted}]}>PREUZMI</Text>
+                           </TouchableOpacity>
+                        </View>
+                     </View>
                   )
-                })}
-              </ScrollView>
-            </View>
+               })}
+             </ScrollView>
           )}
-        </View>
 
-        {/* NAVIGACIJA S ČETIRI OPCIJE */}
-        <View style={styles.navbar}>
-          <TouchableOpacity onPress={() => promijeniPogled('igra')} style={styles.navBtn}>
-            <Play size={22} color={pogled === 'igra' ? BOJE.energija : BOJE.textMuted} />
-            <Text style={[styles.navText, { color: pogled === 'igra' ? BOJE.energija : BOJE.textMuted }]}>IGRA</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => promijeniPogled('dvorac')} style={styles.navBtn}>
-            <Map size={22} color={pogled === 'dvorac' ? BOJE.dvorac : BOJE.textMuted} />
-            <Text style={[styles.navText, { color: pogled === 'dvorac' ? BOJE.dvorac : BOJE.textMuted }]}>DVORAC</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => promijeniPogled('radionica')} style={styles.navBtn}>
-            <Wrench size={22} color={pogled === 'radionica' ? BOJE.bodovi : BOJE.textMuted} />
-            <Text style={[styles.navText, { color: pogled === 'radionica' ? BOJE.bodovi : BOJE.textMuted }]}>ALATI</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => promijeniPogled('karte')} style={styles.navBtn}>
-            <Book size={22} color={pogled === 'karte' ? BOJE.karte : BOJE.textMuted} />
-            <Text style={[styles.navText, { color: pogled === 'karte' ? BOJE.karte : BOJE.textMuted }]}>KARTE</Text>
-          </TouchableOpacity>
-        </View>
+          {pogled === 'trgovina' && (
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+              <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, marginBottom: 16, marginLeft: 4}}>
+                  <Text style={[styles.subTitle, {marginBottom: 0, marginLeft: 0}]}>Mjenjačnica</Text>
+                  <Text style={{color: BOJE.textMuted, fontSize: 12, fontWeight: '700'}}>Ažurira se svakih 45s</Text>
+              </View>
 
+              {[
+                {id: 'drvo', n: 'Drvo', ik: TreePine, b: BOJE.drvo},
+                {id: 'kamen', n: 'Kamen', ik: Mountain, b: BOJE.kamen},
+                {id: 'zeljezo', n: 'Željezo', ik: Pickaxe, b: BOJE.zeljezo},
+                {id: 'dijamant', n: 'Dijamant', ik: Gem, b: BOJE.dijamant}
+              ].map(r => {
+                 const cijenaKupi = tecaj[r.id].kupi;
+                 const cijenaProdaj = tecaj[r.id].prodaj;
+                 const tr = trend[r.id];
+
+                 return (
+                    <View key={r.id} style={styles.card}>
+                       <View style={{flexDirection:'row', alignItems:'center', gap: 14, marginBottom: 16}}>
+                          <IconBadge Ikona={r.ik} boja={r.b} />
+                          <View style={{flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}}>
+                              <Text style={styles.cardTitle}>{r.n} {r.id !== 'dijamant' && <Text style={styles.paketText}>(x10)</Text>}</Text>
+                              <View style={[styles.trendBadge, tr === 1 ? {backgroundColor: '#10B98120'} : tr === -1 ? {backgroundColor: '#EF444420'} : {}]}>
+                                 {tr === 1 ? <ArrowUpRight size={16} color="#10B981" /> : tr === -1 ? <ArrowDownRight size={16} color="#EF4444" /> : <Minus size={16} color={BOJE.textMuted} />}
+                              </View>
+                          </View>
+                       </View>
+                       
+                       <View style={styles.marketActionRow}>
+                          <TouchableOpacity activeOpacity={0.7} style={[styles.tradeBtn, {backgroundColor: BOJE.slotOkvirZlato}]} onPress={() => trgovina('prodaj', r.id, r.id === 'dijamant'?1:10)}>
+                             <Text style={[styles.tradeBtnTxt, {color: BOJE.textMain}]}>PRODAJ</Text>
+                             <Text style={styles.tradePriceTxt}>+ {cijenaProdaj} 🪙</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity activeOpacity={0.7} style={[styles.tradeBtn, {backgroundColor: BOJE.zlato + '10', borderColor: BOJE.zlato + '40'}]} onPress={() => trgovina('kupi', r.id, r.id === 'dijamant'?1:10)}>
+                             <Text style={[styles.tradeBtnTxt, {color: BOJE.zlato}]}>KUPI</Text>
+                             <Text style={[styles.tradePriceTxt, {color: BOJE.zlato}]}>- {cijenaKupi} 🪙</Text>
+                          </TouchableOpacity>
+                       </View>
+                    </View>
+                 );
+              })}
+            </ScrollView>
+          )}
+
+          {pogled === 'nadogradnje' && (
+             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+             <Text style={styles.subTitle}>Pasivne Sposobnosti</Text>
+             {[
+               {id:'sreca', n:'Djetelina', d: 'Povećava šansu za dobitne linije i Wild simbole.', ikona: Clover, cZlato: 500, cKamen: 0, cZeljezo: 50},
+               {id:'pojacalo', n:'Množitelj', d: 'Daje bonus resurse ovisno o ulogu.', ikona: Zap, cZlato: 800, cKamen: 100, cZeljezo: 100},
+               {id:'baterija', n:'Baterija', d: '+50 Max Energije.', ikona: Zap, cZlato: 1000, cKamen: 200, cZeljezo: 0},
+               {id:'oklop', n:'Čelični Štit', d: '+1 Dodatni slot za obranu baze.', ikona: Shield, cZlato: 1200, cKamen: 50, cZeljezo: 200}
+             ].map(p => {
+                 const mult = Math.pow(1.6, razine[p.id] || 0); 
+                 const zl = Math.floor(p.cZlato * mult);
+                 const ka = Math.floor(p.cKamen * mult);
+                 const ze = Math.floor(p.cZeljezo * mult);
+                 const moze = zlato >= zl && resursi.kamen >= ka && resursi.zeljezo >= ze;
+
+                 return (
+                     <View key={p.id} style={styles.card}>
+                         <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 16}}>
+                            <IconBadge Ikona={p.ikona} boja={BOJE.nadogradnje} velicina={24} />
+                            <View style={{flex: 1, paddingHorizontal: 16}}>
+                               <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
+                                 <Text style={styles.cardTitle}>{p.n}</Text>
+                                 <View style={styles.levelBadge}><Text style={[styles.buildCardLevel, {color: BOJE.nadogradnje}]}>LVL {razine[p.id] || 0}</Text></View>
+                               </View>
+                               <Text style={styles.upgradeDesc}>{p.d}</Text>
+                            </View>
+                         </View>
+                         <View style={styles.cardBottom}>
+                            <View style={styles.costRow}>
+                               <PrikazCijene Ikona={Coins} boja={BOJE.zlato} iznos={zl} trenutno={zlato} />
+                               <PrikazCijene Ikona={Mountain} boja={BOJE.kamen} iznos={ka} trenutno={resursi.kamen} />
+                               <PrikazCijene Ikona={Pickaxe} boja={BOJE.zeljezo} iznos={ze} trenutno={resursi.zeljezo} />
+                            </View>
+                            <TouchableOpacity activeOpacity={0.7} style={[styles.actionBtn, moze ? {backgroundColor: BOJE.nadogradnje} : {backgroundColor: BOJE.slotOkvirZlato}]} onPress={() => kupiAlat({...p, cZlato:p.cZlato, cKamen:p.cKamen, cZeljezo:p.cZeljezo})}>
+                               <Text style={[styles.actionBtnTxt, !moze && {color: BOJE.textMuted}]}>UPGRADE</Text>
+                            </TouchableOpacity>
+                         </View>
+                     </View>
+                 );
+             })}
+           </ScrollView>
+          )}
+
+        </View>
       </Animated.View>
+
+      <View style={styles.floatingNavbar}>
+        {[
+          { id: 'automat', ikona: Zap, label: 'IGRAJ' },
+          { id: 'selo', ikona: Map, label: 'BAZA' },
+          { id: 'misije', ikona: Target, label: 'ZADACI' },
+          { id: 'trgovina', ikona: Store, label: 'TRŽIŠTE' },
+          { id: 'nadogradnje', ikona: Wrench, label: 'OPREMA' }
+        ].map(tab => {
+          const aktivan = pogled === tab.id;
+          const TIcon = tab.ikona;
+          return (
+            <TouchableOpacity activeOpacity={0.6} key={tab.id} onPress={() => setPogled(tab.id)} style={styles.navBtn}>
+              <View style={[styles.navIconContainer, aktivan && styles.navIconActive]}>
+                <TIcon size={22} color={aktivan ? '#FFF' : BOJE.textMuted} strokeWidth={aktivan ? 2.5 : 2} />
+              </View>
+              {aktivan && <Text style={[styles.navText, {color: '#FFF'}]}>{tab.label}</Text>}
+            </TouchableOpacity>
+          )
+        })}
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BOJE.bgSl },
-  mainWrapper: { flex: 1, backgroundColor: BOJE.bgSl },
+  container: { flex: 1, backgroundColor: BOJE.bg },
+  mainWrapper: { flex: 1 },
   
-  // OVERLAY STILOVI ZA KARTE
-  cardOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 1000, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  cardOverlayTitle: { color: BOJE.zlato, fontSize: 24, fontWeight: 'bold', marginBottom: 30, letterSpacing: 2 },
-  cardReveal: { width: 150, height: 200, backgroundColor: BOJE.bgCard, borderRadius: 20, justifyContent: 'center', alignItems: 'center', borderWidth: 4, borderColor: BOJE.karte, shadowColor: BOJE.karte, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 1, shadowRadius: 30, elevation: 20, marginBottom: 30 },
-  cardRevealIcon: { fontSize: 80 },
-  cardOverlayDesc: { color: '#fff', fontSize: 16, textAlign: 'center' },
+  header: { padding: 16, paddingTop: Platform.OS === 'android' ? 44 : 20, zIndex: 10, backgroundColor: 'rgba(5, 5, 10, 0.85)', borderBottomWidth: 1, borderColor: BOJE.border },
+  
+  levelContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: BOJE.slotOkvirZlato, borderRadius: 24, padding: 6, marginBottom: 12, borderWidth: 1, borderColor: BOJE.border },
+  levelBadgeOuter: { width: 34, height: 34, borderRadius: 17, backgroundColor: BOJE.xp, justifyContent: 'center', alignItems: 'center', shadowColor: BOJE.xp, shadowOpacity: 0.8, shadowRadius: 5, elevation: 4 },
+  prestigeBadgeOuter: { width: 34, height: 34, borderRadius: 17, backgroundColor: BOJE.prestige, justifyContent: 'center', alignItems: 'center', shadowColor: BOJE.prestige, shadowOpacity: 0.8, shadowRadius: 5, elevation: 4, marginLeft: 6, flexDirection: 'row' },
+  levelBadgeTxt: { color: '#000', fontWeight: '900', fontSize: 16 },
+  xpBarContainer: { flex: 1, height: 18, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 9, marginHorizontal: 10, overflow: 'hidden', justifyContent: 'center' },
+  xpBarFill: { position: 'absolute', height: '100%', backgroundColor: BOJE.xp, borderRadius: 9 },
+  xpText: { position: 'absolute', width: '100%', textAlign: 'center', color: '#FFF', fontSize: 10, fontWeight: '800', textShadowColor: '#000', textShadowRadius: 2 },
+  multiplierBadge: { backgroundColor: BOJE.xp, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, flexDirection: 'row', alignItems: 'center' },
+  multiplierTxt: { color: '#000', fontSize: 11, fontWeight: '900' },
 
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 20, paddingBottom: 10, paddingTop: Platform.OS === 'android' ? 40 : 10, backgroundColor: 'rgba(255,255,255,0.7)' },
-  statRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  statText: { fontSize: 24, fontWeight: 'bold' },
-  armorContainer: { alignItems: 'flex-end', maxWidth: 120 },
-  armorDots: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 4 },
-  armorDot: { width: 14, height: 8, borderRadius: 2, marginBottom: 2 },
-  armorText: { color: BOJE.zdravlje, fontSize: 10, fontWeight: 'bold', marginTop: 4 },
+  headerMainStats: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  statChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: BOJE.bgCard, borderRadius: 16, borderWidth: 1, borderColor: BOJE.border, height: 38 },
+  statChipTxt: { fontSize: 15, fontWeight: '800', color: BOJE.textMain, marginLeft: 6 },
   
-  eventBanner: { marginHorizontal: 16, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center', shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 5, marginTop: 5 },
-  eventTitle: { color: '#fff', fontWeight: 'bold', fontSize: 14, letterSpacing: 1 },
-  eventDesc: { color: '#fff', fontSize: 11, opacity: 0.9, marginTop: 4, fontWeight: '500' },
+  resourceHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginTop: 8 },
+  resMiniChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: BOJE.bgCard, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: BOJE.border },
+  resChipTxt: { fontSize: 13, fontWeight: '800', color: BOJE.textMain, marginLeft: 6 },
+  
+  defenseMatrix: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0, 212, 255, 0.05)', marginTop: 12, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(0, 212, 255, 0.2)' },
+  defenseTitle: { color: BOJE.stit, fontSize: 12, fontWeight: '900', letterSpacing: 1, marginRight: 12 },
+  shieldSlotsContainer: { flex: 1, flexDirection: 'row', gap: 6 },
+  shieldSlot: { flex: 1, height: 12, borderRadius: 6, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  shieldActive: { borderColor: BOJE.stit, backgroundColor: 'rgba(0, 212, 255, 0.2)' },
+  shieldEmpty: { opacity: 0.5 },
+  shieldGlow: { width: '100%', height: '100%', backgroundColor: BOJE.stit, shadowColor: BOJE.stit, shadowOpacity: 1, shadowRadius: 8, elevation: 4 },
 
-  messageArea: { height: 45, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 },
-  messageText: { color: BOJE.textMain, fontSize: 13, fontWeight: 'bold', textAlign: 'center' },
-  content: { flex: 1, paddingHorizontal: 16, paddingBottom: 16, justifyContent: 'flex-end' },
-  gameContainer: { width: '100%', alignItems: 'center' },
+  messageBubble: { flexDirection: 'row', backgroundColor: BOJE.bgCard, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 16, marginBottom: 24, borderWidth: 1, borderColor: BOJE.border, alignItems: 'center', justifyContent: 'center', shadowColor: BOJE.slotVatra, shadowOpacity: 0.3, shadowRadius: 10, elevation: 5 },
+  messageText: { color: BOJE.slotVatra, fontSize: 13, fontWeight: '900', letterSpacing: 1 },
   
-  gridContainer: { backgroundColor: BOJE.koloBg, borderRadius: 24, padding: 12, borderWidth: 2, borderColor: '#475569', width: '100%', marginBottom: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 6 },
-  gridRow: { flexDirection: 'row', gap: 8, padding: 4 },
-  middleGridRow: { backgroundColor: 'rgba(245, 158, 11, 0.1)', borderRadius: 16 },
-  slotItem: { flex: 1, aspectRatio: 1, backgroundColor: BOJE.slotBg, borderRadius: 12, justifyContent: 'center', alignItems: 'center', position: 'relative' },
-  slotItemWinning: { backgroundColor: 'rgba(245, 158, 11, 0.35)', transform: [{ scale: 1.05 }], shadowColor: "#fbbf24", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 10, elevation: 5 },
-  slotSymbol: { fontSize: screenWidth * 0.08 },
-  slotValue: { position: 'absolute', bottom: 4, right: 4, fontSize: 9, color: BOJE.slotValueText, fontWeight: 'bold' },
-  middleHighlightBorder: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.3)', borderRadius: 12 },
-  
-  statsContainer: { width: '100%', backgroundColor: BOJE.bgCard, padding: 12, borderRadius: 16, marginBottom: 16, borderWidth: 1, borderColor: BOJE.bgLight, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 5, elevation: 2 },
-  statsHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  statsTitle: { fontSize: 11, fontWeight: 'bold', color: BOJE.textMuted, letterSpacing: 1 },
-  statsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  statsLabel: { fontSize: 13, color: BOJE.textMain, fontWeight: '500' },
-  statsValue: { fontSize: 15, fontWeight: 'bold', color: BOJE.statistika },
-  pityBarContainer: { width: '100%' },
-  pityBarBg: { width: '100%', height: 6, backgroundColor: BOJE.bgSl, borderRadius: 3, overflow: 'hidden' },
-  pityBarFill: { height: '100%', borderRadius: 3 },
-  pityHelperText: { fontSize: 10, color: BOJE.textMuted, marginTop: 6, fontStyle: 'italic', alignSelf: 'flex-end' },
+  content: { flex: 1, paddingHorizontal: 16 },
+  scrollContent: { paddingBottom: 120, paddingTop: 10 }, 
 
-  betContainer: { width: '100%', marginBottom: 12 },
-  betScroll: { gap: 10, paddingBottom: 4 },
-  betBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, borderWidth: 2 },
-  betBtnActive: { backgroundColor: BOJE.energija, borderColor: '#06b6d4' },
-  betBtnInactive: { backgroundColor: '#f8fafc', borderColor: BOJE.bgLight },
-  betBtnText: { fontWeight: 'bold', fontSize: 14 },
-  betBtnTextActive: { color: '#fff' },
-  betBtnTextInactive: { color: BOJE.textMuted },
-  spinBtn: { backgroundColor: '#0ea5e9', borderRadius: 16, paddingVertical: 18, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12, width: '100%', shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 },
-  spinBtnDisabled: { opacity: 0.7, transform: [{ scale: 0.95 }] },
-  spinBtnText: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
+  gameContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 60 },
   
-  workshopContainer: { flex: 1 },
-  tabHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  tabHeaderText: { color: BOJE.textMuted, fontSize: 13, fontWeight: 'bold', letterSpacing: 1.5 },
+  slotMachineOuter: { backgroundColor: '#0D0F17', padding: 8, borderRadius: 24, borderWidth: 2, borderColor: '#222533', width: '100%', marginBottom: 32, shadowColor: BOJE.slotVatra, shadowOffset: {width: 0, height: 10}, shadowOpacity: 0.2, shadowRadius: 30, elevation: 15 },
+  slotMachineInner: { backgroundColor: BOJE.slotRolaCrna, padding: 10, borderRadius: 16, borderWidth: 2, borderColor: '#000', overflow: 'hidden', position: 'relative' }, 
+  gridColumnsWrapper: { flexDirection: 'row', justifyContent: 'space-between', gap: 6 },
+  gridColumn: { flex: 1, gap: 6 },
+  slotItem: { width: slotSize, height: slotSize, borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 2 },
+  slotItemWinning: { borderWidth: 3, borderRadius: 16, shadowOpacity: 1, shadowRadius: 15, elevation: 10, backgroundColor: 'rgba(255,51,0,0.15)' },
+
+  betContainer: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 24 },
+  betBtn: { paddingVertical: 12, paddingHorizontal: 22, borderRadius: 20, backgroundColor: BOJE.bgCard, borderWidth: 1, borderColor: BOJE.border },
+  betBtnActive: { backgroundColor: BOJE.slotVatra, borderColor: BOJE.slotVatra, shadowColor: BOJE.slotVatra, shadowOpacity: 0.5, shadowRadius: 8 },
+  betBtnText: { fontWeight: '900', color: BOJE.textMuted, fontSize: 16 },
+  betBtnTextActive: { color: '#FFF' },
   
-  // STILOVI ZA KOLEKCIJU KARATA
-  kolekcijaUputa: { fontSize: 13, color: BOJE.textMuted, textAlign: 'center', marginBottom: 16, paddingHorizontal: 10 },
-  cardSetContainer: { backgroundColor: BOJE.bgCard, borderRadius: 20, padding: 16, borderWidth: 1, borderColor: BOJE.bgLight, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 3 },
-  cardSetReady: { borderColor: BOJE.karte, borderWidth: 2, shadowColor: BOJE.karte, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
-  cardSetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  cardSetTitle: { fontSize: 16, fontWeight: 'bold', color: BOJE.textMain },
-  cardSetProgress: { fontSize: 14, fontWeight: 'bold', color: BOJE.textMuted },
-  cardSlotsRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
-  singleCardSlot: { flex: 1, aspectRatio: 0.7, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 2 },
-  singleCardOwned: { backgroundColor: 'rgba(236, 72, 153, 0.1)', borderColor: BOJE.karte },
-  singleCardMissing: { backgroundColor: BOJE.bgSl, borderColor: BOJE.bgLight, borderStyle: 'dashed' },
-  singleCardIcon: { fontSize: 32 },
-  claimRewardBtn: { backgroundColor: BOJE.karte, marginTop: 16, paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
-  claimRewardText: { color: '#fff', fontWeight: 'bold', fontSize: 14, letterSpacing: 1 },
-  claimRewardSubText: { color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: 'bold' },
-  claimedBadge: { marginTop: 16, paddingVertical: 12, borderRadius: 12, alignItems: 'center', backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0' },
-  claimedBadgeText: { color: '#64748b', fontWeight: 'bold', fontSize: 12, letterSpacing: 1 },
+  spinBtn: { backgroundColor: BOJE.energija, width: '100%', paddingVertical: 22, borderRadius: 24, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', shadowColor: BOJE.energija, shadowOpacity: 0.4, shadowRadius: 15, elevation: 8 },
+  spinBtnDisabled: { opacity: 0.5, transform: [{scale: 0.98}], shadowOpacity: 0 },
+  spinBtnText: { color: '#000', fontSize: 24, fontWeight: '900', letterSpacing: 2 },
+  spinCostBadge: { position: 'absolute', right: 24, backgroundColor: 'rgba(0,0,0,0.15)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, flexDirection: 'row', alignItems: 'center' },
+  spinCostTxt: { color: '#000', fontWeight: '900', fontSize: 12, marginRight: 2 },
 
-  // STILOVI ZA MINI-IGRU
-  miniGameCard: { backgroundColor: BOJE.bgCard, padding: 24, borderRadius: 28, alignItems: 'center', borderWidth: 2, borderColor: BOJE.vjestina, shadowColor: BOJE.vjestina, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 6 },
-  miniGameHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
-  miniGameTitle: { fontSize: 12, fontWeight: 'bold', color: BOJE.vjestina, letterSpacing: 1.5 },
-  miniGameItemName: { fontSize: 22, fontWeight: 'bold', color: BOJE.textMain, marginBottom: 8 },
-  miniGameDesc: { fontSize: 12, color: BOJE.textMuted, marginBottom: 24, textAlign: 'center', paddingHorizontal: 10 },
-  barContainer: { width: '100%', height: 36, flexDirection: 'row', borderRadius: 18, overflow: 'hidden', backgroundColor: '#e2e8f0', position: 'relative', marginBottom: 24, borderWidth: 2, borderColor: BOJE.bgLight },
-  redZone: { flex: 25, backgroundColor: '#ef4444' },
-  yellowZone: { flex: 17, backgroundColor: '#eab308' },
-  greenZone: { flex: 16, backgroundColor: '#22c55e' },
-  cursor: { position: 'absolute', width: '4%', height: '120%', backgroundColor: '#1e293b', top: '-10%', borderRadius: 4, borderWidth: 2, borderColor: '#fff' },
-  stopSkillBtn: { backgroundColor: BOJE.vjestina, paddingVertical: 16, paddingHorizontal: 32, borderRadius: 20, shadowColor: BOJE.vjestina, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 6, elevation: 5, width: '100%', alignItems: 'center' },
-  stopSkillBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 18, letterSpacing: 1 },
-  resultContainer: { alignItems: 'center', marginVertical: 10 },
-  resultText: { fontSize: 18, fontWeight: 'bold', textAlign: 'center' },
-  savedPointsText: { fontSize: 12, color: BOJE.textMuted, marginTop: 4, fontStyle: 'italic' },
+  gambleContainer: { width: '100%', backgroundColor: 'rgba(255, 215, 0, 0.08)', padding: 20, borderRadius: 24, borderWidth: 1, borderColor: BOJE.zlato + '60', alignItems: 'center' },
+  gambleTitle: { color: BOJE.textMuted, fontSize: 14, fontWeight: '900', letterSpacing: 1, marginBottom: 8 },
+  gamblePrizesRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10, marginBottom: 20 },
+  gamblePrizeTxt: { color: BOJE.zlato, fontSize: 18, fontWeight: '900', textShadowColor: '#000', textShadowRadius: 5 },
+  gambleButtonsRow: { flexDirection: 'row', gap: 12, width: '100%', marginBottom: 16 },
+  gambleBtn: { flex: 1, paddingVertical: 18, borderRadius: 16, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 10, elevation: 6 },
+  gambleBtnTxt: { color: '#FFF', fontSize: 15, fontWeight: '900', letterSpacing: 1 },
+  collectBtn: { backgroundColor: BOJE.energija, width: '100%', paddingVertical: 18, borderRadius: 16, alignItems: 'center' },
+  collectBtnTxt: { color: '#000', fontSize: 16, fontWeight: '900', letterSpacing: 1 },
 
-  activeJobCard: { backgroundColor: BOJE.bgCard, padding: 24, borderRadius: 28, alignItems: 'center', borderWidth: 1, borderColor: BOJE.bgLight, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 4 },
-  activeJobTitle: { color: BOJE.textMain, fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
-  progressBars: { width: '100%', marginBottom: 24 },
-  progressLabel: { color: BOJE.textMuted, fontSize: 12, marginBottom: 4 },
-  progressBarBg: { width: '100%', height: 14, backgroundColor: BOJE.bgSl, borderRadius: 7, overflow: 'hidden', borderWidth: 1, borderColor: BOJE.bgLight },
-  progressBarFill: { height: '100%' },
-  hammerBtn: { backgroundColor: '#ef4444', width: 90, height: 90, borderRadius: 45, justifyContent: 'center', alignItems: 'center', shadowColor: "#ef4444", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 5 },
-  cancelWorkText: { color: BOJE.textMuted, textDecorationLine: 'underline', fontSize: 13 },
-  upgradeCard: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: BOJE.bgCard, borderRadius: 16, borderWidth: 1, borderColor: BOJE.bgLight, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 2 },
-  upgradeIconBg: { width: 44, height: 44, backgroundColor: BOJE.bgSl, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  upgradeInfo: { flex: 1, marginLeft: 12 },
-  upgradeTitle: { color: BOJE.textMain, fontWeight: 'bold', fontSize: 15 },
-  upgradeDesc: { color: BOJE.textMuted, fontSize: 11, marginTop: 4 },
-  priceTag: { backgroundColor: BOJE.bgSl, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: BOJE.bgLight, marginLeft: 8 },
-  priceText: { color: BOJE.bodovi, fontWeight: 'bold', fontSize: 14 },
+  subTitle: { fontSize: 16, fontWeight: '900', color: BOJE.textMain, marginBottom: 16, marginLeft: 4, letterSpacing: 1, textTransform: 'uppercase' },
+
+  card: { backgroundColor: BOJE.bgCard, padding: 20, borderRadius: 24, marginBottom: 16, borderWidth: 1, borderColor: BOJE.border },
+  cardMaxed: { borderColor: BOJE.zlato + '40', backgroundColor: BOJE.zlato + '08' },
+  cardDamaged: { borderColor: BOJE.slotVatra, backgroundColor: 'rgba(255, 51, 0, 0.05)', shadowColor: BOJE.slotVatra, shadowOpacity: 0.2, shadowRadius: 10, elevation: 5 },
+  cardTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  iconBadge: { width: 48, height: 48, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+  zgradaIconBg: { width: 56, height: 56, borderRadius: 20, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
+  cardTitle: { fontSize: 18, fontWeight: '800', color: BOJE.textMain },
+  levelBadge: { backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  buildCardLevel: { fontSize: 12, fontWeight: '900', color: BOJE.textMuted },
+  perkText: { fontSize: 13, fontWeight: '600', color: BOJE.xp, marginTop: 6 },
+  cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderColor: BOJE.border, paddingTop: 16 },
   
-  dvoracHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: BOJE.bgCard, padding: 20, borderRadius: 20, borderWidth: 1, borderColor: BOJE.dvorac, marginBottom: 16, shadowColor: BOJE.dvorac, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3 },
-  dvoracTitle: { color: BOJE.dvorac, fontSize: 13, fontWeight: 'bold', letterSpacing: 1.5 },
-  dvoracSubtitle: { color: BOJE.textMain, fontSize: 24, fontWeight: 'bold', marginTop: 2 },
-  dvoracProgressContainer: { marginBottom: 20 },
-  zgradaLvBarContainer: { flexDirection: 'row', gap: 4, marginTop: 8 },
-  zgradaLvDot: { height: 6, flex: 1, borderRadius: 3 },
-  gradnjaBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, marginLeft: 8 },
-  gradnjaBtnActive: { backgroundColor: BOJE.dvorac, shadowColor: BOJE.dvorac, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 2 },
-  gradnjaBtnInactive: { backgroundColor: BOJE.bgSl, borderWidth: 1, borderColor: BOJE.bgLight },
-  gradnjaBtnMax: { backgroundColor: 'rgba(34, 197, 94, 0.1)', borderWidth: 1, borderColor: '#22c55e' },
-  gradnjaBtnText: { fontWeight: 'bold', fontSize: 14 },
-  gradnjaBtnTextMax: { color: '#22c55e', fontWeight: 'bold', fontSize: 12, letterSpacing: 1 },
+  repairBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: BOJE.slotVatra, paddingHorizontal: 6, paddingVertical: 4, borderRadius: 8, marginRight: 4 },
+  repairBadgeTxt: { color: '#FFF', fontSize: 10, fontWeight: '900', marginLeft: 4 },
 
-  navbar: { flexDirection: 'row', justifyContent: 'space-around', paddingTop: 15, paddingBottom: Platform.OS === 'ios' ? 30 : 15, backgroundColor: BOJE.bgCard, borderTopWidth: 1, borderTopColor: BOJE.bgLight },
-  navBtn: { alignItems: 'center', gap: 6 },
-  navText: { fontSize: 10, fontWeight: 'bold' }
+  actionBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 14 },
+  actionBtnTxt: { color: '#000', fontWeight: '900', fontSize: 13, letterSpacing: 0.5 },
+  maxTxt: { color: BOJE.zlato, fontWeight: '800', fontSize: 13, letterSpacing: 1 },
+  
+  missionProgressContainer: { width: '100%', height: 6, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 3, marginTop: 10, overflow: 'hidden' },
+  missionProgressBar: { height: '100%', borderRadius: 3 },
+  missionProgressTxt: { color: BOJE.textMuted, fontSize: 11, fontWeight: '800', marginTop: 4, textAlign: 'right' },
+  rewardChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 6, paddingVertical: 4, borderRadius: 8 },
+  rewardTxt: { fontSize: 12, fontWeight: '900', marginLeft: 4 },
+
+  costRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', flex: 1, paddingRight: 10, alignItems: 'center' },
+  costPill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.03)', paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8 },
+  costPillMissing: { backgroundColor: BOJE.slotVatra + '15' },
+  costTxt: { fontSize: 13, fontWeight: '800', color: BOJE.textMain },
+  costMissing: { color: BOJE.slotVatra },
+
+  marketActionRow: { flexDirection: 'row', gap: 12 },
+  tradeBtn: { flex: 1, paddingVertical: 14, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: BOJE.border },
+  tradeBtnTxt: { fontWeight: '900', fontSize: 14, marginBottom: 4, letterSpacing: 0.5 },
+  tradePriceTxt: { fontWeight: '700', fontSize: 13, color: BOJE.textMuted },
+  paketText: { fontSize: 13, color: BOJE.textMuted, fontWeight: '600' },
+  upgradeDesc: { fontSize: 13, fontWeight: '500', color: BOJE.textMuted, marginTop: 6, lineHeight: 18 },
+  
+  trendBadge: { padding: 4, borderRadius: 8 },
+
+  floatingNavbar: { position: 'absolute', bottom: Platform.OS === 'ios' ? 30 : 20, left: 10, right: 10, flexDirection: 'row', justifyContent: 'space-evenly', backgroundColor: BOJE.navBg, paddingVertical: 14, borderRadius: 28, borderWidth: 1, borderColor: BOJE.border },
+  navBtn: { alignItems: 'center', justifyContent: 'center', flexDirection: 'row', paddingHorizontal: 6 },
+  navIconContainer: { marginRight: 4 },
+  navIconActive: { },
+  navText: { fontSize: 11, fontWeight: '900', letterSpacing: 0.5 }
 });
