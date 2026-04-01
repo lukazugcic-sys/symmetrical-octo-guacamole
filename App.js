@@ -83,11 +83,17 @@ const ZGRADE = [
 const BAZA_MISIJA = [
     { opis: 'Zavrti automat 20 puta', tip: 'spin', cilj: 20, nagrada: { dijamanti: 2 } },
     { opis: 'Zavrti automat 50 puta', tip: 'spin', cilj: 50, nagrada: { dijamanti: 5 } },
+    { opis: 'Zavrti automat 100 puta', tip: 'spin', cilj: 100, nagrada: { dijamanti: 12, zlato: 500 } },
     { opis: 'Prikupi 1000 zlata', tip: 'zlato', cilj: 1000, nagrada: { energija: 30 } },
     { opis: 'Prikupi 2500 zlata', tip: 'zlato', cilj: 2500, nagrada: { energija: 80 } },
+    { opis: 'Prikupi 10000 zlata', tip: 'zlato', cilj: 10000, nagrada: { dijamanti: 10, energija: 120 } },
     { opis: 'Izgradi/Nadogradi zgradu', tip: 'zgrada', cilj: 1, nagrada: { dijamanti: 3, zlato: 500 } },
     { opis: 'Kupi ili nadogradi opremu', tip: 'oprema', cilj: 1, nagrada: { dijamanti: 3, energija: 50 } },
-    { opis: 'Ostvari 5 dobitnih linija', tip: 'dobitak', cilj: 5, nagrada: { drvo: 100, kamen: 100 } }
+    { opis: 'Ostvari 5 dobitnih linija', tip: 'dobitak', cilj: 5, nagrada: { drvo: 100, kamen: 100 } },
+    { opis: 'Ostvari 15 dobitnih linija', tip: 'dobitak', cilj: 15, nagrada: { dijamanti: 5, kamen: 300 } },
+    { opis: 'Aktiviraj Lucky Spin', tip: 'luckySpin', cilj: 1, nagrada: { dijamanti: 4, energija: 40 } },
+    { opis: 'Aktiviraj Lucky Spin 3 puta', tip: 'luckySpin', cilj: 3, nagrada: { dijamanti: 10, zlato: 1000 } },
+    { opis: 'Ostvari niz od 3 dobitka', tip: 'streak', cilj: 3, nagrada: { dijamanti: 6, energija: 60 } },
 ];
 
 const generirajMisiju = () => {
@@ -120,6 +126,10 @@ const screenWidth = Dimensions.get('window').width;
 const slotSize = (screenWidth - 80) / 5; 
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const LUCKY_SPIN_INTERVAL = 25;
+const MAX_WIN_STREAK = 5;
+const STREAK_BONUS_PER_WIN = 0.15;
+const WILD_BOOST_CHANCE_PER_LEVEL = 0.04;
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
 const IconBadge = ({ Ikona, boja, velicina = 24 }) => (
@@ -175,6 +185,10 @@ export default function App() {
   const [dobitnaPolja, setDobitnaPolja] = useState([]);
   const [poruka, setPoruka] = useState('SPREMAN ZA VRTNJU');
   const [dobitakNaCekanju, setDobitakNaCekanju] = useState(null); 
+
+  const [luckySpinCounter, setLuckySpinCounter] = useState(LUCKY_SPIN_INTERVAL);
+  const [winStreak, setWinStreak] = useState(0);
+  const [turboRezim, setTurboRezim] = useState(false);
   
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const flashAnim = useRef(new Animated.Value(0)).current; 
@@ -195,7 +209,7 @@ export default function App() {
   useEffect(() => {
     const ucitaj = async () => {
       try {
-        const p = await AsyncStorage.getItem('@save_game_eco_v29'); 
+        const p = await AsyncStorage.getItem('@save_game_eco_v30'); 
         if (p) {
           const d = JSON.parse(p);
           if(d.igracRazina) setIgracRazina(d.igracRazina);
@@ -212,6 +226,8 @@ export default function App() {
           if(d.misije && d.misije.length > 0) setMisije(d.misije);
           if(d.tecaj) setTecaj(d.tecaj);
           if(d.trend) setTrend(d.trend);
+          if(d.luckySpinCounter !== undefined) setLuckySpinCounter(d.luckySpinCounter);
+          if(d.winStreak !== undefined) setWinStreak(d.winStreak);
         }
         const pa = await AsyncStorage.getItem('@save_dostignuca_v1');
         if (pa) {
@@ -247,11 +263,11 @@ export default function App() {
   useEffect(() => {
     if(ucitavam) return;
     const spremi = async () => {
-      try { await AsyncStorage.setItem('@save_game_eco_v29', JSON.stringify({ igracRazina, prestigeRazina, xp, energija, zlato, dijamanti, resursi, gradevine, ostecenja, razine, stitovi, misije, tecaj, trend })); } 
+      try { await AsyncStorage.setItem('@save_game_eco_v30', JSON.stringify({ igracRazina, prestigeRazina, xp, energija, zlato, dijamanti, resursi, gradevine, ostecenja, razine, stitovi, misije, tecaj, trend, luckySpinCounter, winStreak })); } 
       catch (e) { }
     };
     spremi();
-  }, [igracRazina, prestigeRazina, xp, energija, zlato, dijamanti, resursi, gradevine, ostecenja, razine, stitovi, misije, tecaj, trend, ucitavam]);
+  }, [igracRazina, prestigeRazina, xp, energija, zlato, dijamanti, resursi, gradevine, ostecenja, razine, stitovi, misije, tecaj, trend, luckySpinCounter, winStreak, ucitavam]);
 
   useEffect(() => {
     if(ucitavam) return;
@@ -435,35 +451,55 @@ export default function App() {
 
   const zavrtiMasinu = async () => {
     if (dobitakNaCekanju) return; 
-    if (vrti || energija < ulog) { 
+    const jeFreeSpin = luckySpinCounter === 1;
+    if (vrti || (!jeFreeSpin && energija < ulog)) { 
       if(!vrti) setPoruka('NEDOVOLJNO ENERGIJE'); 
       return; 
     }
     
-    setEnergija(e => e - ulog);
+    if (!jeFreeSpin) {
+      setEnergija(e => e - ulog);
+    }
     azurirajMisiju('spin'); 
     let dobijeniXp = ulog * 2; 
     const novaVrtnja = ukupnoVrtnji + 1;
     setUkupnoVrtnji(novaVrtnja);
     provjeriDostignuca(novaVrtnja, undefined, undefined, undefined);
 
+    const noviLuckyCounter = jeFreeSpin ? LUCKY_SPIN_INTERVAL : luckySpinCounter - 1;
+    setLuckySpinCounter(noviLuckyCounter);
+    if (jeFreeSpin) {
+      azurirajMisiju('luckySpin');
+      setPoruka('🍀 LUCKY SPIN! BESPLATNA VRTNJA!');
+    }
+
     setVrti(true); 
     setDobitnaPolja([]); 
-    setPoruka('VRTNJA...');
+    if (!jeFreeSpin) setPoruka('VRTNJA...');
 
     winScaleAnims.forEach(anim => anim.setValue(1));
     stupciAnims.forEach(anim => { anim.setValue(0); });
+
+    const spinDuration = turboRezim ? 120 : 250;
+    const spinDelay = turboRezim ? 250 : 600;
+    const stopDelay = turboRezim ? 100 : 250;
+    const finalDelay = turboRezim ? 150 : 300;
     
     Animated.parallel(
       stupciAnims.map((anim, i) => 
-        Animated.loop(Animated.timing(anim, { toValue: 300, duration: 250, easing: Easing.linear, useNativeDriver: true }))
+        Animated.loop(Animated.timing(anim, { toValue: 300, duration: spinDuration, easing: Easing.linear, useNativeDriver: true }))
       ).concat(stupciBlurs.map((anim) => Animated.timing(anim, { toValue: 0.3, duration: 200, useNativeDriver: true })))
     ).start();
 
-    await delay(600); 
+    await delay(spinDelay); 
     
     try {
-        let noviSimboli = Array(15).fill(null).map(() => SVO_BLAGO[Math.floor(Math.random() * SVO_BLAGO.length)]);
+        const wildBoostLevel = razine.wildBoost || 0;
+        const wildBoostChance = wildBoostLevel * WILD_BOOST_CHANCE_PER_LEVEL;
+        let noviSimboli = Array(15).fill(null).map(() => {
+            if (Math.random() < wildBoostChance) return 'wild';
+            return SVO_BLAGO[Math.floor(Math.random() * SVO_BLAGO.length)];
+        });
         
         const linije = [
             [5, 6, 7, 8, 9], [0, 1, 2, 3, 4], [10, 11, 12, 13, 14], [0, 6, 12, 8, 4], [10, 6, 2, 8, 14]      
@@ -487,15 +523,18 @@ export default function App() {
                 Animated.spring(stupciAnims[i], { toValue: 0, friction: 5, tension: 80, useNativeDriver: true }),
                 Animated.timing(stupciBlurs[i], { toValue: 1, duration: 100, useNativeDriver: true })
             ]).start();
-            await delay(250); 
+            await delay(stopDelay); 
         }
 
-        await delay(300); 
+        await delay(finalDelay); 
 
         let ukupnoZlato = 0, ukupnoDijamanata = 0, ukupnoEnergije = 0, ukupnoStitova = 0;
         let resursiDobitak = { drvo: 0, kamen: 0, zeljezo: 0 };
         let dobijenaPoljaPrivremena = [];
         let linijaDobitnih = 0;
+        let jackpotLinija = false;
+
+        const winStreakMultiplier = 1 + (Math.min(winStreak, MAX_WIN_STREAK) * STREAK_BONUS_PER_WIN);
 
         linije.forEach(linija => {
             let prviSimbol = noviSimboli[linija[0]];
@@ -524,18 +563,21 @@ export default function App() {
             if (consecutiveCount >= 3) {
                 linijaDobitnih++;
                 const isAllWilds = targetSymbol === 'wild';
+                const isJackpot = consecutiveCount === 5;
+                if (isJackpot) jackpotLinija = true;
                 const detalji = isAllWilds ? BLAGO['gem'] : BLAGO[targetSymbol];
-                const multiplier = consecutiveCount === 5 ? 15 : (consecutiveCount === 4 ? 4 : 1);
+                const multiplier = isJackpot ? 15 : (consecutiveCount === 4 ? 4 : 1);
+                const jackpotBonus = isJackpot ? 2 : 1;
                 dobijeniXp += (consecutiveCount * ulog * 3);
 
                 if (targetSymbol === 'shield' && !isAllWilds) {
                     ukupnoStitova += (ulog >= 10 ? 2 : 1) * (consecutiveCount - 2); 
                 } else if (targetSymbol === 'energy' && !isAllWilds) {
-                    ukupnoEnergije += Math.floor(detalji.baza * ulog * 0.5 * multiplier * prestigeMnožitelj);
+                    ukupnoEnergije += Math.floor(detalji.baza * ulog * 0.5 * multiplier * prestigeMnožitelj * winStreakMultiplier);
                 } else if (targetSymbol === 'gem' || isAllWilds) {
-                    ukupnoDijamanata += Math.max(1, Math.floor((isAllWilds ? 5 : detalji.baza) * (ulog * 0.1) * multiplier * prestigeMnožitelj));
+                    ukupnoDijamanata += Math.max(1, Math.floor((isAllWilds ? 5 : detalji.baza) * (ulog * 0.1) * multiplier * jackpotBonus * prestigeMnožitelj * winStreakMultiplier));
                 } else {
-                    const kolicina = Math.floor(detalji.baza * ulog * multiplier * (1 + (razine.pojacalo || 0) * 0.1) * prestigeMnožitelj);
+                    const kolicina = Math.floor(detalji.baza * ulog * multiplier * jackpotBonus * (1 + (razine.pojacalo || 0) * 0.1) * prestigeMnožitelj * winStreakMultiplier);
                     if (targetSymbol === 'gold') ukupnoZlato += kolicina;
                     else resursiDobitak[detalji.tip] += kolicina;
                 }
@@ -553,15 +595,28 @@ export default function App() {
             setDobitnaPolja(jedinstvenaPolja);
             animirajDobitak(jedinstvenaPolja);
             
+            const noviWinStreak = winStreak + 1;
+            setWinStreak(noviWinStreak);
+            if (noviWinStreak >= 3) azurirajMisiju('streak');
+            
             setDobitakNaCekanju({
                 zlato: ukupnoZlato, dijamanti: ukupnoDijamanata, energija: ukupnoEnergije,
                 stitovi: ukupnoStitova, drvo: resursiDobitak.drvo, kamen: resursiDobitak.kamen,
                 zeljezo: resursiDobitak.zeljezo, linije: linijaDobitnih
             });
 
-            setPoruka('DOBITAK! PREUZMI ILI DUPLAJ!');
+            if (jackpotLinija) {
+                prikaziUdarac('rgba(255, 215, 0, 0.5)');
+                trziEkran();
+                setPoruka(`🎰 JACKPOT! 5 U NIZU! 2× BONUS${winStreak > 0 ? ` + ${Math.round((winStreakMultiplier - 1) * 100)}% NIZ` : ''}! PREUZMI ILI DUPLAJ!`);
+            } else if (noviWinStreak >= 3) {
+                setPoruka(`🔥 NIZ x${noviWinStreak}! +${Math.round((winStreakMultiplier - 1) * 100)}% BONUS! PREUZMI ILI DUPLAJ!`);
+            } else {
+                setPoruka('DOBITAK! PREUZMI ILI DUPLAJ!');
+            }
 
         } else if (brojLubanja >= 3) {
+            setWinStreak(0);
             trziEkran(); 
             let novaPoruka = "";
             let noviStitovi = stitovi;
@@ -593,6 +648,7 @@ export default function App() {
             setDobitnaPolja(skullP);
             animirajDobitak(skullP);
         } else {
+            setWinStreak(0);
             setPoruka('NEMA DOBITKA. POKUŠAJ PONOVO.');
         }
     } finally { 
@@ -644,6 +700,8 @@ export default function App() {
     setResursi({ drvo: 0, kamen: 0, zeljezo: 0 });
     setZlato(50);
     setEnergija(10);
+    setWinStreak(0);
+    setLuckySpinCounter(LUCKY_SPIN_INTERVAL);
     provjeriDostignuca(undefined, undefined, undefined, noviPrestige);
     setPoruka(`PRESTIGE USPJEŠAN! NOVI MNOŽITELJ x${1 + (noviPrestige * 0.5)}`);
   };
@@ -841,14 +899,38 @@ export default function App() {
                  </View>
               ) : (
                  <View style={{width: '100%'}}>
+                    {/* Lucky Spin Meter */}
+                    <View style={styles.luckySpinRow}>
+                       <View style={styles.luckySpinMeter}>
+                          <View style={[styles.luckySpinFill, { width: `${((LUCKY_SPIN_INTERVAL - luckySpinCounter) / LUCKY_SPIN_INTERVAL) * 100}%` }]} />
+                       </View>
+                       <Text style={[styles.luckySpinTxt, luckySpinCounter === 1 && {color: BOJE.energija}]}>
+                          {luckySpinCounter === 1 ? '🍀 LUCKY!' : `🍀 ${luckySpinCounter}`}
+                       </Text>
+                    </View>
+
+                    {/* Win Streak & Turbo row */}
+                    <View style={styles.streakTurboRow}>
+                       {winStreak >= 2 && (
+                          <View style={styles.streakBadge}>
+                             <Text style={styles.streakTxt}>🔥 NIZ x{winStreak} (+{Math.round(Math.min(winStreak, MAX_WIN_STREAK) * STREAK_BONUS_PER_WIN * 100)}%)</Text>
+                          </View>
+                       )}
+                       <TouchableOpacity activeOpacity={0.7} onPress={() => setTurboRezim(t => !t)} style={[styles.turboBtn, turboRezim && styles.turboBtnActive]}>
+                          <Zap size={14} color={turboRezim ? '#000' : BOJE.textMuted} fill={turboRezim ? '#000' : 'transparent'} />
+                          <Text style={[styles.turboTxt, turboRezim && {color: '#000'}]}>TURBO</Text>
+                       </TouchableOpacity>
+                    </View>
+
                     <View style={styles.betContainer}>
                        {[1, 10, 20, 50].map(op => (
                            <TouchableOpacity activeOpacity={0.7} key={op} onPress={() => setUlog(op)} style={[styles.betBtn, ulog === op && styles.betBtnActive]}><Text style={[styles.betBtnText, ulog === op && styles.betBtnTextActive]}>x{op}</Text></TouchableOpacity>
                        ))}
                     </View>
-                    <TouchableOpacity activeOpacity={0.8} style={[styles.spinBtn, (vrti || energija < ulog) && styles.spinBtnDisabled]} onPress={zavrtiMasinu} disabled={vrti}>
-                        <Zap size={24} color="#000" fill="#000" style={{position: 'absolute', left: 24}} /><Text style={styles.spinBtnText}>{vrti ? 'VRTIM...' : 'SPIN'}</Text>
-                        <View style={styles.spinCostBadge}><Text style={styles.spinCostTxt}>-{ulog}</Text><Zap size={10} color="#000" fill="#000" /></View>
+                    <TouchableOpacity activeOpacity={0.8} style={[styles.spinBtn, luckySpinCounter === 1 && styles.spinBtnLucky, (vrti || (luckySpinCounter !== 1 && energija < ulog)) && styles.spinBtnDisabled]} onPress={zavrtiMasinu} disabled={vrti}>
+                        <Zap size={24} color="#000" fill="#000" style={{position: 'absolute', left: 24}} />
+                        <Text style={styles.spinBtnText}>{vrti ? 'VRTIM...' : (luckySpinCounter === 1 ? '🍀 FREE SPIN' : 'SPIN')}</Text>
+                        {luckySpinCounter !== 1 && <View style={styles.spinCostBadge}><Text style={styles.spinCostTxt}>-{ulog}</Text><Zap size={10} color="#000" fill="#000" /></View>}
                     </TouchableOpacity>
                  </View>
               )}
@@ -1078,7 +1160,8 @@ export default function App() {
                {id:'sreca', n:'Djetelina', d: 'Povećava šansu za dobitne linije i Wild simbole.', ikona: Clover, cZlato: 500, cKamen: 0, cZeljezo: 50},
                {id:'pojacalo', n:'Množitelj', d: 'Daje bonus resurse ovisno o ulogu.', ikona: Zap, cZlato: 800, cKamen: 100, cZeljezo: 100},
                {id:'baterija', n:'Baterija', d: '+50 Max Energije.', ikona: Zap, cZlato: 1000, cKamen: 200, cZeljezo: 0},
-               {id:'oklop', n:'Čelični Štit', d: '+1 Dodatni slot za obranu baze.', ikona: Shield, cZlato: 1200, cKamen: 50, cZeljezo: 200}
+               {id:'oklop', n:'Čelični Štit', d: '+1 Dodatni slot za obranu baze.', ikona: Shield, cZlato: 1200, cKamen: 50, cZeljezo: 200},
+               {id:'wildBoost', n:'Wild Magnet', d: `+${Math.round(WILD_BOOST_CHANCE_PER_LEVEL * 100)}% šansa za Wild simbol po razini.`, ikona: Star, cZlato: 1500, cKamen: 300, cZeljezo: 150},
              ].map(p => {
                  const mult = Math.pow(1.6, razine[p.id] || 0); 
                  const zl = Math.floor(p.cZlato * mult);
@@ -1284,4 +1367,21 @@ const styles = StyleSheet.create({
   statsSummaryChip: { flex: 1, backgroundColor: BOJE.bgCard, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: BOJE.border, alignItems: 'center' },
   statsSummaryLabel: { fontSize: 10, fontWeight: '700', color: BOJE.textMuted, marginBottom: 4, textAlign: 'center' },
   statsSummaryValue: { fontSize: 16, fontWeight: '900', color: BOJE.textMain },
+
+  // Lucky Spin meter
+  luckySpinRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 10 },
+  luckySpinMeter: { flex: 1, height: 8, backgroundColor: 'rgba(0,255,170,0.1)', borderRadius: 4, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(0,255,170,0.2)' },
+  luckySpinFill: { height: '100%', backgroundColor: BOJE.xp, borderRadius: 4 },
+  luckySpinTxt: { fontSize: 12, fontWeight: '900', color: BOJE.textMuted, minWidth: 64, textAlign: 'right' },
+
+  // Win streak & turbo row
+  streakTurboRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 12, gap: 8 },
+  streakBadge: { flex: 1, backgroundColor: 'rgba(255, 100, 0, 0.15)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255, 100, 0, 0.4)' },
+  streakTxt: { color: '#FF8C00', fontSize: 12, fontWeight: '900', letterSpacing: 0.5 },
+  turboBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: BOJE.bgCard, borderWidth: 1, borderColor: BOJE.border },
+  turboBtnActive: { backgroundColor: BOJE.energija, borderColor: BOJE.energija },
+  turboTxt: { fontSize: 11, fontWeight: '900', color: BOJE.textMuted, letterSpacing: 0.5 },
+
+  // Lucky spin variant of spin button
+  spinBtnLucky: { backgroundColor: BOJE.xp, shadowColor: BOJE.xp },
 });
