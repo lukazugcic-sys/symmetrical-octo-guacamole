@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initDB, dbGet, dbSet } from '../db/database';
 import {
-  BAZA_TECAJ, ZGRADE, LUCKY_SPIN_INTERVAL, MS_PER_DAY, DNEVNE_NAGRADE,
+  BAZA_TECAJ, ZGRADE, LUCKY_SPIN_INTERVAL, DNEVNE_NAGRADE,
   generirajMisiju, DOSTIGNUCA, generirajKlanZadatke,
 } from '../config/constants';
 import {
@@ -21,12 +21,6 @@ const zakaziCloudSpremanje = (uid, payload) => {
   cloudSaveTimeout = setTimeout(() => {
     spremiCloud(uid, payload);
   }, 3000);
-};
-
-const toDateOnly = (datum) => {
-  const d = new Date(datum);
-  d.setHours(0, 0, 0, 0);
-  return d;
 };
 
 const PRAZNI_KLAN = {
