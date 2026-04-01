@@ -13,7 +13,7 @@ import {
 import {
   izracunajMaxStitova, izracunajPrestigeMnozitelj, izracunajSansuZaDobitak,
 } from '../utils/economy';
-import { delay } from '../utils/helpers';
+import { delay, randomChance, randomFloat, randomInt } from '../utils/helpers';
 
 // Izgradi težinski pool simbola na osnovu sezonalnog modificatora
 const izgradiPool = (dogadaj) => {
@@ -48,6 +48,7 @@ export const useSlotMachine = () => {
   const stupciAnims    = useRef([...Array(5)].map(() => new Animated.Value(0))).current;
   const stupciBlurs    = useRef([...Array(5)].map(() => new Animated.Value(1))).current;
   const winScaleAnims  = useRef([...Array(15)].map(() => new Animated.Value(1))).current;
+  const spinLoopsRef   = useRef([]);
 
   // ─── Animiraj pobjednička polja ─────────────────────────────────────────────
   const animirajDobitak = (polja) => {
@@ -71,25 +72,25 @@ export const useSlotMachine = () => {
     const gs = useGameStore.getState();
     const maxStitova = izracunajMaxStitova(gs.razine.oklop || 0);
 
-    if (d.zlato    > 0) { useGameStore.setState((s) => ({ zlato:    s.zlato    + d.zlato    })); gs.azurirajMisiju('zlato', d.zlato); gs.azurirajKlanZadatak('zlato', d.zlato); }
-    if (d.dijamanti > 0) { useGameStore.setState((s) => ({ dijamanti: s.dijamanti + d.dijamanti })); }
-    if (d.energija > 0) { useGameStore.setState((s) => ({ energija:  s.energija  + d.energija  })); }
-    if (d.stitovi  > 0) { useGameStore.setState((s) => ({ stitovi: Math.min(maxStitova, s.stitovi + d.stitovi) })); }
-    if (d.linije   > 0) { gs.azurirajMisiju('dobitak', d.linije); gs.azurirajKlanZadatak('dobitak', d.linije); }
-
     useGameStore.setState((s) => ({
+      zlato: s.zlato + (d.zlato || 0),
+      dijamanti: s.dijamanti + (d.dijamanti || 0),
+      energija: s.energija + (d.energija || 0),
+      stitovi: Math.min(maxStitova, s.stitovi + (d.stitovi || 0)),
       resursi: {
-        drvo:    s.resursi.drvo    + d.drvo,
-        kamen:   s.resursi.kamen   + d.kamen,
-        zeljezo: s.resursi.zeljezo + d.zeljezo,
+        drvo: s.resursi.drvo + (d.drvo || 0),
+        kamen: s.resursi.kamen + (d.kamen || 0),
+        zeljezo: s.resursi.zeljezo + (d.zeljezo || 0),
       },
+      ...(d.zlato > 0 ? { ukupnoZlata: s.ukupnoZlata + d.zlato } : {}),
     }));
+
+    if (d.zlato > 0) { gs.azurirajMisiju('zlato', d.zlato); gs.azurirajKlanZadatak('zlato', d.zlato); }
+    if (d.linije   > 0) { gs.azurirajMisiju('dobitak', d.linije); gs.azurirajKlanZadatak('dobitak', d.linije); }
 
     if (d.zlato > 0) {
       const gs2 = useGameStore.getState();
-      const novoUkupnoZlato = gs2.ukupnoZlata + d.zlato;
-      useGameStore.setState({ ukupnoZlata: novoUkupnoZlato });
-      gs2.provjeriDostignuca(undefined, novoUkupnoZlato, undefined, undefined);
+      gs2.provjeriDostignuca(undefined, gs2.ukupnoZlata, undefined, undefined);
     }
 
     useGameStore.setState({ poruka: 'DOBITAK PREUZET!' });
@@ -99,7 +100,9 @@ export const useSlotMachine = () => {
 
   // ─── Gamble (duplanje) ──────────────────────────────────────────────────────
   const igrajGamble = (odabranaBoja) => {
-    const izvucenaKarta = Math.random() < 0.5 ? 'red' : 'black';
+    const trenutniDobitak = useSlotStore.getState().dobitakNaCekanju;
+    if (!trenutniDobitak) return;
+    const izvucenaKarta = randomChance(0.5) ? 'red' : 'black';
     const flashBoja = izvucenaKarta === 'red'
       ? 'rgba(255, 42, 85, 0.5)'
       : 'rgba(100, 100, 100, 0.7)';
@@ -108,14 +111,14 @@ export const useSlotMachine = () => {
     if (izvucenaKarta === odabranaBoja) {
       useSlotStore.setState((state) => ({
         dobitakNaCekanju: {
-          zlato:     state.dobitakNaCekanju.zlato     * 2,
-          dijamanti: state.dobitakNaCekanju.dijamanti * 2,
-          energija:  state.dobitakNaCekanju.energija  * 2,
-          stitovi:   state.dobitakNaCekanju.stitovi   * 2,
-          drvo:      state.dobitakNaCekanju.drvo      * 2,
-          kamen:     state.dobitakNaCekanju.kamen     * 2,
-          zeljezo:   state.dobitakNaCekanju.zeljezo   * 2,
-          linije:    state.dobitakNaCekanju.linije,
+          zlato:     (state.dobitakNaCekanju?.zlato ?? 0)     * 2,
+          dijamanti: (state.dobitakNaCekanju?.dijamanti ?? 0) * 2,
+          energija:  (state.dobitakNaCekanju?.energija ?? 0)  * 2,
+          stitovi:   (state.dobitakNaCekanju?.stitovi ?? 0)   * 2,
+          drvo:      (state.dobitakNaCekanju?.drvo ?? 0)      * 2,
+          kamen:     (state.dobitakNaCekanju?.kamen ?? 0)     * 2,
+          zeljezo:   (state.dobitakNaCekanju?.zeljezo ?? 0)   * 2,
+          linije:    state.dobitakNaCekanju?.linije ?? 0,
         },
       }));
       useGameStore.setState({
@@ -179,10 +182,14 @@ export const useSlotMachine = () => {
     const stopDelay    = turboRezim ? 100 : 250;
     const finalDelay   = turboRezim ? 150 : 300;
 
+    // Zaustavi eventualne prethodno pokrenute petlje prije nove vrtnje.
+    spinLoopsRef.current.forEach((a) => a?.stop?.());
+    spinLoopsRef.current = stupciAnims.map((anim) =>
+      Animated.loop(Animated.timing(anim, { toValue: 300, duration: spinDuration, easing: Easing.linear, useNativeDriver: true }))
+    );
+
     Animated.parallel(
-      stupciAnims.map((anim) =>
-        Animated.loop(Animated.timing(anim, { toValue: 300, duration: spinDuration, easing: Easing.linear, useNativeDriver: true }))
-      ).concat(
+      spinLoopsRef.current.concat(
         stupciBlurs.map((anim) => Animated.timing(anim, { toValue: 0.3, duration: 200, useNativeDriver: true }))
       )
     ).start();
@@ -204,8 +211,8 @@ export const useSlotMachine = () => {
       const simbolPool = izgradiPool(aktivniDogadaj);
 
       let noviSimboli = Array(15).fill(null).map(() => {
-        if (Math.random() < wildBoostChance) return 'wild';
-        return simbolPool[Math.floor(Math.random() * simbolPool.length)];
+        if (randomChance(wildBoostChance)) return 'wild';
+        return simbolPool[randomInt(simbolPool.length)];
       });
 
       const linije = [
@@ -213,11 +220,11 @@ export const useSlotMachine = () => {
         [0, 6, 12, 8, 4], [10, 6, 2, 8, 14],
       ];
 
-      if (Math.random() < sansaZaDobitak) {
+      if (randomChance(sansaZaDobitak)) {
         const ponudjenoBlago = SVO_BLAGO.filter((s) => s !== 'skull');
-        const dob    = ponudjenoBlago[Math.floor(Math.random() * ponudjenoBlago.length)];
-        const rLinija = linije[Math.floor(Math.random() * linije.length)];
-        const rand   = Math.random();
+        const dob    = ponudjenoBlago[randomInt(ponudjenoBlago.length)];
+        const rLinija = linije[randomInt(linije.length)];
+        const rand   = randomFloat();
         const raspon = rand > 0.95 ? [0, 1, 2, 3, 4] : (rand > 0.7 ? [0, 1, 2, 3] : [0, 1, 2]);
         raspon.forEach((i) => { noviSimboli[rLinija[i]] = dob; });
       }
@@ -350,7 +357,7 @@ export const useSlotMachine = () => {
             (zg) => gs3.gradevine[zg.id] > 0 && !gs3.ostecenja[zg.id]
           );
           if (izgradeneINeostecene.length > 0) {
-            const meta = izgradeneINeostecene[Math.floor(Math.random() * izgradeneINeostecene.length)];
+            const meta = izgradeneINeostecene[randomInt(izgradeneINeostecene.length)];
             useGameStore.setState((s) => ({ ostecenja: { ...s.ostecenja, [meta.id]: true } }));
             novaPoruka = `KATASTROFA! -${gubitakZlata} 🪙 I OŠTEĆEN(A) ${meta.naziv.toUpperCase()}!`;
           } else {
@@ -376,6 +383,8 @@ export const useSlotMachine = () => {
         useGameStore.setState({ winStreak: 0, poruka: 'NEMA DOBITKA. POKUŠAJ PONOVO.' });
       }
     } finally {
+      spinLoopsRef.current.forEach((a) => a?.stop?.());
+      spinLoopsRef.current = [];
       useSlotStore.getState().setVrti(false);
     }
   };

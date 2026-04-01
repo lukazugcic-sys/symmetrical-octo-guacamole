@@ -30,6 +30,15 @@ import { db } from './config';
 
 const KOLEKCIJA = 'players';
 
+const validanCloudPayload = (data) =>
+  !!data
+  && typeof data === 'object'
+  && !Array.isArray(data)
+  && (!data.resursi || typeof data.resursi === 'object')
+  && (!data.gradevine || typeof data.gradevine === 'object')
+  && (!data.ostecenja || typeof data.ostecenja === 'object')
+  && (!data.razine || typeof data.razine === 'object');
+
 /**
  * Spremi stanje igrača u Firestore.
  * @param {string} uid
@@ -58,7 +67,14 @@ export const ucitajCloud = async (uid) => {
   if (!uid) return null;
   try {
     const snap = await getDoc(doc(db, KOLEKCIJA, uid));
-    if (snap.exists()) return snap.data();
+    if (snap.exists()) {
+      const data = snap.data();
+      if (!validanCloudPayload(data)) {
+        console.warn('[CloudSave] ucitajCloud neispravan payload.');
+        return null;
+      }
+      return data;
+    }
     return null;
   } catch (err) {
     console.warn('[CloudSave] ucitajCloud greška:', err.message);

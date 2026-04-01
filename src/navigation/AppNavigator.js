@@ -1,7 +1,7 @@
 import React, { useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, PanResponder, StyleSheet, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Zap, Building2, Trophy, ShoppingCart, Sliders, Users } from 'lucide-react-native';
+import { Zap, Building2, Trophy, ShoppingCart, Sliders, Users, Crown } from 'lucide-react-native';
 import SlotScreen        from '../screens/SlotScreen';
 import VillageScreen     from '../screens/VillageScreen';
 import MissionsScreen    from '../screens/MissionsScreen';
@@ -9,23 +9,12 @@ import ShopScreen        from '../screens/ShopScreen';
 import UpgradesScreen    from '../screens/UpgradesScreen';
 import ClanScreen        from '../screens/ClanScreen';
 import LeaderboardScreen from '../screens/LeaderboardScreen';
-import { BOJE, POREDAK_EKRANA, uiScale, FONT_FAMILY } from '../config/constants';
+import { BOJE, uiScale, FONT_FAMILY } from '../config/constants';
 
 const Tab = createBottomTabNavigator();
 
 const SWIPE_MIN_DX    = 15;  // minimalni pomak (px) da se gesta prepozna kao swipe
 const SWIPE_DIR_RATIO = 1.5; // dx mora biti N× veći od dy da se prepozna kao horizontalni swipe
-
-// Mapiranje ID-a ekrana na komponente routea u React Navigationu
-const NAZIV_EKRANA = {
-  automat:     'Igraj',
-  selo:        'Baza',
-  misije:      'Zadaci',
-  trgovina:    'Tržište',
-  nadogradnje: 'Oprema',
-  klan:        'Klan',
-  ljestvica:   'Top',
-};
 
 // Konfiguracija tabova (redoslijed, ikona, boja)
 const TAB_KONFIGURACIJA = [
@@ -35,7 +24,7 @@ const TAB_KONFIGURACIJA = [
   { routeName: 'Tržište', ikona: ShoppingCart, boja: BOJE.zlato       },
   { routeName: 'Oprema',  ikona: Sliders,      boja: BOJE.nadogradnje },
   { routeName: 'Klan',    ikona: Users,        boja: BOJE.klan        },
-  { routeName: 'Top',     ikona: Trophy,       boja: BOJE.ljestvica   },
+  { routeName: 'Top',     ikona: Crown,        boja: BOJE.ljestvica   },
 ];
 
 // ─── Prilagođena navigacijska traka ──────────────────────────────────────────

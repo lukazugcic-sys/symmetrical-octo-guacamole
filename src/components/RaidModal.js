@@ -24,13 +24,13 @@ import { Swords, Shield, X, TreePine, Mountain, Pickaxe } from 'lucide-react-nat
 import { dohvatiMete, izvrsiNapad } from '../firebase/raids';
 import { useGameStore }             from '../store/gameStore';
 import { BOJE, uiScale, FONT_FAMILY } from '../config/constants';
-import { posaljiNotifikaciju }      from '../hooks/useNotifications';
 
 const RaidModal = ({ vidljiv, onZatvori }) => {
   const [mete,      setMete]      = useState([]);
   const [ucitava,   setUcitava]   = useState(false);
   const [napadaUid, setNapadaUid] = useState(null); // uid mete koja se napadá
   const [rezultat,  setRezultat]  = useState(null);  // { drvo, kamen, zeljezo } ili 'blokirano'
+  const [greska,    setGreska]    = useState(null);
 
   const uid      = useGameStore((s) => s.uid);
   const primiResurse = useGameStore((s) => s.primiResurse);
@@ -40,8 +40,14 @@ const RaidModal = ({ vidljiv, onZatvori }) => {
     setUcitava(true);
     setMete([]);
     setRezultat(null);
-    const lista = await dohvatiMete(uid, 5);
-    setMete(lista);
+    setGreska(null);
+    try {
+      const lista = await dohvatiMete(uid, 5);
+      setMete(lista);
+      if (!lista.length) setGreska('Nema dostupnih meta trenutno.');
+    } catch (_) {
+      setGreska('Greška pri učitavanju meta. Pokušaj ponovno.');
+    }
     setUcitava(false);
   }, [uid]);
 
@@ -51,6 +57,7 @@ const RaidModal = ({ vidljiv, onZatvori }) => {
       setMete([]);
       setRezultat(null);
       setNapadaUid(null);
+      setGreska(null);
     }
   }, [vidljiv, ucitajMete]);
 
@@ -158,8 +165,10 @@ const RaidModal = ({ vidljiv, onZatvori }) => {
           ) : mete.length === 0 ? (
             <View style={styles.loadingBox}>
               <Shield size={36} color={BOJE.textMuted} strokeWidth={1.5} />
-              <Text style={styles.ucitavaTxt}>Nema dostupnih meta trenutno.</Text>
-              <Text style={styles.hintTxt}>Svi igrači su zaštićeni ili nema resursa.</Text>
+              <Text style={styles.ucitavaTxt}>{greska || 'Nema dostupnih meta trenutno.'}</Text>
+              <Text style={styles.hintTxt}>
+                {greska ? 'Provjeri vezu i pokušaj ponovno.' : 'Svi igrači su zaštićeni ili nema resursa.'}
+              </Text>
             </View>
           ) : (
             <FlatList

@@ -24,6 +24,7 @@ import {
   getDocs, doc, runTransaction, addDoc, serverTimestamp,
 } from 'firebase/firestore';
 import { db } from './config';
+import { shuffle } from '../utils/helpers';
 
 const KOLEKCIJA_PLAYERS = 'players';
 const KOLEKCIJA_RAIDS   = 'raids';
@@ -65,7 +66,7 @@ export const dohvatiMete = async (napadacUid, n = 5) => {
       }
     });
     // Nasumično promiješaj i vrati n meta
-    return meta.sort(() => Math.random() - 0.5).slice(0, n);
+    return shuffle(meta).slice(0, n);
   } catch (err) {
     console.warn('[Raids] dohvatiMete greška:', err.message);
     return [];

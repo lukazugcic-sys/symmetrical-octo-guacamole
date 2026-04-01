@@ -14,7 +14,7 @@
 
 import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
-import { Platform }       from 'react-native';
+import { Platform, Alert }       from 'react-native';
 import { useGameStore }   from '../store/gameStore';
 import { izracunajMaxEnergiju } from '../utils/economy';
 import { SEZONALNI_DOGADAJI }   from '../config/sezonalniDogadaji';
@@ -52,7 +52,9 @@ export const posaljiNotifikaciju = async (naslov, tijelo, podaci = {}) => {
       content: { title: naslov, body: tijelo, data: podaci },
       trigger:  null, // odmah
     });
-  } catch (_) {}
+  } catch (e) {
+    console.warn('[Notifications] posaljiNotifikaciju greška:', e?.message || e);
+  }
 };
 
 /**
@@ -69,7 +71,8 @@ export const zakaziNotifikaciju = async (naslov, tijelo, datum) => {
       content: { title: naslov, body: tijelo },
       trigger:  { date: datum },
     });
-  } catch (_) {
+  } catch (e) {
+    console.warn('[Notifications] zakaziNotifikaciju greška:', e?.message || e);
     return null;
   }
 };
@@ -82,7 +85,9 @@ export const otkaziNotifikaciju = async (identifier) => {
   if (!identifier) return;
   try {
     await Notifications.cancelScheduledNotificationAsync(identifier);
-  } catch (_) {}
+  } catch (e) {
+    console.warn('[Notifications] otkaziNotifikaciju greška:', e?.message || e);
+  }
 };
 
 // ─── React hook ──────────────────────────────────────────────────────────────
@@ -95,7 +100,13 @@ const useNotifications = () => {
   // Inicijalno — zatraži dopuštenje i zakaži sezonalne evente
   useEffect(() => {
     zatraziDopustenje().then((dopusteno) => {
-      if (!dopusteno) return;
+      if (!dopusteno) {
+        Alert.alert(
+          'Notifikacije isključene',
+          'Uključi notifikacije u postavkama uređaja za podsjetnike o energiji i događajima.'
+        );
+        return;
+      }
       _zakaziSezonalneEvente();
     });
   }, []);
