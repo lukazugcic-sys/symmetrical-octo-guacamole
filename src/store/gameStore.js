@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { initDB, dbGet, dbSet } from '../db/database';
 import {
   BAZA_TECAJ, ZGRADE, LUCKY_SPIN_INTERVAL, MS_PER_DAY, DNEVNE_NAGRADE,
   generirajMisiju, DOSTIGNUCA,
@@ -47,9 +48,37 @@ export const useGameStore = create((set, get) => ({
   clearLevelUp: () => set({ levelUpData: null }),
 
   // ─── Perzistencija ─────────────────────────────────────────────────────────
+
+  /**
+   * Pomoćna funkcija: ako SQLite nema zapis za 'key', pokušaj prenijeti podatak
+   * iz AsyncStorage-a i odmah ga upiši u SQLite (jednokratna migracija).
+   * Nakon prijenosa, AsyncStorage ključ se briše.
+   * @returns {Promise<string|null>} JSON string ili null
+   */
+  _migriraiAkoTreba: async (key) => {
+    const inDb = await dbGet(key);
+    if (inDb !== null) return inDb;
+
+    try {
+      const legacy = await AsyncStorage.getItem(key);
+      if (legacy) {
+        await dbSet(key, legacy);
+        await AsyncStorage.removeItem(key);
+        return legacy;
+      }
+    } catch (_) {}
+    return null;
+  },
+
   ucitaj: async () => {
     try {
-      const p = await AsyncStorage.getItem('@save_game_eco_v30');
+      // Inicijaliziraj SQLite bazu i shemu
+      await initDB();
+
+      const migriraiAkoTreba = get()._migriraiAkoTreba;
+
+      // ─── Glavno stanje igre ───────────────────────────────────────────────
+      const p = await migriraiAkoTreba('@save_game_eco_v30');
       if (p) {
         const d = JSON.parse(p);
         set({
@@ -72,7 +101,8 @@ export const useGameStore = create((set, get) => ({
         });
       }
 
-      const pa = await AsyncStorage.getItem('@save_dostignuca_v1');
+      // ─── Dostignuća ───────────────────────────────────────────────────────
+      const pa = await migriraiAkoTreba('@save_dostignuca_v1');
       if (pa) {
         const da = JSON.parse(pa);
         set({
@@ -82,7 +112,8 @@ export const useGameStore = create((set, get) => ({
         });
       }
 
-      const pd = await AsyncStorage.getItem('@save_dnevna_v1');
+      // ─── Dnevna nagrada ───────────────────────────────────────────────────
+      const pd = await migriraiAkoTreba('@save_dnevna_v1');
       const danas = new Date().toDateString();
       if (pd) {
         const dd = JSON.parse(pd);
@@ -118,7 +149,7 @@ export const useGameStore = create((set, get) => ({
   spremi: async () => {
     const s = get();
     try {
-      await AsyncStorage.setItem('@save_game_eco_v30', JSON.stringify({
+      await dbSet('@save_game_eco_v30', JSON.stringify({
         igracRazina: s.igracRazina, prestigeRazina: s.prestigeRazina, xp: s.xp,
         energija: s.energija, zlato: s.zlato, dijamanti: s.dijamanti,
         resursi: s.resursi, gradevine: s.gradevine, ostecenja: s.ostecenja,
@@ -132,7 +163,7 @@ export const useGameStore = create((set, get) => ({
   spremiDostignuca: async () => {
     const s = get();
     try {
-      await AsyncStorage.setItem('@save_dostignuca_v1', JSON.stringify({
+      await dbSet('@save_dostignuca_v1', JSON.stringify({
         dostignucaDone: s.dostignucaDone,
         ukupnoVrtnji:   s.ukupnoVrtnji,
         ukupnoZlata:    s.ukupnoZlata,
@@ -246,7 +277,7 @@ export const useGameStore = create((set, get) => ({
     get().primiNagradu(s.dnevnaNagrada.nagrada);
     const danas = new Date().toDateString();
     try {
-      await AsyncStorage.setItem('@save_dnevna_v1', JSON.stringify({ streak: s.dnevniStreak, zadnjaDnevna: danas }));
+      await dbSet('@save_dnevna_v1', JSON.stringify({ streak: s.dnevniStreak, zadnjaDnevna: danas }));
     } catch (e) {}
     set({ prikazDnevneNagrade: false, poruka: `DNEVNA NAGRADA DAN ${s.dnevniStreak} PREUZETA!` });
   },
