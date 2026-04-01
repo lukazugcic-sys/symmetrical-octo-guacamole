@@ -13,6 +13,8 @@ import Header           from './src/components/Header';
 import WinCelebration   from './src/components/WinCelebration';
 import LevelUpToast     from './src/components/LevelUpToast';
 import AppNavigator     from './src/navigation/AppNavigator';
+import useAuth          from './src/hooks/useAuth';
+import useNotifications from './src/hooks/useNotifications';
 import { BOJE, DNEVNE_NAGRADE, uiScale, FONT_FAMILY } from './src/config/constants';
 
 // Aktiviraj native screen optimizacije (react-native-screens)
@@ -90,6 +92,12 @@ export default function App() {
   // ─── Tajmeri (pasivna produkcija + tržište) ───────────────────────────────
   useVillage();
   useMarket();
+
+  // ─── Autentifikacija (Firebase anonymous sign-in) ─────────────────────────
+  useAuth();
+
+  // ─── Push notifikacije ────────────────────────────────────────────────────
+  useNotifications();
 
   // ─── Loading ekran ────────────────────────────────────────────────────────
   if (ucitavam) {

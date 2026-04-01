@@ -41,6 +41,7 @@ export const BOJE = {
   misije:          '#FB923C',
   prestige:        '#FCD34D',
   klan:            '#38BDF8',
+  ljestvica:       '#FBBF24',
 };
 
 // ─── Tečaj tržnice ────────────────────────────────────────────────────────────
@@ -144,7 +145,7 @@ export const STREAK_BONUS_PER_WIN        = 0.15;
 export const WILD_BOOST_CHANCE_PER_LEVEL = 0.04;
 
 // ─── Redoslijed ekrana (za navigaciju swipeom) ────────────────────────────────
-export const POREDAK_EKRANA = ['automat', 'selo', 'misije', 'trgovina', 'nadogradnje', 'klan'];
+export const POREDAK_EKRANA = ['automat', 'selo', 'misije', 'trgovina', 'nadogradnje', 'klan', 'ljestvica'];
 
 // ─── Kozmetika — skinovi zgrada ───────────────────────────────────────────────
 export const ZGRADE_SKINOVI = [

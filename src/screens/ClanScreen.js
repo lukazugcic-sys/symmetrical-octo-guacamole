@@ -1,29 +1,69 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Users, Swords, CheckCircle2, Circle, Gift } from 'lucide-react-native';
-import { useGameStore } from '../store/gameStore';
+import { useGameStore }     from '../store/gameStore';
 import { BOJE, uiScale, FONT_FAMILY } from '../config/constants';
+import {
+  kreirajKlan, slušajKlan, doniraiXpKlanu,
+  preuzmiNagradu as preuzmiNagraduCloud,
+  osvjeziZadatkeAkoTreba, slugKlana,
+} from '../firebase/clanMultiplayer';
+import { posaljiNotifikaciju } from '../hooks/useNotifications';
 
 const DONACIJA_IZNOS = 200; // zlato po jednom kliku donacije
 
 /**
  * Ekran Klana (Ceha) — osnivanje, pregled zadataka, donacija i nagrade.
- * Klan je lokalna simulacija bez backenda; multiplayer se dodaje u fazi 5 (server).
+ * Multiplayer: real-time Firestore listener (Faza 5) s lokalnim fallbackom.
  */
 const ClanScreen = () => {
   const zlato              = useGameStore((s) => s.zlato);
   const klan               = useGameStore((s) => s.klan);
+  const uid                = useGameStore((s) => s.uid);
   const osnujiKlan         = useGameStore((s) => s.osnujiKlan);
   const doniraiUKlan       = useGameStore((s) => s.doniraiUKlan);
   const preuzmiKlanNagradu = useGameStore((s) => s.preuzmiKlanNagradu);
   const refreshKlanZadatke = useGameStore((s) => s.refreshKlanZadatke);
+  const primiResurse       = useGameStore((s) => s.primiResurse);
+  const set                = useGameStore.setState;
 
-  const [imeTxt, setImeTxt] = useState('');
+  const [imeTxt,     setImeTxt]     = useState('');
+  const [cloudKlan,  setCloudKlan]  = useState(null); // real-time Firestore podaci
+  const unsubscribeRef = useRef(null);
 
-  // Osvježi tjedne zadatke ako su zastarjeli
-  useEffect(() => { if (klan.naziv) refreshKlanZadatke(); }, [klan.naziv]);
+  // ─── Real-time Firestore listener ────────────────────────────────────────────
+  useEffect(() => {
+    if (!klan.naziv) {
+      if (unsubscribeRef.current) { unsubscribeRef.current(); unsubscribeRef.current = null; }
+      setCloudKlan(null);
+      return;
+    }
+    const clanId = slugKlana(klan.naziv);
+    // Osvježi tjedne zadatke i pretplati se na real-time izmjene
+    osvjeziZadatkeAkoTreba(clanId);
+    unsubscribeRef.current = slušajKlan(clanId, (data) => setCloudKlan(data));
+    return () => {
+      if (unsubscribeRef.current) { unsubscribeRef.current(); unsubscribeRef.current = null; }
+    };
+  }, [klan.naziv]);
+
+  // Sinkroniziraj lokalni refreshKlanZadatke ako nema mreže
+  useEffect(() => { if (klan.naziv && !cloudKlan) refreshKlanZadatke(); }, [klan.naziv]);
+
+  // Koristi cloud podatke ako su dostupni, inače lokalne
+  const aktivniKlan = cloudKlan ?? klan;
 
   // ─── Osnivanje klana ─────────────────────────────────────────────────────────
+
+  const handleOsnuji = async () => {
+    const naziv = imeTxt.trim();
+    if (naziv.length < 2) return;
+    // Lokalno (gameStore)
+    osnujiKlan(naziv);
+    // Cloud (Firestore) — ne blokira
+    if (uid) kreirajKlan(uid, naziv).catch(() => {});
+  };
+
   if (!klan.naziv) {
     return (
       <View style={styles.centeredContainer}>
@@ -41,7 +81,7 @@ const ClanScreen = () => {
         <TouchableOpacity
           activeOpacity={0.8}
           style={[styles.btn, { backgroundColor: imeTxt.trim().length >= 2 ? BOJE.klan : BOJE.border }]}
-          onPress={() => { if (imeTxt.trim().length >= 2) osnujiKlan(imeTxt.trim()); }}
+          onPress={handleOsnuji}
         >
           <Text style={[styles.btnTxt, { color: imeTxt.trim().length >= 2 ? '#000' : BOJE.textMuted }]}>
             OSNUJ KLAN
@@ -52,8 +92,8 @@ const ClanScreen = () => {
   }
 
   // ─── Klan HQ ─────────────────────────────────────────────────────────────────
-  const xpZaRazinu = klan.razina * 1000;
-  const xpPostotak = Math.min(1, klan.xp / xpZaRazinu);
+  const xpZaRazinu = aktivniKlan.razina * 1000;
+  const xpPostotak = Math.min(1, aktivniKlan.xp / xpZaRazinu);
 
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
@@ -63,11 +103,11 @@ const ClanScreen = () => {
         <View style={styles.headerRow}>
           <Swords size={28} color={BOJE.klan} strokeWidth={2} />
           <View style={{ flex: 1, marginLeft: 14 }}>
-            <Text style={styles.klanNaziv}>{klan.naziv}</Text>
-            <Text style={styles.klanRazina}>Razina {klan.razina}</Text>
+            <Text style={styles.klanNaziv}>{aktivniKlan.naziv}</Text>
+            <Text style={styles.klanRazina}>Razina {aktivniKlan.razina}</Text>
           </View>
           <View style={styles.xpBadge}>
-            <Text style={styles.xpBadgeTxt}>{klan.xp} / {xpZaRazinu} XP</Text>
+            <Text style={styles.xpBadgeTxt}>{aktivniKlan.xp} / {xpZaRazinu} XP</Text>
           </View>
         </View>
         {/* XP traka */}
@@ -96,17 +136,46 @@ const ClanScreen = () => {
       {/* Tjedni zadaci */}
       <Text style={styles.sectionTitle}>TJEDNI KLANSKI ZADACI</Text>
 
-      {klan.zadaci.map((z) => {
+      {aktivniKlan.zadaci.map((z) => {
         const postotak = Math.min(1, z.trenutno / z.cilj);
-        const mozePrimiti = z.zavrseno && !z.preuzeto;
+        // Provjeri je li ovaj igrač već preuzeo nagradu (cloud: preuzetoOd array, lokalno: preuzeto bool)
+        const preuzetoOd = Array.isArray(z.preuzetoOd) ? z.preuzetoOd : [];
+        const vecPreuzeto = cloudKlan
+          ? (uid && preuzetoOd.includes(uid))
+          : !!z.preuzeto;
+        const mozePrimiti = z.zavrseno && !vecPreuzeto;
+
+        const handlePreuzmi = async () => {
+          if (cloudKlan && uid) {
+            const clanId = slugKlana(klan.naziv);
+            const nagrada = await preuzmiNagraduCloud(clanId, z.id, uid);
+            if (nagrada) {
+              // Dodaj nagradu lokalno
+              useGameStore.setState((s) => ({
+                dijamanti: s.dijamanti + (nagrada.dijamanti ?? 0),
+                zlato:     s.zlato     + (nagrada.zlato     ?? 0),
+                energija:  s.energija  + (nagrada.energija  ?? 0),
+                resursi: {
+                  drvo:    s.resursi.drvo    + (nagrada.drvo    ?? 0),
+                  kamen:   s.resursi.kamen   + (nagrada.kamen   ?? 0),
+                  zeljezo: s.resursi.zeljezo + (nagrada.zeljezo ?? 0),
+                },
+                poruka: '⚔️ KLANSKI ZADATAK PREUZET!',
+              }));
+              posaljiNotifikaciju('⚔️ Klanski zadatak!', 'Nagrada uspješno preuzeta.');
+            }
+          } else {
+            preuzmiKlanNagradu(z.id);
+          }
+        };
 
         return (
           <View
             key={z.id}
             style={[
               styles.zadatakCard,
-              z.zavrseno && !z.preuzeto && { borderColor: BOJE.klan + '80', shadowColor: BOJE.klan, shadowOpacity: 0.3 },
-              z.preuzeto && { opacity: 0.45 },
+              z.zavrseno && !vecPreuzeto && { borderColor: BOJE.klan + '80', shadowColor: BOJE.klan, shadowOpacity: 0.3 },
+              vecPreuzeto && { opacity: 0.45 },
             ]}
           >
             <View style={styles.zadatakTop}>
@@ -114,7 +183,7 @@ const ClanScreen = () => {
                 ? <CheckCircle2 size={18} color={BOJE.klan} strokeWidth={2.5} />
                 : <Circle       size={18} color={BOJE.textMuted} strokeWidth={2} />
               }
-              <Text style={[styles.zadatakOpis, z.preuzeto && { color: BOJE.textMuted }]} numberOfLines={2}>
+              <Text style={[styles.zadatakOpis, vecPreuzeto && { color: BOJE.textMuted }]} numberOfLines={2}>
                 {z.opis}
               </Text>
             </View>
@@ -139,13 +208,13 @@ const ClanScreen = () => {
                 <TouchableOpacity
                   activeOpacity={0.8}
                   style={[styles.btn, styles.nagrBtn]}
-                  onPress={() => preuzmiKlanNagradu(z.id)}
+                  onPress={handlePreuzmi}
                 >
                   <Gift size={14} color="#000" />
                   <Text style={styles.nagrBtnTxt}>PREUZMI</Text>
                 </TouchableOpacity>
               )}
-              {z.preuzeto && (
+              {vecPreuzeto && (
                 <Text style={styles.preuzetoTxt}>✓ Preuzeto</Text>
               )}
             </View>

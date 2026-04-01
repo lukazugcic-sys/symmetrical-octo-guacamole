@@ -356,6 +356,8 @@ export const useSlotMachine = () => {
           } else {
             novaPoruka = `NAPAD! ODUZETO ${gubitakZlata} 🪙`;
           }
+          // Otvori modal za uzvratni napad na pravog igrača
+          useSlotStore.getState().setRaidAktivan(true);
         } else {
           _onFlash('rgba(0, 212, 255, 0.4)');
           medium();

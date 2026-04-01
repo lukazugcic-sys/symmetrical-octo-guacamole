@@ -2,12 +2,13 @@ import React, { useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, PanResponder, StyleSheet, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Zap, Building2, Trophy, ShoppingCart, Sliders, Users } from 'lucide-react-native';
-import SlotScreen       from '../screens/SlotScreen';
-import VillageScreen    from '../screens/VillageScreen';
-import MissionsScreen   from '../screens/MissionsScreen';
-import ShopScreen       from '../screens/ShopScreen';
-import UpgradesScreen   from '../screens/UpgradesScreen';
-import ClanScreen       from '../screens/ClanScreen';
+import SlotScreen        from '../screens/SlotScreen';
+import VillageScreen     from '../screens/VillageScreen';
+import MissionsScreen    from '../screens/MissionsScreen';
+import ShopScreen        from '../screens/ShopScreen';
+import UpgradesScreen    from '../screens/UpgradesScreen';
+import ClanScreen        from '../screens/ClanScreen';
+import LeaderboardScreen from '../screens/LeaderboardScreen';
 import { BOJE, POREDAK_EKRANA, uiScale, FONT_FAMILY } from '../config/constants';
 
 const Tab = createBottomTabNavigator();
@@ -22,6 +23,8 @@ const NAZIV_EKRANA = {
   misije:      'Zadaci',
   trgovina:    'Tržište',
   nadogradnje: 'Oprema',
+  klan:        'Klan',
+  ljestvica:   'Top',
 };
 
 // Konfiguracija tabova (redoslijed, ikona, boja)
@@ -32,6 +35,7 @@ const TAB_KONFIGURACIJA = [
   { routeName: 'Tržište', ikona: ShoppingCart, boja: BOJE.zlato       },
   { routeName: 'Oprema',  ikona: Sliders,      boja: BOJE.nadogradnje },
   { routeName: 'Klan',    ikona: Users,        boja: BOJE.klan        },
+  { routeName: 'Top',     ikona: Trophy,       boja: BOJE.ljestvica   },
 ];
 
 // ─── Prilagođena navigacijska traka ──────────────────────────────────────────
@@ -43,10 +47,10 @@ const CustomTabBar = ({ state, navigation }) => {
         Math.abs(g.dx) > SWIPE_MIN_DX && Math.abs(g.dx) > Math.abs(g.dy) * SWIPE_DIR_RATIO,
       onPanResponderRelease: (_, g) => {
         const trenutniIndeks = state.index;
-        if (g.dx < -60 && trenutniIndeks < POREDAK_EKRANA.length - 1) {
-          navigation.navigate(Object.values(NAZIV_EKRANA)[trenutniIndeks + 1]);
+        if (g.dx < -60 && trenutniIndeks < TAB_KONFIGURACIJA.length - 1) {
+          navigation.navigate(TAB_KONFIGURACIJA[trenutniIndeks + 1].routeName);
         } else if (g.dx > 60 && trenutniIndeks > 0) {
-          navigation.navigate(Object.values(NAZIV_EKRANA)[trenutniIndeks - 1]);
+          navigation.navigate(TAB_KONFIGURACIJA[trenutniIndeks - 1].routeName);
         }
       },
     })
@@ -108,12 +112,13 @@ const AppNavigator = () => (
     screenOptions={{ headerShown: false }}
     tabBar={(props) => <CustomTabBar {...props} />}
   >
-    <Tab.Screen name="Igraj"   component={SlotScreen}    />
-    <Tab.Screen name="Baza"    component={VillageScreen} />
-    <Tab.Screen name="Zadaci"  component={MissionsScreen}/>
-    <Tab.Screen name="Tržište" component={ShopScreen}    />
-    <Tab.Screen name="Oprema"  component={UpgradesScreen}/>
-    <Tab.Screen name="Klan"    component={ClanScreen}    />
+    <Tab.Screen name="Igraj"   component={SlotScreen}       />
+    <Tab.Screen name="Baza"    component={VillageScreen}    />
+    <Tab.Screen name="Zadaci"  component={MissionsScreen}   />
+    <Tab.Screen name="Tržište" component={ShopScreen}       />
+    <Tab.Screen name="Oprema"  component={UpgradesScreen}   />
+    <Tab.Screen name="Klan"    component={ClanScreen}       />
+    <Tab.Screen name="Top"     component={LeaderboardScreen}/>
   </Tab.Navigator>
 );
 

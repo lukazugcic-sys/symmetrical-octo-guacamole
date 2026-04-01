@@ -9,6 +9,8 @@ import {
   izracunajMaxEnergiju, izracunajMaxStitova, izracunajPasivniMnozitelj,
   izracunajPotrebniXp,
 } from '../utils/economy';
+import { spremiCloud }      from '../firebase/cloudSave';
+import { azurirajLjestvicu } from '../firebase/leaderboard';
 
 const PRAZNI_KLAN = {
   naziv:         null,
@@ -20,6 +22,8 @@ const PRAZNI_KLAN = {
 
 const pocetnoStanje = {
   ucitavam:         true,
+  uid:              null,       // Firebase UID (postavlja useAuth)
+  imeIgraca:        'Igrač',   // prikazno ime za ljestvicu
   igracRazina:      1,
   prestigeRazina:   0,
   xp:               0,
@@ -160,18 +164,31 @@ export const useGameStore = create((set, get) => ({
 
   spremi: async () => {
     const s = get();
+    const payload = {
+      igracRazina: s.igracRazina, prestigeRazina: s.prestigeRazina, xp: s.xp,
+      energija: s.energija, zlato: s.zlato, dijamanti: s.dijamanti,
+      resursi: s.resursi, gradevine: s.gradevine, ostecenja: s.ostecenja,
+      razine: s.razine, stitovi: s.stitovi, misije: s.misije,
+      tecaj: s.tecaj, trend: s.trend,
+      luckySpinCounter: s.luckySpinCounter, winStreak: s.winStreak,
+      aktivniSkin: s.aktivniSkin,
+      klan: s.klan,
+    };
     try {
-      await dbSet('@save_game_eco_v30', JSON.stringify({
-        igracRazina: s.igracRazina, prestigeRazina: s.prestigeRazina, xp: s.xp,
-        energija: s.energija, zlato: s.zlato, dijamanti: s.dijamanti,
-        resursi: s.resursi, gradevine: s.gradevine, ostecenja: s.ostecenja,
-        razine: s.razine, stitovi: s.stitovi, misije: s.misije,
-        tecaj: s.tecaj, trend: s.trend,
-        luckySpinCounter: s.luckySpinCounter, winStreak: s.winStreak,
-        aktivniSkin: s.aktivniSkin,
-        klan: s.klan,
-      }));
+      await dbSet('@save_game_eco_v30', JSON.stringify(payload));
     } catch (e) { console.error('Failed to save game state:', e); }
+    // Sinkroniziraj u Firestore (ne blokira — tiha greška ako nema mreže)
+    if (s.uid) {
+      spremiCloud(s.uid, { ...payload, imeIgraca: s.imeIgraca });
+      azurirajLjestvicu(s.uid, {
+        imeIgraca:      s.imeIgraca,
+        igracRazina:    s.igracRazina,
+        prestigeRazina: s.prestigeRazina,
+        ukupnoZlata:    s.ukupnoZlata,
+        ukupnoVrtnji:   s.ukupnoVrtnji,
+        klan:           s.klan,
+      });
+    }
   },
 
   spremiDostignuca: async () => {
@@ -569,4 +586,25 @@ export const useGameStore = create((set, get) => ({
       },
     }));
   },
+
+  // ─── Backend / Auth ────────────────────────────────────────────────────────
+
+  /** Postavi Firebase UID (poziva se iz useAuth hooka). */
+  postaviUid: (uid) => set({ uid }),
+
+  /** Postavi prikazno ime igrača (za ljestvicu). */
+  postaviIme: (imeIgraca) => set({ imeIgraca }),
+
+  /**
+   * Dodaj resurse ukradene u raidu.
+   * @param {{ drvo?: number, kamen?: number, zeljezo?: number }} ukradeno
+   */
+  primiResurse: (ukradeno) => set((state) => ({
+    resursi: {
+      drvo:    state.resursi.drvo    + (ukradeno.drvo    ?? 0),
+      kamen:   state.resursi.kamen   + (ukradeno.kamen   ?? 0),
+      zeljezo: state.resursi.zeljezo + (ukradeno.zeljezo ?? 0),
+    },
+    poruka: `⚔️ PLJAČKA: +${Math.floor(ukradeno.drvo ?? 0)}🌲 +${Math.floor(ukradeno.kamen ?? 0)}⛰️ +${Math.floor(ukradeno.zeljezo ?? 0)}⛏️`,
+  })),
 }));

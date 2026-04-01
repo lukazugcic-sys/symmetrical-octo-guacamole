@@ -5,8 +5,9 @@ import { useGameStore } from '../store/gameStore';
 import { useSlotStore } from '../store/slotStore';
 import { useSlotMachine } from '../hooks/useSlotMachine';
 import { useSeasonalEvent } from '../hooks/useSeasonalEvent';
-import SlotReel from '../components/SlotReel';
+import SlotReel   from '../components/SlotReel';
 import EventBanner from '../components/EventBanner';
+import RaidModal  from '../components/RaidModal';
 import { BOJE, LUCKY_SPIN_INTERVAL, MAX_WIN_STREAK, STREAK_BONUS_PER_WIN, uiScale, FONT_FAMILY } from '../config/constants';
 
 /**
@@ -24,8 +25,10 @@ const SlotScreen = () => {
   const ulog            = useSlotStore((s) => s.ulog);
   const dobitakNaCekanju = useSlotStore((s) => s.dobitakNaCekanju);
   const turboRezim      = useSlotStore((s) => s.turboRezim);
+  const raidAktivan     = useSlotStore((s) => s.raidAktivan);
   const setUlog         = useSlotStore((s) => s.setUlog);
   const setTurboRezim   = useSlotStore((s) => s.setTurboRezim);
+  const setRaidAktivan  = useSlotStore((s) => s.setRaidAktivan);
 
   const { stupciAnims, stupciBlurs, winScaleAnims, zavrtiMasinu, preuzmiDobitak, igrajGamble } =
     useSlotMachine();
@@ -137,6 +140,10 @@ const SlotScreen = () => {
           </TouchableOpacity>
         </View>
       )}
+      <RaidModal
+        vidljiv={raidAktivan}
+        onZatvori={() => setRaidAktivan(false)}
+      />
     </View>
   );
 };

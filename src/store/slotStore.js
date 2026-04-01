@@ -10,6 +10,7 @@ export const useSlotStore = create((set) => ({
   turboRezim:       false,
   winCelebration:   null,  // null | 'win' | 'jackpot'
   celebrationKey:   0,     // inkrementira se pri svakoj novoj proslavi
+  raidAktivan:      false, // true kad skull linija triggera Raid Modal
 
   setSimboli:          (simboli)          => set({ simboli }),
   setVrti:             (vrti)             => set({ vrti }),
@@ -21,4 +22,5 @@ export const useSlotStore = create((set) => ({
     winCelebration: tip,
     celebrationKey: tip ? s.celebrationKey + 1 : s.celebrationKey,
   })),
+  setRaidAktivan:      (raidAktivan)      => set({ raidAktivan }),
 }));
