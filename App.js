@@ -95,9 +95,31 @@ const generirajMisiju = () => {
     return { id: Date.now() + Math.random(), ...sablon, trenutno: 0, zavrseno: false };
 };
 
+const DOSTIGNUCA = [
+    { id: 'prvaSpin', naziv: 'Početnik', opis: 'Zavrti automat po prvi put', tip: 'spin', cilj: 1, nagrada: { zlato: 100 } },
+    { id: 'spin10', naziv: 'Spinner', opis: 'Zavrti automat 10 puta', tip: 'spin', cilj: 10, nagrada: { dijamanti: 3 } },
+    { id: 'spin100', naziv: 'Veteran', opis: 'Zavrti automat 100 puta', tip: 'spin', cilj: 100, nagrada: { dijamanti: 10, energija: 50 } },
+    { id: 'spin500', naziv: 'Majstor Automata', opis: 'Zavrti automat 500 puta', tip: 'spin', cilj: 500, nagrada: { dijamanti: 30 } },
+    { id: 'zlato5000', naziv: 'Bogataš', opis: 'Prikupi ukupno 5000 zlata iz dobitaka', tip: 'ukupnoZlato', cilj: 5000, nagrada: { energija: 80 } },
+    { id: 'zlato50000', naziv: 'Tajkun', opis: 'Prikupi ukupno 50000 zlata iz dobitaka', tip: 'ukupnoZlato', cilj: 50000, nagrada: { dijamanti: 20 } },
+    { id: 'prestige1', naziv: 'Obnova', opis: 'Izvrši prestige po prvi put', tip: 'prestige', cilj: 1, nagrada: { dijamanti: 25 } },
+    { id: 'gradnja5', naziv: 'Graditelj', opis: 'Nadogradi bilo koju zgradu na razinu 5', tip: 'gradnja', cilj: 5, nagrada: { zlato: 500, kamen: 200 } },
+];
+
+const DNEVNE_NAGRADE = [
+    { dan: 1, nagrada: { zlato: 150 } },
+    { dan: 2, nagrada: { energija: 40 } },
+    { dan: 3, nagrada: { dijamanti: 5 } },
+    { dan: 4, nagrada: { zlato: 300, drvo: 150 } },
+    { dan: 5, nagrada: { zeljezo: 100, kamen: 200 } },
+    { dan: 6, nagrada: { dijamanti: 8, energija: 60 } },
+    { dan: 7, nagrada: { dijamanti: 20, zlato: 1000, energija: 100 } },
+];
+
 const screenWidth = Dimensions.get('window').width;
 const slotSize = (screenWidth - 80) / 5; 
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
 const IconBadge = ({ Ikona, boja, velicina = 24 }) => (
@@ -135,6 +157,14 @@ export default function App() {
   const [ostecenja, setOstecenja] = useState({ pilana: false, kamenolom: false, rudnik: false });
   const [razine, setRazine] = useState({ sreca: 0, pojacalo: 0, baterija: 0, oklop: 0 });
   const [misije, setMisije] = useState([generirajMisiju(), generirajMisiju(), generirajMisiju()]);
+
+  const [ukupnoVrtnji, setUkupnoVrtnji] = useState(0);
+  const [ukupnoZlata, setUkupnoZlata] = useState(0);
+  const [dostignucaDone, setDostignucaDone] = useState({});
+  const [dnevniStreak, setDnevniStreak] = useState(0);
+  const [prikazDnevneNagrade, setPrikazDnevneNagrade] = useState(false);
+  const [dnevnaNagrada, setDnevnaNagrada] = useState(null);
+  const [prikazDostignuca, setPrikazDostignuca] = useState(false);
 
   const [tecaj, setTecaj] = useState(BAZA_TECAJ);
   const [trend, setTrend] = useState({ drvo: 0, kamen: 0, zeljezo: 0, dijamant: 0 });
@@ -183,6 +213,32 @@ export default function App() {
           if(d.tecaj) setTecaj(d.tecaj);
           if(d.trend) setTrend(d.trend);
         }
+        const pa = await AsyncStorage.getItem('@save_dostignuca_v1');
+        if (pa) {
+          const da = JSON.parse(pa);
+          if(da.dostignucaDone) setDostignucaDone(da.dostignucaDone);
+          if(da.ukupnoVrtnji) setUkupnoVrtnji(da.ukupnoVrtnji);
+          if(da.ukupnoZlata) setUkupnoZlata(da.ukupnoZlata);
+        }
+        const pd = await AsyncStorage.getItem('@save_dnevna_v1');
+        const danas = new Date().toDateString();
+        if (pd) {
+          const dd = JSON.parse(pd);
+          const streak = dd.streak || 0;
+          const zadnja = dd.zadnjaDnevna || '';
+          setDnevniStreak(streak);
+          if (zadnja !== danas) {
+            const noviStreak = zadnja === new Date(Date.now() - MS_PER_DAY).toDateString() ? streak + 1 : 1;
+            const danIndex = ((noviStreak - 1) % DNEVNE_NAGRADE.length);
+            setDnevniStreak(noviStreak);
+            setDnevnaNagrada({ ...DNEVNE_NAGRADE[danIndex], streak: noviStreak });
+            setPrikazDnevneNagrade(true);
+          }
+        } else {
+          setDnevniStreak(1);
+          setDnevnaNagrada({ ...DNEVNE_NAGRADE[0], streak: 1 });
+          setPrikazDnevneNagrade(true);
+        }
       } catch (e) { console.error(e); } finally { setUcitavam(false); }
     };
     ucitaj();
@@ -196,6 +252,15 @@ export default function App() {
     };
     spremi();
   }, [igracRazina, prestigeRazina, xp, energija, zlato, dijamanti, resursi, gradevine, ostecenja, razine, stitovi, misije, tecaj, trend, ucitavam]);
+
+  useEffect(() => {
+    if(ucitavam) return;
+    const spremiDostignuca = async () => {
+      try { await AsyncStorage.setItem('@save_dostignuca_v1', JSON.stringify({ dostignucaDone, ukupnoVrtnji, ukupnoZlata })); }
+      catch (e) { }
+    };
+    spremiDostignuca();
+  }, [dostignucaDone, ukupnoVrtnji, ukupnoZlata, ucitavam]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -244,6 +309,46 @@ export default function App() {
   }, [xp, potrebanXp, igracRazina, maxEnergija]);
 
   const dodajXp = (iznos) => setXp(x => x + iznos);
+
+  const primiNagradu = (nagrada) => {
+    if (nagrada.zlato) setZlato(z => z + nagrada.zlato);
+    if (nagrada.dijamanti) setDijamanti(d => d + nagrada.dijamanti);
+    if (nagrada.energija) setEnergija(e => e + nagrada.energija);
+    if (nagrada.drvo) setResursi(r => ({...r, drvo: r.drvo + nagrada.drvo}));
+    if (nagrada.kamen) setResursi(r => ({...r, kamen: r.kamen + nagrada.kamen}));
+    if (nagrada.zeljezo) setResursi(r => ({...r, zeljezo: r.zeljezo + nagrada.zeljezo}));
+  };
+
+  const provjeriDostignuca = (novaVrtnja, novoZlato, novaTipGradnje, noviPrestige) => {
+    setDostignucaDone(prev => {
+      const novo = { ...prev };
+      DOSTIGNUCA.forEach(d => {
+        if (novo[d.id]) return;
+        let ispunjeno = false;
+        if (d.tip === 'spin' && novaVrtnja !== undefined && novaVrtnja >= d.cilj) ispunjeno = true;
+        if (d.tip === 'ukupnoZlato' && novoZlato !== undefined && novoZlato >= d.cilj) ispunjeno = true;
+        if (d.tip === 'gradnja' && novaTipGradnje !== undefined && novaTipGradnje >= d.cilj) ispunjeno = true;
+        if (d.tip === 'prestige' && noviPrestige !== undefined && noviPrestige >= d.cilj) ispunjeno = true;
+        if (ispunjeno) {
+          novo[d.id] = true;
+          primiNagradu(d.nagrada);
+          setPoruka(`🏆 DOSTIGNUĆE: ${d.naziv.toUpperCase()}!`);
+        }
+      });
+      return novo;
+    });
+  };
+
+  const preuzmiDnevniBonus = async () => {
+    if (!dnevnaNagrada) return;
+    primiNagradu(dnevnaNagrada.nagrada);
+    const danas = new Date().toDateString();
+    try {
+      await AsyncStorage.setItem('@save_dnevna_v1', JSON.stringify({ streak: dnevniStreak, zadnjaDnevna: danas }));
+    } catch (e) { }
+    setPrikazDnevneNagrade(false);
+    setPoruka(`DNEVNA NAGRADA DAN ${dnevniStreak} PREUZETA!`);
+  };
 
   const azurirajMisiju = (tip, kolicina = 1) => {
     setMisije(prev => prev.map(m => {
@@ -300,6 +405,12 @@ export default function App() {
 
       setResursi(r => ({ drvo: r.drvo + d.drvo, kamen: r.kamen + d.kamen, zeljezo: r.zeljezo + d.zeljezo }));
 
+      if (d.zlato > 0) {
+        const novoUkupnoZlato = ukupnoZlata + d.zlato;
+        setUkupnoZlata(novoUkupnoZlato);
+        provjeriDostignuca(undefined, novoUkupnoZlato, undefined, undefined);
+      }
+
       setPoruka(`DOBITAK PREUZET!`);
       setDobitakNaCekanju(null);
       setDobitnaPolja([]);
@@ -332,7 +443,10 @@ export default function App() {
     setEnergija(e => e - ulog);
     azurirajMisiju('spin'); 
     let dobijeniXp = ulog * 2; 
-    
+    const novaVrtnja = ukupnoVrtnji + 1;
+    setUkupnoVrtnji(novaVrtnja);
+    provjeriDostignuca(novaVrtnja, undefined, undefined, undefined);
+
     setVrti(true); 
     setDobitnaPolja([]); 
     setPoruka('VRTNJA...');
@@ -515,12 +629,14 @@ export default function App() {
         setResursi(r => ({ drvo: r.drvo - (c.drvo||0), kamen: r.kamen - (c.kamen||0), zeljezo: r.zeljezo - (c.zeljezo||0) })); 
         setGradevine(g => ({ ...g, [zgrada.id]: lv + 1 })); 
         azurirajMisiju('zgrada');
+        provjeriDostignuca(undefined, undefined, lv + 1, undefined);
         setPoruka(`${zgrada.naziv.toUpperCase()} NADOGRAĐEN!`); 
     } else setPoruka("FALE RESURSI ZA NADOGRADNJU");
   };
 
   const izvrsiPrestige = () => {
-    setPrestigeRazina(p => p + 1);
+    const noviPrestige = prestigeRazina + 1;
+    setPrestigeRazina(noviPrestige);
     setIgracRazina(1);
     setXp(0);
     setGradevine({ pilana: 0, kamenolom: 0, rudnik: 0 });
@@ -528,7 +644,8 @@ export default function App() {
     setResursi({ drvo: 0, kamen: 0, zeljezo: 0 });
     setZlato(50);
     setEnergija(10);
-    setPoruka(`PRESTIGE USPJEŠAN! NOVI MNOŽITELJ x${1 + ((prestigeRazina + 1) * 0.5)}`);
+    provjeriDostignuca(undefined, undefined, undefined, noviPrestige);
+    setPoruka(`PRESTIGE USPJEŠAN! NOVI MNOŽITELJ x${1 + (noviPrestige * 0.5)}`);
   };
 
   const trgovina = (akcija, resurs, iznos) => {
@@ -578,6 +695,34 @@ export default function App() {
       <StatusBar barStyle="light-content" backgroundColor={BOJE.bg} />
       
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: flashBoja, opacity: flashAnim, zIndex: 100 }]} pointerEvents="none" />
+
+      {/* --- DNEVNA NAGRADA MODAL --- */}
+      {prikazDnevneNagrade && dnevnaNagrada && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>🎁 DNEVNA NAGRADA</Text>
+            <Text style={styles.modalSubtitle}>Dan {dnevnaNagrada.streak} · Niz prijava</Text>
+            <View style={styles.dnevnaStreakRow}>
+              {DNEVNE_NAGRADE.map((dn, i) => (
+                <View key={i} style={[styles.dnevniDanBadge, i + 1 === dnevniStreak && styles.dnevniDanAktivan, i + 1 < dnevniStreak && styles.dnevniDanPreuzet]}>
+                  <Text style={styles.dnevniDanBroj}>{i + 1}</Text>
+                </View>
+              ))}
+            </View>
+            <View style={styles.modalNagradeRow}>
+              {dnevnaNagrada.nagrada.zlato > 0 && <Text style={styles.modalNagradaTxt}>{dnevnaNagrada.nagrada.zlato} 🪙</Text>}
+              {dnevnaNagrada.nagrada.dijamanti > 0 && <Text style={[styles.modalNagradaTxt, {color: BOJE.dijamant}]}>{dnevnaNagrada.nagrada.dijamanti} 💎</Text>}
+              {dnevnaNagrada.nagrada.energija > 0 && <Text style={[styles.modalNagradaTxt, {color: BOJE.energija}]}>{dnevnaNagrada.nagrada.energija} ⚡</Text>}
+              {dnevnaNagrada.nagrada.drvo > 0 && <Text style={[styles.modalNagradaTxt, {color: BOJE.drvo}]}>{dnevnaNagrada.nagrada.drvo} 🌲</Text>}
+              {dnevnaNagrada.nagrada.kamen > 0 && <Text style={[styles.modalNagradaTxt, {color: BOJE.kamen}]}>{dnevnaNagrada.nagrada.kamen} ⛰️</Text>}
+              {dnevnaNagrada.nagrada.zeljezo > 0 && <Text style={[styles.modalNagradaTxt, {color: BOJE.zeljezo}]}>{dnevnaNagrada.nagrada.zeljezo} ⛏️</Text>}
+            </View>
+            <TouchableOpacity activeOpacity={0.8} style={styles.modalBtn} onPress={preuzmiDnevniBonus}>
+              <Text style={styles.modalBtnTxt}>PREUZMI</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       <Animated.View style={[styles.mainWrapper, { transform: [{ translateX: shakeAnim }] }]}>
         
@@ -794,40 +939,90 @@ export default function App() {
 
           {pogled === 'misije' && (
              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-               <Text style={[styles.subTitle, { marginTop: 10 }]}>Dnevni Zadaci</Text>
-               {misije.map((m) => {
-                  const napredakPostotak = Math.min(100, (m.trenutno / m.cilj) * 100);
-                  const gotovo = m.trenutno >= m.cilj;
+               {/* --- Tab switcher --- */}
+               <View style={styles.tabSwitcher}>
+                 <TouchableOpacity activeOpacity={0.7} style={[styles.tabSwitchBtn, !prikazDostignuca && styles.tabSwitchActive]} onPress={() => setPrikazDostignuca(false)}>
+                   <Text style={[styles.tabSwitchTxt, !prikazDostignuca && {color: BOJE.misije}]}>ZADACI</Text>
+                 </TouchableOpacity>
+                 <TouchableOpacity activeOpacity={0.7} style={[styles.tabSwitchBtn, prikazDostignuca && styles.tabSwitchActive]} onPress={() => setPrikazDostignuca(true)}>
+                   <Text style={[styles.tabSwitchTxt, prikazDostignuca && {color: '#FFD700'}]}>🏆 DOSTIGNUĆA</Text>
+                 </TouchableOpacity>
+               </View>
 
-                  return (
-                     <View key={m.id} style={[styles.card, gotovo && {borderColor: BOJE.misije, shadowColor: BOJE.misije, shadowOpacity: 0.2, shadowRadius: 10, elevation: 5}]}>
-                        <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 16}}>
-                           <View style={[styles.iconBadge, { backgroundColor: (gotovo ? BOJE.misije : BOJE.textMuted) + '15', borderColor: (gotovo ? BOJE.misije : BOJE.textMuted) + '50', borderWidth: 1 }]}>
-                              {gotovo ? <Check size={24} color={BOJE.misije} strokeWidth={3} /> : <Target size={24} color={BOJE.textMuted} strokeWidth={2} />}
+               {!prikazDostignuca ? (
+                 <>
+                   <Text style={[styles.subTitle, { marginTop: 10 }]}>Dnevni Zadaci</Text>
+                   {misije.map((m) => {
+                      const napredakPostotak = Math.min(100, (m.trenutno / m.cilj) * 100);
+                      const gotovo = m.trenutno >= m.cilj;
+                      return (
+                         <View key={m.id} style={[styles.card, gotovo && {borderColor: BOJE.misije, shadowColor: BOJE.misije, shadowOpacity: 0.2, shadowRadius: 10, elevation: 5}]}>
+                            <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 16}}>
+                               <View style={[styles.iconBadge, { backgroundColor: (gotovo ? BOJE.misije : BOJE.textMuted) + '15', borderColor: (gotovo ? BOJE.misije : BOJE.textMuted) + '50', borderWidth: 1 }]}>
+                                  {gotovo ? <Check size={24} color={BOJE.misije} strokeWidth={3} /> : <Target size={24} color={BOJE.textMuted} strokeWidth={2} />}
+                               </View>
+                               <View style={{flex: 1, paddingLeft: 16}}>
+                                  <Text style={[styles.cardTitle, gotovo && {color: BOJE.misije}]}>{m.opis}</Text>
+                                  <View style={styles.missionProgressContainer}>
+                                     <View style={[styles.missionProgressBar, { width: `${napredakPostotak}%`, backgroundColor: gotovo ? BOJE.misije : BOJE.xp }]} />
+                                  </View>
+                                  <Text style={styles.missionProgressTxt}>{Math.floor(m.trenutno)} / {m.cilj}</Text>
+                               </View>
+                            </View>
+                            <View style={styles.cardBottom}>
+                               <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
+                                   <Text style={{color: BOJE.textMuted, fontSize: 12, fontWeight: '800'}}>NAGRADA:</Text>
+                                   {m.nagrada.dijamanti && <View style={styles.rewardChip}><Gem size={14} color={BOJE.dijamant}/><Text style={[styles.rewardTxt, {color: BOJE.dijamant}]}>{m.nagrada.dijamanti}</Text></View>}
+                                   {m.nagrada.energija && <View style={styles.rewardChip}><Zap size={14} color={BOJE.energija}/><Text style={[styles.rewardTxt, {color: BOJE.energija}]}>{m.nagrada.energija}</Text></View>}
+                                   {m.nagrada.zlato && <View style={styles.rewardChip}><Coins size={14} color={BOJE.zlato}/><Text style={[styles.rewardTxt, {color: BOJE.zlato}]}>{m.nagrada.zlato}</Text></View>}
+                                   {m.nagrada.drvo && <View style={styles.rewardChip}><TreePine size={14} color={BOJE.drvo}/><Text style={[styles.rewardTxt, {color: BOJE.drvo}]}>{m.nagrada.drvo}</Text></View>}
+                               </View>
+                               <TouchableOpacity activeOpacity={0.7} style={[styles.actionBtn, gotovo ? {backgroundColor: BOJE.misije} : {backgroundColor: BOJE.slotOkvirZlato, opacity: 0.5}]} disabled={!gotovo} onPress={() => preuzmiNagraduMisije(m.id, m.nagrada)}>
+                                  <Text style={[styles.actionBtnTxt, !gotovo && {color: BOJE.textMuted}]}>PREUZMI</Text>
+                               </TouchableOpacity>
+                            </View>
+                         </View>
+                      )
+                   })}
+                 </>
+               ) : (
+                 <>
+                   <Text style={[styles.subTitle, { marginTop: 10 }]}>Dostignuća</Text>
+                   <View style={styles.statsSummaryRow}>
+                     <View style={styles.statsSummaryChip}><Text style={styles.statsSummaryLabel}>Ukupno vrtnji</Text><Text style={styles.statsSummaryValue}>{ukupnoVrtnji}</Text></View>
+                     <View style={styles.statsSummaryChip}><Text style={styles.statsSummaryLabel}>Zlato zarađeno</Text><Text style={[styles.statsSummaryValue, {color: BOJE.zlato}]}>{ukupnoZlata}</Text></View>
+                     <View style={styles.statsSummaryChip}><Text style={styles.statsSummaryLabel}>Prestige razina</Text><Text style={[styles.statsSummaryValue, {color: BOJE.prestige}]}>{prestigeRazina}</Text></View>
+                   </View>
+                   {DOSTIGNUCA.map(d => {
+                     const otkljucano = !!dostignucaDone[d.id];
+                     return (
+                       <View key={d.id} style={[styles.card, otkljucano && {borderColor: '#FFD700', backgroundColor: '#FFD70008'}]}>
+                         <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 12}}>
+                           <View style={[styles.iconBadge, {backgroundColor: (otkljucano ? '#FFD700' : BOJE.textMuted) + '20', borderColor: (otkljucano ? '#FFD700' : BOJE.textMuted) + '60', borderWidth: 1}]}>
+                             <Text style={{fontSize: 22}}>{otkljucano ? '🏆' : '🔒'}</Text>
                            </View>
-                           <View style={{flex: 1, paddingLeft: 16}}>
-                              <Text style={[styles.cardTitle, gotovo && {color: BOJE.misije}]}>{m.opis}</Text>
-                              <View style={styles.missionProgressContainer}>
-                                 <View style={[styles.missionProgressBar, { width: `${napredakPostotak}%`, backgroundColor: gotovo ? BOJE.misije : BOJE.xp }]} />
-                              </View>
-                              <Text style={styles.missionProgressTxt}>{Math.floor(m.trenutno)} / {m.cilj}</Text>
+                           <View style={{flex: 1, paddingLeft: 14}}>
+                             <Text style={[styles.cardTitle, otkljucano && {color: '#FFD700'}]}>{d.naziv}</Text>
+                             <Text style={styles.upgradeDesc}>{d.opis}</Text>
                            </View>
-                        </View>
-                        <View style={styles.cardBottom}>
+                         </View>
+                         <View style={styles.cardBottom}>
                            <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
-                               <Text style={{color: BOJE.textMuted, fontSize: 12, fontWeight: '800'}}>NAGRADA:</Text>
-                               {m.nagrada.dijamanti && <View style={styles.rewardChip}><Gem size={14} color={BOJE.dijamant}/><Text style={[styles.rewardTxt, {color: BOJE.dijamant}]}>{m.nagrada.dijamanti}</Text></View>}
-                               {m.nagrada.energija && <View style={styles.rewardChip}><Zap size={14} color={BOJE.energija}/><Text style={[styles.rewardTxt, {color: BOJE.energija}]}>{m.nagrada.energija}</Text></View>}
-                               {m.nagrada.zlato && <View style={styles.rewardChip}><Coins size={14} color={BOJE.zlato}/><Text style={[styles.rewardTxt, {color: BOJE.zlato}]}>{m.nagrada.zlato}</Text></View>}
-                               {m.nagrada.drvo && <View style={styles.rewardChip}><TreePine size={14} color={BOJE.drvo}/><Text style={[styles.rewardTxt, {color: BOJE.drvo}]}>{m.nagrada.drvo}</Text></View>}
+                             <Text style={{color: BOJE.textMuted, fontSize: 12, fontWeight: '800'}}>NAGRADA:</Text>
+                             {d.nagrada.zlato && <View style={styles.rewardChip}><Coins size={14} color={BOJE.zlato}/><Text style={[styles.rewardTxt, {color: BOJE.zlato}]}>{d.nagrada.zlato}</Text></View>}
+                             {d.nagrada.dijamanti && <View style={styles.rewardChip}><Gem size={14} color={BOJE.dijamant}/><Text style={[styles.rewardTxt, {color: BOJE.dijamant}]}>{d.nagrada.dijamanti}</Text></View>}
+                             {d.nagrada.energija && <View style={styles.rewardChip}><Zap size={14} color={BOJE.energija}/><Text style={[styles.rewardTxt, {color: BOJE.energija}]}>{d.nagrada.energija}</Text></View>}
+                             {d.nagrada.kamen && <View style={styles.rewardChip}><Mountain size={14} color={BOJE.kamen}/><Text style={[styles.rewardTxt, {color: BOJE.kamen}]}>{d.nagrada.kamen}</Text></View>}
                            </View>
-                           <TouchableOpacity activeOpacity={0.7} style={[styles.actionBtn, gotovo ? {backgroundColor: BOJE.misije} : {backgroundColor: BOJE.slotOkvirZlato, opacity: 0.5}]} disabled={!gotovo} onPress={() => preuzmiNagraduMisije(m.id, m.nagrada)}>
-                              <Text style={[styles.actionBtnTxt, !gotovo && {color: BOJE.textMuted}]}>PREUZMI</Text>
-                           </TouchableOpacity>
-                        </View>
-                     </View>
-                  )
-               })}
+                           <View style={[styles.actionBtn, {backgroundColor: otkljucano ? '#FFD70030' : BOJE.slotOkvirZlato}]}>
+                             <Text style={[styles.actionBtnTxt, {color: otkljucano ? '#FFD700' : BOJE.textMuted}]}>{otkljucano ? 'OTKLJUČANO' : `CILJ: ${d.cilj}`}</Text>
+                           </View>
+                         </View>
+                       </View>
+                     );
+                   })}
+                 </>
+               )}
              </ScrollView>
           )}
 
@@ -1061,5 +1256,32 @@ const styles = StyleSheet.create({
   navBtn: { alignItems: 'center', justifyContent: 'center', flexDirection: 'row', paddingHorizontal: 6 },
   navIconContainer: { marginRight: 4 },
   navIconActive: { },
-  navText: { fontSize: 11, fontWeight: '900', letterSpacing: 0.5 }
+  navText: { fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
+
+  // Daily bonus modal
+  modalOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', zIndex: 200, paddingHorizontal: 24 },
+  modalCard: { backgroundColor: '#0F1020', borderRadius: 28, padding: 28, width: '100%', borderWidth: 1, borderColor: BOJE.zlato + '60', alignItems: 'center', shadowColor: BOJE.zlato, shadowOpacity: 0.3, shadowRadius: 20, elevation: 20 },
+  modalTitle: { fontSize: 24, fontWeight: '900', color: BOJE.zlato, letterSpacing: 2, marginBottom: 8 },
+  modalSubtitle: { fontSize: 13, color: BOJE.textMuted, fontWeight: '700', marginBottom: 20, letterSpacing: 1 },
+  dnevnaStreakRow: { flexDirection: 'row', gap: 6, marginBottom: 24, flexWrap: 'wrap', justifyContent: 'center' },
+  dnevniDanBadge: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center' },
+  dnevniDanAktivan: { backgroundColor: BOJE.zlato + '30', borderColor: BOJE.zlato, shadowColor: BOJE.zlato, shadowOpacity: 0.6, shadowRadius: 6, elevation: 4 },
+  dnevniDanPreuzet: { backgroundColor: BOJE.xp + '20', borderColor: BOJE.xp + '60' },
+  dnevniDanBroj: { color: BOJE.textMain, fontSize: 13, fontWeight: '900' },
+  modalNagradeRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 12, marginBottom: 28 },
+  modalNagradaTxt: { fontSize: 22, fontWeight: '900', color: BOJE.zlato, textShadowColor: '#000', textShadowRadius: 5 },
+  modalBtn: { backgroundColor: BOJE.zlato, width: '100%', paddingVertical: 18, borderRadius: 18, alignItems: 'center' },
+  modalBtnTxt: { color: '#000', fontSize: 18, fontWeight: '900', letterSpacing: 2 },
+
+  // Tab switcher (missions/achievements)
+  tabSwitcher: { flexDirection: 'row', backgroundColor: BOJE.bgCard, borderRadius: 16, padding: 4, marginTop: 10, marginBottom: 4, borderWidth: 1, borderColor: BOJE.border },
+  tabSwitchBtn: { flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
+  tabSwitchActive: { backgroundColor: 'rgba(255,255,255,0.07)' },
+  tabSwitchTxt: { fontSize: 13, fontWeight: '900', color: BOJE.textMuted, letterSpacing: 0.5 },
+
+  // Stats summary row
+  statsSummaryRow: { flexDirection: 'row', gap: 8, marginBottom: 16, marginTop: 6 },
+  statsSummaryChip: { flex: 1, backgroundColor: BOJE.bgCard, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: BOJE.border, alignItems: 'center' },
+  statsSummaryLabel: { fontSize: 10, fontWeight: '700', color: BOJE.textMuted, marginBottom: 4, textAlign: 'center' },
+  statsSummaryValue: { fontSize: 16, fontWeight: '900', color: BOJE.textMain },
 });
