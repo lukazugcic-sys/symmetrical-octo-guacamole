@@ -12,6 +12,23 @@ import {
 import { spremiCloud }      from '../firebase/cloudSave';
 import { azurirajLjestvicu } from '../firebase/leaderboard';
 
+const CLAN_NAME_REGEX = /^[\p{L}\p{N}\s_-]{2,50}$/u;
+let cloudSaveTimeout = null;
+
+const zakaziCloudSpremanje = (uid, payload) => {
+  if (!uid) return;
+  if (cloudSaveTimeout) clearTimeout(cloudSaveTimeout);
+  cloudSaveTimeout = setTimeout(() => {
+    spremiCloud(uid, payload);
+  }, 3000);
+};
+
+const toDateOnly = (datum) => {
+  const d = new Date(datum);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
 const PRAZNI_KLAN = {
   naziv:         null,
   razina:        0,
@@ -80,7 +97,9 @@ export const useGameStore = create((set, get) => ({
         await AsyncStorage.removeItem(key);
         return legacy;
       }
-    } catch (_) {}
+    } catch (e) {
+      console.warn('Legacy migration from AsyncStorage failed:', e);
+    }
     return null;
   },
 
@@ -136,7 +155,9 @@ export const useGameStore = create((set, get) => ({
         const streak = dd.streak || 0;
         const zadnja = dd.zadnjaDnevna || '';
         if (zadnja !== danas) {
-          const noviStreak = zadnja === new Date(Date.now() - MS_PER_DAY).toDateString()
+          const jucer = new Date();
+          jucer.setDate(jucer.getDate() - 1);
+          const noviStreak = zadnja === jucer.toDateString()
             ? streak + 1
             : 1;
           const danIndex = (noviStreak - 1) % DNEVNE_NAGRADE.length;
@@ -179,7 +200,7 @@ export const useGameStore = create((set, get) => ({
     } catch (e) { console.error('Failed to save game state:', e); }
     // Sinkroniziraj u Firestore (ne blokira — tiha greška ako nema mreže)
     if (s.uid) {
-      spremiCloud(s.uid, { ...payload, imeIgraca: s.imeIgraca });
+      zakaziCloudSpremanje(s.uid, { ...payload, imeIgraca: s.imeIgraca });
       azurirajLjestvicu(s.uid, {
         imeIgraca:      s.imeIgraca,
         igracRazina:    s.igracRazina,
@@ -309,7 +330,9 @@ export const useGameStore = create((set, get) => ({
     const danas = new Date().toDateString();
     try {
       await dbSet('@save_dnevna_v1', JSON.stringify({ streak: s.dnevniStreak, zadnjaDnevna: danas }));
-    } catch (e) {}
+    } catch (e) {
+      console.warn('Failed to persist daily bonus state:', e);
+    }
     set({ prikazDnevneNagrade: false, poruka: `DNEVNA NAGRADA DAN ${s.dnevniStreak} PREUZETA!` });
   },
 
@@ -483,16 +506,21 @@ export const useGameStore = create((set, get) => ({
 
   // ─── Klan — osnivanje i upravljanje ─────────────────────────────────────────
   osnujiKlan: (naziv) => {
-    if (!naziv || naziv.trim().length < 2) return;
+    if (!naziv) return;
+    const cistiNaziv = naziv.trim();
+    if (!CLAN_NAME_REGEX.test(cistiNaziv)) {
+      set({ poruka: 'NEISPRAVNO IME KLANA (2-50 ZNAKOVA)' });
+      return;
+    }
     set({
       klan: {
-        naziv:         naziv.trim(),
+        naziv:         cistiNaziv,
         razina:        1,
         xp:            0,
         zadaci:        generirajKlanZadatke(),
         zadnjiRefresh: new Date().toISOString(),
       },
-      poruka: `⚔️ KLAN "${naziv.trim().toUpperCase()}" OSNOVAN!`,
+      poruka: `⚔️ KLAN "${cistiNaziv.toUpperCase()}" OSNOVAN!`,
     });
   },
 
