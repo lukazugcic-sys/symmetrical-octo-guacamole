@@ -11,39 +11,39 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // --- KONFIGURACIJA I EKONOMIJA ---
 const BLAGO = {
-  'skull':   { Ikona: Skull, boja: '#FF2A55', raritet: '#550000', tip: 'steta', baza: 0 },
-  'wood':    { Ikona: TreePine, boja: '#00F0FF', raritet: '#003344', tip: 'drvo', baza: 4 },    
-  'stone':   { Ikona: Mountain, boja: '#B4C6F0', raritet: '#2A3040', tip: 'kamen', baza: 8 },   
-  'iron':    { Ikona: Pickaxe, boja: '#F0F0FF', raritet: '#404552', tip: 'zeljezo', baza: 12 },  
-  'gold':    { Ikona: Coins, boja: '#FFD700', raritet: '#554400', tip: 'zlato', baza: 25 },    
-  'energy':  { Ikona: Zap, boja: '#CCFF00', raritet: '#334400', tip: 'energija', baza: 1 },     
-  'gem':     { Ikona: Gem, boja: '#FF00AA', raritet: '#550033', tip: 'dijamanti', baza: 1 },    
-  'shield':  { Ikona: Shield, boja: '#0088FF', raritet: '#002255', tip: 'stit', baza: 0 }, 
-  'wild':    { Ikona: Star, boja: '#FFFFFF', raritet: '#444444', tip: 'wild', baza: 0 },    
+  'skull':   { Ikona: Skull, boja: '#F43F5E', raritet: '#4C0519', tip: 'steta', baza: 0 },
+  'wood':    { Ikona: TreePine, boja: '#67E8F9', raritet: '#0C4A6E', tip: 'drvo', baza: 4 },
+  'stone':   { Ikona: Mountain, boja: '#94A3B8', raritet: '#1E293B', tip: 'kamen', baza: 8 },
+  'iron':    { Ikona: Pickaxe, boja: '#CBD5E1', raritet: '#334155', tip: 'zeljezo', baza: 12 },
+  'gold':    { Ikona: Coins, boja: '#FBBF24', raritet: '#451A03', tip: 'zlato', baza: 25 },
+  'energy':  { Ikona: Zap, boja: '#A3E635', raritet: '#1A2E05', tip: 'energija', baza: 1 },
+  'gem':     { Ikona: Gem, boja: '#E879F9', raritet: '#4A044E', tip: 'dijamanti', baza: 1 },
+  'shield':  { Ikona: Shield, boja: '#3B82F6', raritet: '#1E3A5F', tip: 'stit', baza: 0 },
+  'wild':    { Ikona: Star, boja: '#F8FAFC', raritet: '#334155', tip: 'wild', baza: 0 },
 };
 const SVO_BLAGO = Object.keys(BLAGO);
 
 const BOJE = {
-  bg: '#020205',         
-  bgCard: 'rgba(15, 16, 25, 0.85)',     
-  border: 'rgba(255, 255, 255, 0.08)',     
-  textMain: '#FFFFFF',   
-  textMuted: '#6B7280',  
-  zlato: '#FFD700',      
-  energija: '#CCFF00',   
-  stit: '#00D4FF',       
-  dijamant: '#FF00AA',   
-  drvo: '#00F0FF',       
-  kamen: '#B4C6F0',      
-  zeljezo: '#E2E8F0',    
-  slotOkvirZlato: '#11131C', 
-  slotRolaCrna: '#040408',
-  slotVatra: '#FF3300',   
-  navBg: 'rgba(5, 6, 10, 0.98)',
-  nadogradnje: '#9D4EDD',
-  xp: '#00FFAA',
-  misije: '#FF8800',
-  prestige: '#FFB800'
+  bg: '#06060F',
+  bgCard: 'rgba(16, 18, 30, 0.90)',
+  border: 'rgba(255, 255, 255, 0.10)',
+  textMain: '#F1F5F9',
+  textMuted: '#64748B',
+  zlato: '#FBBF24',
+  energija: '#A3E635',
+  stit: '#22D3EE',
+  dijamant: '#E879F9',
+  drvo: '#67E8F9',
+  kamen: '#94A3B8',
+  zeljezo: '#CBD5E1',
+  slotOkvirZlato: '#13151F',
+  slotRolaCrna: '#060608',
+  slotVatra: '#F43F5E',
+  navBg: 'rgba(8, 8, 14, 0.98)',
+  nadogradnje: '#A855F7',
+  xp: '#34D399',
+  misije: '#FB923C',
+  prestige: '#FCD34D'
 };
 
 const BAZA_TECAJ = {    
@@ -125,6 +125,7 @@ const DNEVNE_NAGRADE = [
 const screenWidth = Dimensions.get('window').width;
 const uiScale = Math.min(1.15, Math.max(0.82, screenWidth / 390));
 const slotSize = Math.floor((screenWidth - 72) / 5);
+const FONT_FAMILY = Platform.select({ ios: 'Helvetica Neue', android: 'Roboto', default: 'System' });
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const LUCKY_SPIN_INTERVAL = 25;
@@ -915,7 +916,7 @@ export default function App() {
                         {dobitakNaCekanju.zeljezo > 0 && <Text style={[styles.gamblePrizeTxt, {color: BOJE.zeljezo}]}>{dobitakNaCekanju.zeljezo} ⛏️</Text>}
                     </View>
                     <View style={styles.gambleButtonsRow}>
-                        <TouchableOpacity activeOpacity={0.8} style={[styles.gambleBtn, {backgroundColor: '#FF2A55'}]} onPress={() => igrajGamble('red')}><Text style={styles.gambleBtnTxt}>CRVENA (x2)</Text></TouchableOpacity>
+                        <TouchableOpacity activeOpacity={0.8} style={[styles.gambleBtn, {backgroundColor: BOJE.slotVatra}]} onPress={() => igrajGamble('red')}><Text style={styles.gambleBtnTxt}>CRVENA (x2)</Text></TouchableOpacity>
                         <TouchableOpacity activeOpacity={0.8} style={[styles.gambleBtn, {backgroundColor: '#1A1A24', borderWidth: 2, borderColor: '#333'}]} onPress={() => igrajGamble('black')}><Text style={styles.gambleBtnTxt}>CRNA (x2)</Text></TouchableOpacity>
                     </View>
                     <TouchableOpacity activeOpacity={0.8} style={styles.collectBtn} onPress={preuzmiDobitak}><Text style={styles.collectBtnTxt}>PREUZMI DOBITAK</Text></TouchableOpacity>
@@ -1050,7 +1051,7 @@ export default function App() {
                    <Text style={[styles.tabSwitchTxt, !prikazDostignuca && {color: BOJE.misije}]}>ZADACI</Text>
                  </TouchableOpacity>
                  <TouchableOpacity activeOpacity={0.7} style={[styles.tabSwitchBtn, prikazDostignuca && styles.tabSwitchActive]} onPress={() => setPrikazDostignuca(true)}>
-                   <Text style={[styles.tabSwitchTxt, prikazDostignuca && {color: '#FFD700'}]}>🏆 DOSTIGNUĆA</Text>
+                   <Text style={[styles.tabSwitchTxt, prikazDostignuca && {color: BOJE.zlato}]}>🏆 DOSTIGNUĆA</Text>
                  </TouchableOpacity>
                </View>
 
@@ -1101,13 +1102,13 @@ export default function App() {
                    {DOSTIGNUCA.map(d => {
                      const otkljucano = !!dostignucaDone[d.id];
                      return (
-                       <View key={d.id} style={[styles.card, otkljucano && {borderColor: '#FFD700', backgroundColor: '#FFD70008'}]}>
+                       <View key={d.id} style={[styles.card, otkljucano && {borderColor: BOJE.zlato, backgroundColor: BOJE.zlato + '08'}]}>
                          <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 12}}>
-                           <View style={[styles.iconBadge, {backgroundColor: (otkljucano ? '#FFD700' : BOJE.textMuted) + '20', borderColor: (otkljucano ? '#FFD700' : BOJE.textMuted) + '60', borderWidth: 1}]}>
+                           <View style={[styles.iconBadge, {backgroundColor: (otkljucano ? BOJE.zlato : BOJE.textMuted) + '20', borderColor: (otkljucano ? BOJE.zlato : BOJE.textMuted) + '60', borderWidth: 1}]}>
                              <Text style={{fontSize: 22}}>{otkljucano ? '🏆' : '🔒'}</Text>
                            </View>
                            <View style={{flex: 1, paddingLeft: 14}}>
-                             <Text style={[styles.cardTitle, otkljucano && {color: '#FFD700'}]}>{d.naziv}</Text>
+                             <Text style={[styles.cardTitle, otkljucano && {color: BOJE.zlato}]}>{d.naziv}</Text>
                              <Text style={styles.upgradeDesc}>{d.opis}</Text>
                            </View>
                          </View>
@@ -1119,8 +1120,8 @@ export default function App() {
                              {d.nagrada.energija && <View style={styles.rewardChip}><Zap size={14} color={BOJE.energija}/><Text style={[styles.rewardTxt, {color: BOJE.energija}]}>{d.nagrada.energija}</Text></View>}
                              {d.nagrada.kamen && <View style={styles.rewardChip}><Mountain size={14} color={BOJE.kamen}/><Text style={[styles.rewardTxt, {color: BOJE.kamen}]}>{d.nagrada.kamen}</Text></View>}
                            </View>
-                           <View style={[styles.actionBtn, {backgroundColor: otkljucano ? '#FFD70030' : BOJE.slotOkvirZlato}]}>
-                             <Text style={[styles.actionBtnTxt, {color: otkljucano ? '#FFD700' : BOJE.textMuted}]}>{otkljucano ? 'OTKLJUČANO' : `CILJ: ${d.cilj}`}</Text>
+                           <View style={[styles.actionBtn, {backgroundColor: otkljucano ? BOJE.zlato + '30' : BOJE.slotOkvirZlato}]}>
+                             <Text style={[styles.actionBtnTxt, {color: otkljucano ? BOJE.zlato : BOJE.textMuted}]}>{otkljucano ? 'OTKLJUČANO' : `CILJ: ${d.cilj}`}</Text>
                            </View>
                          </View>
                        </View>
@@ -1268,31 +1269,31 @@ const styles = StyleSheet.create({
   levelContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: BOJE.slotOkvirZlato, borderRadius: 26, padding: 6, marginBottom: 10, borderWidth: 1, borderColor: BOJE.border },
   levelBadgeOuter: { width: Math.round(34 * uiScale), height: Math.round(34 * uiScale), borderRadius: Math.round(17 * uiScale), backgroundColor: BOJE.xp, justifyContent: 'center', alignItems: 'center', shadowColor: BOJE.xp, shadowOpacity: 0.8, shadowRadius: 6, elevation: 5 },
   prestigeBadgeOuter: { width: Math.round(34 * uiScale), height: Math.round(34 * uiScale), borderRadius: Math.round(17 * uiScale), backgroundColor: BOJE.prestige, justifyContent: 'center', alignItems: 'center', shadowColor: BOJE.prestige, shadowOpacity: 0.8, shadowRadius: 6, elevation: 5, marginLeft: 6, flexDirection: 'row' },
-  levelBadgeTxt: { color: '#000', fontWeight: '900', fontSize: Math.round(16 * uiScale) },
+  levelBadgeTxt: { color: '#000', fontWeight: '900', fontSize: Math.round(16 * uiScale), fontFamily: FONT_FAMILY },
   xpBarContainer: { flex: 1, height: Math.round(18 * uiScale), backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: Math.round(9 * uiScale), marginHorizontal: 10, overflow: 'hidden', justifyContent: 'center' },
   xpBarFill: { position: 'absolute', height: '100%', backgroundColor: BOJE.xp, borderRadius: Math.round(9 * uiScale) },
-  xpText: { position: 'absolute', width: '100%', textAlign: 'center', color: '#FFF', fontSize: Math.round(10 * uiScale), fontWeight: '800', textShadowColor: '#000', textShadowRadius: 2 },
+  xpText: { position: 'absolute', width: '100%', textAlign: 'center', color: '#FFF', fontSize: Math.round(10 * uiScale), fontWeight: '800', fontFamily: FONT_FAMILY, textShadowColor: '#000', textShadowRadius: 2 },
   multiplierBadge: { backgroundColor: BOJE.xp, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, flexDirection: 'row', alignItems: 'center', shadowColor: BOJE.xp, shadowOpacity: 0.4, shadowRadius: 6, elevation: 3 },
-  multiplierTxt: { color: '#000', fontSize: Math.round(11 * uiScale), fontWeight: '900' },
+  multiplierTxt: { color: '#000', fontSize: Math.round(11 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY },
 
   headerMainStats: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   statChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: BOJE.bgCard, borderRadius: 16, borderWidth: 1, borderColor: BOJE.border, height: Math.round(40 * uiScale), gap: 6 },
-  statChipTxt: { fontSize: Math.round(15 * uiScale), fontWeight: '800', color: BOJE.textMain },
+  statChipTxt: { fontSize: Math.round(15 * uiScale), fontWeight: '800', fontFamily: FONT_FAMILY, color: BOJE.textMain },
   
   resourceHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginTop: 8 },
   resMiniChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: BOJE.bgCard, paddingVertical: Math.round(6 * uiScale), borderRadius: 12, borderWidth: 1, borderColor: BOJE.border, gap: 6 },
-  resChipTxt: { fontSize: Math.round(13 * uiScale), fontWeight: '800', color: BOJE.textMain },
+  resChipTxt: { fontSize: Math.round(13 * uiScale), fontWeight: '800', fontFamily: FONT_FAMILY, color: BOJE.textMain },
   
-  defenseMatrix: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0, 212, 255, 0.06)', marginTop: 10, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(0, 212, 255, 0.25)' },
-  defenseTitle: { color: BOJE.stit, fontSize: 12, fontWeight: '900', letterSpacing: 1, marginRight: 12 },
+  defenseMatrix: { flexDirection: 'row', alignItems: 'center', backgroundColor: BOJE.stit + '10', marginTop: 10, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 16, borderWidth: 1, borderColor: BOJE.stit + '40' },
+  defenseTitle: { color: BOJE.stit, fontSize: 12, fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 1, marginRight: 12 },
   shieldSlotsContainer: { flex: 1, flexDirection: 'row', gap: 6 },
   shieldSlot: { flex: 1, height: 12, borderRadius: 6, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  shieldActive: { borderColor: BOJE.stit, backgroundColor: 'rgba(0, 212, 255, 0.2)' },
+  shieldActive: { borderColor: BOJE.stit, backgroundColor: BOJE.stit + '33' },
   shieldEmpty: { opacity: 0.5 },
   shieldGlow: { width: '100%', height: '100%', backgroundColor: BOJE.stit, shadowColor: BOJE.stit, shadowOpacity: 1, shadowRadius: 8, elevation: 4 },
 
-  messageBubble: { flexDirection: 'row', backgroundColor: 'rgba(20, 22, 35, 0.98)', paddingHorizontal: 16, paddingVertical: Math.round(14 * uiScale), borderRadius: 18, marginBottom: 20, borderWidth: 1, borderColor: 'rgba(255,51,0,0.35)', alignItems: 'center', justifyContent: 'center', shadowColor: BOJE.slotVatra, shadowOpacity: 0.45, shadowRadius: 14, elevation: 7 },
-  messageText: { color: BOJE.slotVatra, fontSize: Math.round(13 * uiScale), fontWeight: '900', letterSpacing: 1 },
+  messageBubble: { flexDirection: 'row', backgroundColor: 'rgba(20, 22, 35, 0.98)', paddingHorizontal: 16, paddingVertical: Math.round(14 * uiScale), borderRadius: 18, marginBottom: 20, borderWidth: 1, borderColor: BOJE.slotVatra + '59', alignItems: 'center', justifyContent: 'center', shadowColor: BOJE.slotVatra, shadowOpacity: 0.45, shadowRadius: 14, elevation: 7 },
+  messageText: { color: BOJE.slotVatra, fontSize: Math.round(13 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 1 },
   
   content: { flex: 1, paddingHorizontal: 14 },
   scrollContent: { paddingBottom: 120, paddingTop: 10 }, 
@@ -1304,69 +1305,69 @@ const styles = StyleSheet.create({
   gridColumnsWrapper: { flexDirection: 'row', justifyContent: 'space-between', gap: 6 },
   gridColumn: { flex: 1, gap: 6 },
   slotItem: { width: slotSize, height: slotSize, borderRadius: Math.round(16 * uiScale), justifyContent: 'center', alignItems: 'center', borderWidth: 2 },
-  slotItemWinning: { borderWidth: 3, borderRadius: Math.round(16 * uiScale), shadowOpacity: 1, shadowRadius: 18, elevation: 12, backgroundColor: 'rgba(255,51,0,0.18)' },
+  slotItemWinning: { borderWidth: 3, borderRadius: Math.round(16 * uiScale), shadowOpacity: 1, shadowRadius: 18, elevation: 12, backgroundColor: BOJE.slotVatra + '2E' },
 
   betContainer: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 20 },
   betBtn: { paddingVertical: Math.round(12 * uiScale), paddingHorizontal: Math.round(22 * uiScale), borderRadius: 22, backgroundColor: BOJE.bgCard, borderWidth: 1, borderColor: BOJE.border },
   betBtnActive: { backgroundColor: BOJE.slotVatra, borderColor: BOJE.slotVatra, shadowColor: BOJE.slotVatra, shadowOpacity: 0.6, shadowRadius: 10, elevation: 6 },
-  betBtnText: { fontWeight: '900', color: BOJE.textMuted, fontSize: Math.round(16 * uiScale) },
+  betBtnText: { fontWeight: '900', fontFamily: FONT_FAMILY, color: BOJE.textMuted, fontSize: Math.round(16 * uiScale) },
   betBtnTextActive: { color: '#FFF' },
   
   spinBtn: { backgroundColor: BOJE.energija, width: '100%', paddingVertical: Math.round(22 * uiScale), borderRadius: 26, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', shadowColor: BOJE.energija, shadowOpacity: 0.55, shadowRadius: 20, elevation: 12 },
   spinBtnDisabled: { opacity: 0.5, transform: [{scale: 0.98}], shadowOpacity: 0 },
-  spinBtnText: { color: '#000', fontSize: Math.round(24 * uiScale), fontWeight: '900', letterSpacing: 3 },
+  spinBtnText: { color: '#000', fontSize: Math.round(24 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 3 },
   spinCostBadge: { position: 'absolute', right: 22, backgroundColor: 'rgba(0,0,0,0.18)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, flexDirection: 'row', alignItems: 'center' },
-  spinCostTxt: { color: '#000', fontWeight: '900', fontSize: 12, marginRight: 2 },
+  spinCostTxt: { color: '#000', fontWeight: '900', fontFamily: FONT_FAMILY, fontSize: 12, marginRight: 2 },
 
   gambleContainer: { width: '100%', backgroundColor: 'rgba(255, 215, 0, 0.09)', padding: 20, borderRadius: 28, borderWidth: 1, borderColor: BOJE.zlato + '70', alignItems: 'center', shadowColor: BOJE.zlato, shadowOpacity: 0.15, shadowRadius: 14, elevation: 6 },
-  gambleTitle: { color: BOJE.textMuted, fontSize: Math.round(14 * uiScale), fontWeight: '900', letterSpacing: 1.5, marginBottom: 8 },
+  gambleTitle: { color: BOJE.textMuted, fontSize: Math.round(14 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 1.5, marginBottom: 8 },
   gamblePrizesRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10, marginBottom: 20 },
-  gamblePrizeTxt: { color: BOJE.zlato, fontSize: Math.round(18 * uiScale), fontWeight: '900', textShadowColor: '#000', textShadowRadius: 5 },
+  gamblePrizeTxt: { color: BOJE.zlato, fontSize: Math.round(18 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, textShadowColor: '#000', textShadowRadius: 5 },
   gambleButtonsRow: { flexDirection: 'row', gap: 12, width: '100%', marginBottom: 14 },
   gambleBtn: { flex: 1, paddingVertical: Math.round(18 * uiScale), borderRadius: 18, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 12, elevation: 8 },
-  gambleBtnTxt: { color: '#FFF', fontSize: Math.round(15 * uiScale), fontWeight: '900', letterSpacing: 1 },
+  gambleBtnTxt: { color: '#FFF', fontSize: Math.round(15 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 1 },
   collectBtn: { backgroundColor: BOJE.energija, width: '100%', paddingVertical: Math.round(18 * uiScale), borderRadius: 18, alignItems: 'center', shadowColor: BOJE.energija, shadowOpacity: 0.35, shadowRadius: 10, elevation: 5 },
-  collectBtnTxt: { color: '#000', fontSize: Math.round(16 * uiScale), fontWeight: '900', letterSpacing: 1 },
+  collectBtnTxt: { color: '#000', fontSize: Math.round(16 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 1 },
 
-  subTitle: { fontSize: Math.round(16 * uiScale), fontWeight: '900', color: BOJE.textMain, marginBottom: 16, marginLeft: 4, letterSpacing: 1.2, textTransform: 'uppercase' },
+  subTitle: { fontSize: Math.round(16 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, color: BOJE.textMain, marginBottom: 16, marginLeft: 4, letterSpacing: 1.2, textTransform: 'uppercase' },
 
   card: { backgroundColor: BOJE.bgCard, padding: 20, borderRadius: 24, marginBottom: 14, borderWidth: 1, borderColor: BOJE.border, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: {width: 0, height: 4}, elevation: 5 },
   cardMaxed: { borderColor: BOJE.zlato + '40', backgroundColor: BOJE.zlato + '08' },
-  cardDamaged: { borderColor: BOJE.slotVatra, backgroundColor: 'rgba(255, 51, 0, 0.06)', shadowColor: BOJE.slotVatra, shadowOpacity: 0.25, shadowRadius: 12, elevation: 6 },
+  cardDamaged: { borderColor: BOJE.slotVatra, backgroundColor: BOJE.slotVatra + '0F', shadowColor: BOJE.slotVatra, shadowOpacity: 0.25, shadowRadius: 12, elevation: 6 },
   cardTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
   iconBadge: { width: 48, height: 48, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
   zgradaIconBg: { width: 56, height: 56, borderRadius: 20, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
-  cardTitle: { fontSize: Math.round(17 * uiScale), fontWeight: '800', color: BOJE.textMain },
+  cardTitle: { fontSize: Math.round(17 * uiScale), fontWeight: '800', fontFamily: FONT_FAMILY, color: BOJE.textMain },
   levelBadge: { backgroundColor: 'rgba(255,255,255,0.06)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  buildCardLevel: { fontSize: Math.round(12 * uiScale), fontWeight: '900', color: BOJE.textMuted },
-  perkText: { fontSize: Math.round(13 * uiScale), fontWeight: '600', color: BOJE.xp, marginTop: 6 },
+  buildCardLevel: { fontSize: Math.round(12 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, color: BOJE.textMuted },
+  perkText: { fontSize: Math.round(13 * uiScale), fontWeight: '600', fontFamily: FONT_FAMILY, color: BOJE.xp, marginTop: 6 },
   cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderColor: BOJE.border, paddingTop: 14 },
   
   repairBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: BOJE.slotVatra, paddingHorizontal: 6, paddingVertical: 4, borderRadius: 8, marginRight: 4 },
-  repairBadgeTxt: { color: '#FFF', fontSize: 10, fontWeight: '900', marginLeft: 4 },
+  repairBadgeTxt: { color: '#FFF', fontSize: 10, fontWeight: '900', fontFamily: FONT_FAMILY, marginLeft: 4 },
 
   actionBtn: { paddingHorizontal: Math.round(20 * uiScale), paddingVertical: Math.round(12 * uiScale), borderRadius: 14 },
-  actionBtnTxt: { color: '#000', fontWeight: '900', fontSize: Math.round(13 * uiScale), letterSpacing: 0.5 },
-  maxTxt: { color: BOJE.zlato, fontWeight: '800', fontSize: Math.round(13 * uiScale), letterSpacing: 1 },
+  actionBtnTxt: { color: '#000', fontWeight: '900', fontFamily: FONT_FAMILY, fontSize: Math.round(13 * uiScale), letterSpacing: 0.5 },
+  maxTxt: { color: BOJE.zlato, fontWeight: '800', fontFamily: FONT_FAMILY, fontSize: Math.round(13 * uiScale), letterSpacing: 1 },
   
   missionProgressContainer: { width: '100%', height: 6, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 3, marginTop: 10, overflow: 'hidden' },
   missionProgressBar: { height: '100%', borderRadius: 3 },
-  missionProgressTxt: { color: BOJE.textMuted, fontSize: 11, fontWeight: '800', marginTop: 4, textAlign: 'right' },
+  missionProgressTxt: { color: BOJE.textMuted, fontSize: 11, fontWeight: '800', fontFamily: FONT_FAMILY, marginTop: 4, textAlign: 'right' },
   rewardChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 6, paddingVertical: 4, borderRadius: 8 },
-  rewardTxt: { fontSize: 12, fontWeight: '900', marginLeft: 4 },
+  rewardTxt: { fontSize: 12, fontWeight: '900', fontFamily: FONT_FAMILY, marginLeft: 4 },
 
   costRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', flex: 1, paddingRight: 10, alignItems: 'center' },
   costPill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.03)', paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8 },
   costPillMissing: { backgroundColor: BOJE.slotVatra + '15' },
-  costTxt: { fontSize: 13, fontWeight: '800', color: BOJE.textMain },
+  costTxt: { fontSize: 13, fontWeight: '800', fontFamily: FONT_FAMILY, color: BOJE.textMain },
   costMissing: { color: BOJE.slotVatra },
 
   marketActionRow: { flexDirection: 'row', gap: 12 },
   tradeBtn: { flex: 1, paddingVertical: 14, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: BOJE.border },
-  tradeBtnTxt: { fontWeight: '900', fontSize: 14, marginBottom: 4, letterSpacing: 0.5 },
-  tradePriceTxt: { fontWeight: '700', fontSize: 13, color: BOJE.textMuted },
-  paketText: { fontSize: 13, color: BOJE.textMuted, fontWeight: '600' },
-  upgradeDesc: { fontSize: 13, fontWeight: '500', color: BOJE.textMuted, marginTop: 6, lineHeight: 18 },
+  tradeBtnTxt: { fontWeight: '900', fontFamily: FONT_FAMILY, fontSize: 14, marginBottom: 4, letterSpacing: 0.5 },
+  tradePriceTxt: { fontWeight: '700', fontFamily: FONT_FAMILY, fontSize: 13, color: BOJE.textMuted },
+  paketText: { fontSize: 13, color: BOJE.textMuted, fontWeight: '600', fontFamily: FONT_FAMILY },
+  upgradeDesc: { fontSize: 13, fontWeight: '500', fontFamily: FONT_FAMILY, color: BOJE.textMuted, marginTop: 6, lineHeight: 18 },
   
   trendBadge: { padding: 4, borderRadius: 8 },
 
@@ -1375,7 +1376,7 @@ const styles = StyleSheet.create({
   navTabPill: { height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
   navTabPillInactive: { width: 44, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)' },
   navTabPillActive: { paddingHorizontal: 14, shadowOpacity: 0.55, shadowRadius: 12, elevation: 6, transform: [{ translateY: -2 }] },
-  navText: { fontSize: Math.round(11 * uiScale), fontWeight: '900', letterSpacing: 0.5, color: '#000', marginLeft: 5 },
+  navText: { fontSize: Math.round(11 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 0.5, color: '#000', marginLeft: 5 },
 
   pageIndicatorRow: { position: 'absolute', bottom: Platform.OS === 'ios' ? 100 : 88, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, zIndex: 15 },
   pageIndicatorDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: 'rgba(255,255,255,0.18)' },
@@ -1384,43 +1385,43 @@ const styles = StyleSheet.create({
   // Daily bonus modal
   modalOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.88)', justifyContent: 'center', alignItems: 'center', zIndex: 200, paddingHorizontal: 24 },
   modalCard: { backgroundColor: '#0C0E1C', borderRadius: 32, padding: 28, width: '100%', borderWidth: 1, borderColor: BOJE.zlato + '70', alignItems: 'center', shadowColor: BOJE.zlato, shadowOpacity: 0.35, shadowRadius: 28, elevation: 24 },
-  modalTitle: { fontSize: Math.round(24 * uiScale), fontWeight: '900', color: BOJE.zlato, letterSpacing: 2, marginBottom: 8 },
-  modalSubtitle: { fontSize: Math.round(13 * uiScale), color: BOJE.textMuted, fontWeight: '700', marginBottom: 20, letterSpacing: 1 },
+  modalTitle: { fontSize: Math.round(24 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, color: BOJE.zlato, letterSpacing: 2, marginBottom: 8 },
+  modalSubtitle: { fontSize: Math.round(13 * uiScale), color: BOJE.textMuted, fontWeight: '700', fontFamily: FONT_FAMILY, marginBottom: 20, letterSpacing: 1 },
   dnevnaStreakRow: { flexDirection: 'row', gap: 6, marginBottom: 24, flexWrap: 'wrap', justifyContent: 'center' },
   dnevniDanBadge: { width: 38, height: 38, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center' },
   dnevniDanAktivan: { backgroundColor: BOJE.zlato + '35', borderColor: BOJE.zlato, shadowColor: BOJE.zlato, shadowOpacity: 0.65, shadowRadius: 8, elevation: 5 },
   dnevniDanPreuzet: { backgroundColor: BOJE.xp + '20', borderColor: BOJE.xp + '60' },
-  dnevniDanBroj: { color: BOJE.textMain, fontSize: Math.round(13 * uiScale), fontWeight: '900' },
+  dnevniDanBroj: { color: BOJE.textMain, fontSize: Math.round(13 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY },
   modalNagradeRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 12, marginBottom: 28 },
-  modalNagradaTxt: { fontSize: Math.round(22 * uiScale), fontWeight: '900', color: BOJE.zlato, textShadowColor: '#000', textShadowRadius: 5 },
+  modalNagradaTxt: { fontSize: Math.round(22 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, color: BOJE.zlato, textShadowColor: '#000', textShadowRadius: 5 },
   modalBtn: { backgroundColor: BOJE.zlato, width: '100%', paddingVertical: Math.round(18 * uiScale), borderRadius: 20, alignItems: 'center', shadowColor: BOJE.zlato, shadowOpacity: 0.4, shadowRadius: 12, elevation: 6 },
-  modalBtnTxt: { color: '#000', fontSize: Math.round(18 * uiScale), fontWeight: '900', letterSpacing: 2 },
+  modalBtnTxt: { color: '#000', fontSize: Math.round(18 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 2 },
 
   // Tab switcher (missions/achievements)
   tabSwitcher: { flexDirection: 'row', backgroundColor: BOJE.bgCard, borderRadius: 18, padding: 4, marginTop: 10, marginBottom: 4, borderWidth: 1, borderColor: BOJE.border },
   tabSwitchBtn: { flex: 1, paddingVertical: 11, borderRadius: 14, alignItems: 'center' },
   tabSwitchActive: { backgroundColor: 'rgba(255,255,255,0.09)' },
-  tabSwitchTxt: { fontSize: Math.round(13 * uiScale), fontWeight: '900', color: BOJE.textMuted, letterSpacing: 0.5 },
+  tabSwitchTxt: { fontSize: Math.round(13 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, color: BOJE.textMuted, letterSpacing: 0.5 },
 
   // Stats summary row
   statsSummaryRow: { flexDirection: 'row', gap: 8, marginBottom: 16, marginTop: 6 },
   statsSummaryChip: { flex: 1, backgroundColor: BOJE.bgCard, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: BOJE.border, alignItems: 'center' },
-  statsSummaryLabel: { fontSize: 10, fontWeight: '700', color: BOJE.textMuted, marginBottom: 4, textAlign: 'center' },
-  statsSummaryValue: { fontSize: 16, fontWeight: '900', color: BOJE.textMain },
+  statsSummaryLabel: { fontSize: 10, fontWeight: '700', fontFamily: FONT_FAMILY, color: BOJE.textMuted, marginBottom: 4, textAlign: 'center' },
+  statsSummaryValue: { fontSize: 16, fontWeight: '900', fontFamily: FONT_FAMILY, color: BOJE.textMain },
 
   // Lucky Spin meter
   luckySpinRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 10 },
   luckySpinMeter: { flex: 1, height: 8, backgroundColor: 'rgba(0,255,170,0.1)', borderRadius: 4, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(0,255,170,0.2)' },
   luckySpinFill: { height: '100%', backgroundColor: BOJE.xp, borderRadius: 4 },
-  luckySpinTxt: { fontSize: 12, fontWeight: '900', color: BOJE.textMuted, minWidth: 64, textAlign: 'right' },
+  luckySpinTxt: { fontSize: 12, fontWeight: '900', fontFamily: FONT_FAMILY, color: BOJE.textMuted, minWidth: 64, textAlign: 'right' },
 
   // Win streak & turbo row
   streakTurboRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 12, gap: 8 },
   streakBadge: { flex: 1, backgroundColor: 'rgba(255, 100, 0, 0.15)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255, 100, 0, 0.4)' },
-  streakTxt: { color: '#FF8C00', fontSize: 12, fontWeight: '900', letterSpacing: 0.5 },
+  streakTxt: { color: '#FF8C00', fontSize: 12, fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 0.5 },
   turboBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: BOJE.bgCard, borderWidth: 1, borderColor: BOJE.border },
   turboBtnActive: { backgroundColor: BOJE.energija, borderColor: BOJE.energija },
-  turboTxt: { fontSize: 11, fontWeight: '900', color: BOJE.textMuted, letterSpacing: 0.5 },
+  turboTxt: { fontSize: 11, fontWeight: '900', fontFamily: FONT_FAMILY, color: BOJE.textMuted, letterSpacing: 0.5 },
 
   // Lucky spin variant of spin button
   spinBtnLucky: { backgroundColor: BOJE.xp, shadowColor: BOJE.xp, shadowOpacity: 0.6, shadowRadius: 22, elevation: 14 },
