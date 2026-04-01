@@ -12,6 +12,7 @@ import {
 import { spremiCloud }      from '../firebase/cloudSave';
 import { azurirajLjestvicu } from '../firebase/leaderboard';
 
+// Dozvoljeno ime klana: 2-50 znakova, Unicode slova/brojevi, razmak, "_" i "-".
 const CLAN_NAME_REGEX = /^[\p{L}\p{N}\s_-]{2,50}$/u;
 let cloudSaveTimeout = null;
 

@@ -11,11 +11,20 @@ const secureRandom01 = () => {
   return Math.random();
 };
 
-export const randomChance = (chance) => secureRandom01() < chance;
+export const randomFloat = () => secureRandom01();
+
+/**
+ * Vrati true ako je slučajni broj [0,1) manji od zadane šanse.
+ * @param {number} chance očekivano između 0 i 1; vrijednosti izvan raspona se ograničavaju, a ne-konačne postaju 0
+ */
+export const randomChance = (chance) => {
+  const norm = Number.isFinite(chance) ? Math.max(0, Math.min(1, chance)) : 0;
+  return randomFloat() < norm;
+};
 
 export const randomInt = (maxExclusive) => {
   if (!Number.isFinite(maxExclusive) || maxExclusive <= 0) return 0;
-  return Math.floor(secureRandom01() * maxExclusive);
+  return Math.floor(randomFloat() * maxExclusive);
 };
 
 export const shuffle = (list) => {

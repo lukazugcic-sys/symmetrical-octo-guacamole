@@ -13,7 +13,7 @@ import {
 import {
   izracunajMaxStitova, izracunajPrestigeMnozitelj, izracunajSansuZaDobitak,
 } from '../utils/economy';
-import { delay, randomChance, randomInt } from '../utils/helpers';
+import { delay, randomChance, randomFloat, randomInt } from '../utils/helpers';
 
 // Izgradi težinski pool simbola na osnovu sezonalnog modificatora
 const izgradiPool = (dogadaj) => {
@@ -90,8 +90,7 @@ export const useSlotMachine = () => {
 
     if (d.zlato > 0) {
       const gs2 = useGameStore.getState();
-      const novoUkupnoZlato = gs2.ukupnoZlata;
-      gs2.provjeriDostignuca(undefined, novoUkupnoZlato, undefined, undefined);
+      gs2.provjeriDostignuca(undefined, gs2.ukupnoZlata, undefined, undefined);
     }
 
     useGameStore.setState({ poruka: 'DOBITAK PREUZET!' });
@@ -183,6 +182,7 @@ export const useSlotMachine = () => {
     const stopDelay    = turboRezim ? 100 : 250;
     const finalDelay   = turboRezim ? 150 : 300;
 
+    // Zaustavi eventualne prethodno pokrenute petlje prije nove vrtnje.
     spinLoopsRef.current.forEach((a) => a?.stop?.());
     spinLoopsRef.current = stupciAnims.map((anim) =>
       Animated.loop(Animated.timing(anim, { toValue: 300, duration: spinDuration, easing: Easing.linear, useNativeDriver: true }))
@@ -224,7 +224,7 @@ export const useSlotMachine = () => {
         const ponudjenoBlago = SVO_BLAGO.filter((s) => s !== 'skull');
         const dob    = ponudjenoBlago[randomInt(ponudjenoBlago.length)];
         const rLinija = linije[randomInt(linije.length)];
-        const rand   = randomInt(10000) / 10000;
+        const rand   = randomFloat();
         const raspon = rand > 0.95 ? [0, 1, 2, 3, 4] : (rand > 0.7 ? [0, 1, 2, 3] : [0, 1, 2]);
         raspon.forEach((i) => { noviSimboli[rLinija[i]] = dob; });
       }
