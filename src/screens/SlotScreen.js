@@ -10,12 +10,9 @@ import { Sparkles } from 'lucide-react-native';
 
 /**
  * Ekran automata — vrtnja, prikaz mreže simbola, gamble i preuzimanje dobitka.
- *
- * @param {function} onFlash  - callback za flash overlay (iz App.js)
- * @param {function} onShake  - callback za animaciju tresenja (iz App.js)
+ * Flash i shake efekti dolaze iz UIContext (bez prop drillinga).
  */
-const SlotScreen = ({ onFlash, onShake }) => {
-  const poruka          = useGameStore((s) => s.poruka);
+const SlotScreen = () => {          = useGameStore((s) => s.poruka);
   const energija        = useGameStore((s) => s.energija);
   const luckySpinCounter = useGameStore((s) => s.luckySpinCounter);
   const winStreak       = useGameStore((s) => s.winStreak);
@@ -28,7 +25,7 @@ const SlotScreen = ({ onFlash, onShake }) => {
   const setTurboRezim   = useSlotStore((s) => s.setTurboRezim);
 
   const { stupciAnims, stupciBlurs, winScaleAnims, zavrtiMasinu, preuzmiDobitak, igrajGamble } =
-    useSlotMachine({ onFlash, onShake });
+    useSlotMachine();
 
   const jeFreeSpin = luckySpinCounter === 1;
   const streakMultiplier = 1 + (Math.min(winStreak, MAX_WIN_STREAK) * STREAK_BONUS_PER_WIN);

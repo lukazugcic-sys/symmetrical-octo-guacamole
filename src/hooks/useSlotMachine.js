@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { Animated, Easing } from 'react-native';
 import { useGameStore } from '../store/gameStore';
 import { useSlotStore } from '../store/slotStore';
+import { useUI } from '../context/UIContext';
 import { useHaptics } from './useHaptics';
 import { useSounds } from './useSounds';
 import {
@@ -20,11 +21,11 @@ import { delay } from '../utils/helpers';
  *  - preuzmiDobitak — preuzimanje trenutnog dobitka
  *  - igrajGamble — duplanje dobitka (crvena/crna)
  *
- * @param {object} params
- * @param {function} params.onFlash  - callback(boja: string) za flash overlay u App.js
- * @param {function} params.onShake  - callback() za animaciju tresenja ekrana u App.js
+ * Flash i shake efekti čitaju se iz UIContext.
  */
-export const useSlotMachine = ({ onFlash, onShake }) => {
+export const useSlotMachine = () => {
+  const { onFlash: _onFlash, onShake: _onShake } = useUI();
+
   const { light, medium, heavy, success, error: hapticError } = useHaptics();
   const { play } = useSounds();
 
@@ -87,7 +88,7 @@ export const useSlotMachine = ({ onFlash, onShake }) => {
     const flashBoja = izvucenaKarta === 'red'
       ? 'rgba(255, 42, 85, 0.5)'
       : 'rgba(100, 100, 100, 0.7)';
-    onFlash(flashBoja);
+    _onFlash(flashBoja);
 
     if (izvucenaKarta === odabranaBoja) {
       useSlotStore.setState((state) => ({
@@ -292,8 +293,8 @@ export const useSlotMachine = ({ onFlash, onShake }) => {
         });
 
         if (jackpotLinija) {
-          onFlash('rgba(255, 215, 0, 0.5)');
-          onShake();
+          _onFlash('rgba(255, 215, 0, 0.5)');
+          _onShake();
           heavy();
           play('jackpot');
           useSlotStore.getState().setWinCelebration('jackpot');
@@ -311,14 +312,14 @@ export const useSlotMachine = ({ onFlash, onShake }) => {
         }
       } else if (brojLubanja >= 3) {
         useGameStore.setState({ winStreak: 0 });
-        onShake();
+        _onShake();
 
         const gs3 = useGameStore.getState();
         let novaPoruka  = '';
         let noviStitovi = gs3.stitovi;
 
         if (gs3.stitovi <= 0) {
-          onFlash('rgba(255, 51, 0, 0.4)');
+          _onFlash('rgba(255, 51, 0, 0.4)');
           hapticError();
           play('attack');
           const gubitakZlata = Math.floor(gs3.zlato * (0.05 * brojLubanja));
@@ -336,7 +337,7 @@ export const useSlotMachine = ({ onFlash, onShake }) => {
             novaPoruka = `NAPAD! ODUZETO ${gubitakZlata} 🪙`;
           }
         } else {
-          onFlash('rgba(0, 212, 255, 0.4)');
+          _onFlash('rgba(0, 212, 255, 0.4)');
           medium();
           play('attack');
           const steta = Math.min(gs3.stitovi, Math.floor(brojLubanja / 2) || 1);
