@@ -8,6 +8,8 @@ export const useSlotStore = create((set) => ({
   dobitnaPolja:     [],
   dobitakNaCekanju: null,
   turboRezim:       false,
+  winCelebration:   null,  // null | 'win' | 'jackpot'
+  celebrationKey:   0,     // inkrementira se pri svakoj novoj proslavi
 
   setSimboli:          (simboli)          => set({ simboli }),
   setVrti:             (vrti)             => set({ vrti }),
@@ -15,4 +17,8 @@ export const useSlotStore = create((set) => ({
   setDobitnaPolja:     (dobitnaPolja)     => set({ dobitnaPolja }),
   setDobitakNaCekanju: (dobitakNaCekanju) => set({ dobitakNaCekanju }),
   setTurboRezim:       (turboRezim)       => set({ turboRezim }),
+  setWinCelebration:   (tip)              => set((s) => ({
+    winCelebration: tip,
+    celebrationKey: tip ? s.celebrationKey + 1 : s.celebrationKey,
+  })),
 }));

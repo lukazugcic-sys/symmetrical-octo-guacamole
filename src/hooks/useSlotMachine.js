@@ -2,6 +2,8 @@ import { useRef } from 'react';
 import { Animated, Easing } from 'react-native';
 import { useGameStore } from '../store/gameStore';
 import { useSlotStore } from '../store/slotStore';
+import { useHaptics } from './useHaptics';
+import { useSounds } from './useSounds';
 import {
   SVO_BLAGO, BLAGO, LUCKY_SPIN_INTERVAL, MAX_WIN_STREAK,
   STREAK_BONUS_PER_WIN, WILD_BOOST_CHANCE_PER_LEVEL, ZGRADE,
@@ -23,6 +25,9 @@ import { delay } from '../utils/helpers';
  * @param {function} params.onShake  - callback() za animaciju tresenja ekrana u App.js
  */
 export const useSlotMachine = ({ onFlash, onShake }) => {
+  const { light, medium, heavy, success, error: hapticError } = useHaptics();
+  const { play } = useSounds();
+
   // Animirani refs za stupce i polja automata
   const stupciAnims    = useRef([...Array(5)].map(() => new Animated.Value(0))).current;
   const stupciBlurs    = useRef([...Array(5)].map(() => new Animated.Value(1))).current;
@@ -43,6 +48,9 @@ export const useSlotMachine = ({ onFlash, onShake }) => {
     const ss = useSlotStore.getState();
     const d  = ss.dobitakNaCekanju;
     if (!d) return;
+
+    success();
+    play('collect');
 
     const gs = useGameStore.getState();
     const maxStitova = izracunajMaxStitova(gs.razine.oklop || 0);
@@ -141,6 +149,10 @@ export const useSlotMachine = ({ onFlash, onShake }) => {
     useSlotStore.getState().setVrti(true);
     useSlotStore.getState().setDobitnaPolja([]);
     if (!jeFreeSpin) useGameStore.setState({ poruka: 'VRTNJA...' });
+
+    // Haptika + zvuk pri početku vrtnje
+    light();
+    play('spin');
 
     winScaleAnims.forEach((anim) => anim.setValue(1));
     stupciAnims.forEach((anim)   => anim.setValue(0));
@@ -282,10 +294,19 @@ export const useSlotMachine = ({ onFlash, onShake }) => {
         if (jackpotLinija) {
           onFlash('rgba(255, 215, 0, 0.5)');
           onShake();
+          heavy();
+          play('jackpot');
+          useSlotStore.getState().setWinCelebration('jackpot');
           useGameStore.setState({ poruka: `🎰 JACKPOT! 5 U NIZU! 2× BONUS${gs2.winStreak > 0 ? ` + ${Math.round((winStreakMultiplier - 1) * 100)}% NIZ` : ''}! PREUZMI ILI DUPLAJ!` });
         } else if (noviWinStreak >= 3) {
+          medium();
+          play('win');
+          useSlotStore.getState().setWinCelebration('win');
           useGameStore.setState({ poruka: `🔥 NIZ x${noviWinStreak}! +${Math.round((winStreakMultiplier - 1) * 100)}% BONUS! PREUZMI ILI DUPLAJ!` });
         } else {
+          medium();
+          play('win');
+          useSlotStore.getState().setWinCelebration('win');
           useGameStore.setState({ poruka: 'DOBITAK! PREUZMI ILI DUPLAJ!' });
         }
       } else if (brojLubanja >= 3) {
@@ -298,6 +319,8 @@ export const useSlotMachine = ({ onFlash, onShake }) => {
 
         if (gs3.stitovi <= 0) {
           onFlash('rgba(255, 51, 0, 0.4)');
+          hapticError();
+          play('attack');
           const gubitakZlata = Math.floor(gs3.zlato * (0.05 * brojLubanja));
           useGameStore.setState((s) => ({ zlato: Math.max(0, s.zlato - gubitakZlata) }));
           noviStitovi = 0;
@@ -314,6 +337,8 @@ export const useSlotMachine = ({ onFlash, onShake }) => {
           }
         } else {
           onFlash('rgba(0, 212, 255, 0.4)');
+          medium();
+          play('attack');
           const steta = Math.min(gs3.stitovi, Math.floor(brojLubanja / 2) || 1);
           noviStitovi = gs3.stitovi - steta;
           novaPoruka  = `OBRANA AKTIVNA! -${steta} ŠTITA`;

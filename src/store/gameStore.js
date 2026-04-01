@@ -34,6 +34,7 @@ const pocetnoStanje = {
   luckySpinCounter: LUCKY_SPIN_INTERVAL,
   winStreak:        0,
   poruka:           'SPREMAN ZA VRTNJU',
+  levelUpData:      null, // { razina: N } — pokreće LevelUpToast
 };
 
 export const useGameStore = create((set, get) => ({
@@ -41,6 +42,9 @@ export const useGameStore = create((set, get) => ({
 
   // ─── UI poruka ─────────────────────────────────────────────────────────────
   setPoruka: (poruka) => set({ poruka }),
+
+  // ─── Level up overlay ───────────────────────────────────────────────────────
+  clearLevelUp: () => set({ levelUpData: null }),
 
   // ─── Perzistencija ─────────────────────────────────────────────────────────
   ucitaj: async () => {
@@ -184,6 +188,7 @@ export const useGameStore = create((set, get) => ({
         dijamanti:   s.dijamanti + 5,
         energija:    maxEnergija,
         poruka:      `LEVEL UP! RAZINA ${novaRazina}`,
+        levelUpData: { razina: novaRazina },
       });
     }
   },

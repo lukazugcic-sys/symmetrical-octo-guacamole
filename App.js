@@ -11,6 +11,8 @@ import { useGameStore } from './src/store/gameStore';
 import { useVillage }   from './src/hooks/useVillage';
 import { useMarket }    from './src/hooks/useMarket';
 import Header           from './src/components/Header';
+import WinCelebration   from './src/components/WinCelebration';
+import LevelUpToast     from './src/components/LevelUpToast';
 import SlotScreen       from './src/screens/SlotScreen';
 import VillageScreen    from './src/screens/VillageScreen';
 import MissionsScreen   from './src/screens/MissionsScreen';
@@ -162,6 +164,12 @@ export default function App() {
           </View>
         </View>
       )}
+
+      {/* Čestice proslave pobjede / jackpota */}
+      <WinCelebration />
+
+      {/* Level-up toast */}
+      <LevelUpToast />
 
       <Animated.View style={[styles.mainWrapper, { transform: [{ translateX: shakeAnim }] }]} {...swipeRef.panHandlers}>
         <Header />

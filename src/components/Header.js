@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { Zap, Coins, Gem, Shield, TreePine, Mountain, Pickaxe, TrendingUp, Crown } from 'lucide-react-native';
 import { useGameStore } from '../store/gameStore';
+import AnimatedStat from './AnimatedStat';
 import { BOJE, uiScale, FONT_FAMILY } from '../config/constants';
 import { izracunajMaxStitova, izracunajPotrebniXp, izracunajPasivniMnozitelj } from '../utils/economy';
 
@@ -51,16 +52,34 @@ const Header = () => {
 
       {/* Zlato, energija, dijamanti */}
       <View style={styles.headerMainStats}>
-        <View style={styles.statChip}><Zap size={16} color={BOJE.energija} strokeWidth={2.5} /><Text style={styles.statChipTxt}>{Math.floor(energija)}</Text></View>
-        <View style={styles.statChip}><Coins size={16} color={BOJE.zlato} strokeWidth={2.5} /><Text style={styles.statChipTxt}>{Math.floor(zlato)}</Text></View>
-        <View style={styles.statChip}><Gem size={16} color={BOJE.dijamant} strokeWidth={2.5} /><Text style={styles.statChipTxt}>{dijamanti}</Text></View>
+        <AnimatedStat value={Math.floor(energija)} style={styles.statChip}>
+          <Zap size={16} color={BOJE.energija} strokeWidth={2.5} />
+          <Text style={styles.statChipTxt}>{Math.floor(energija)}</Text>
+        </AnimatedStat>
+        <AnimatedStat value={Math.floor(zlato)} style={styles.statChip}>
+          <Coins size={16} color={BOJE.zlato} strokeWidth={2.5} />
+          <Text style={styles.statChipTxt}>{Math.floor(zlato)}</Text>
+        </AnimatedStat>
+        <AnimatedStat value={dijamanti} style={styles.statChip}>
+          <Gem size={16} color={BOJE.dijamant} strokeWidth={2.5} />
+          <Text style={styles.statChipTxt}>{dijamanti}</Text>
+        </AnimatedStat>
       </View>
 
       {/* Resursi */}
       <View style={styles.resourceHeaderRow}>
-        <View style={styles.resMiniChip}><TreePine size={14} color={BOJE.drvo} strokeWidth={2.5} /><Text style={styles.resChipTxt}>{Math.floor(resursi.drvo)}</Text></View>
-        <View style={styles.resMiniChip}><Mountain size={14} color={BOJE.kamen} strokeWidth={2.5} /><Text style={styles.resChipTxt}>{Math.floor(resursi.kamen)}</Text></View>
-        <View style={styles.resMiniChip}><Pickaxe size={14} color={BOJE.zeljezo} strokeWidth={2.5} /><Text style={styles.resChipTxt}>{Math.floor(resursi.zeljezo)}</Text></View>
+        <AnimatedStat value={Math.floor(resursi.drvo)} style={styles.resMiniChip}>
+          <TreePine size={14} color={BOJE.drvo} strokeWidth={2.5} />
+          <Text style={styles.resChipTxt}>{Math.floor(resursi.drvo)}</Text>
+        </AnimatedStat>
+        <AnimatedStat value={Math.floor(resursi.kamen)} style={styles.resMiniChip}>
+          <Mountain size={14} color={BOJE.kamen} strokeWidth={2.5} />
+          <Text style={styles.resChipTxt}>{Math.floor(resursi.kamen)}</Text>
+        </AnimatedStat>
+        <AnimatedStat value={Math.floor(resursi.zeljezo)} style={styles.resMiniChip}>
+          <Pickaxe size={14} color={BOJE.zeljezo} strokeWidth={2.5} />
+          <Text style={styles.resChipTxt}>{Math.floor(resursi.zeljezo)}</Text>
+        </AnimatedStat>
       </View>
 
       {/* Obrana */}
