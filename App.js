@@ -123,7 +123,8 @@ const DNEVNE_NAGRADE = [
 ];
 
 const screenWidth = Dimensions.get('window').width;
-const slotSize = (screenWidth - 80) / 5; 
+const uiScale = Math.min(1.15, Math.max(0.82, screenWidth / 390));
+const slotSize = Math.floor((screenWidth - 72) / 5);
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const LUCKY_SPIN_INTERVAL = 25;
@@ -1211,11 +1212,11 @@ export default function App() {
           const aktivan = pogled === tab.id;
           const TIcon = tab.ikona;
           return (
-            <TouchableOpacity activeOpacity={0.6} key={tab.id} onPress={() => setPogled(tab.id)} style={styles.navBtn}>
-              <View style={[styles.navIconContainer, aktivan && styles.navIconActive]}>
-                <TIcon size={22} color={aktivan ? '#FFF' : BOJE.textMuted} strokeWidth={aktivan ? 2.5 : 2} />
+            <TouchableOpacity activeOpacity={0.7} key={tab.id} onPress={() => setPogled(tab.id)} style={styles.navBtn}>
+              <View style={[styles.navTabPill, aktivan && styles.navTabPillActive]}>
+                <TIcon size={aktivan ? 20 : 18} color={aktivan ? '#000' : BOJE.textMuted} strokeWidth={aktivan ? 2.5 : 1.8} />
+                {aktivan && <Text style={styles.navText}>{tab.label}</Text>}
               </View>
-              {aktivan && <Text style={[styles.navText, {color: '#FFF'}]}>{tab.label}</Text>}
             </TouchableOpacity>
           )
         })}
@@ -1228,27 +1229,27 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BOJE.bg },
   mainWrapper: { flex: 1 },
   
-  header: { padding: 16, paddingTop: Platform.OS === 'android' ? 44 : 20, zIndex: 10, backgroundColor: 'rgba(5, 5, 10, 0.85)', borderBottomWidth: 1, borderColor: BOJE.border },
+  header: { paddingHorizontal: 16, paddingTop: Platform.OS === 'android' ? 44 : 16, paddingBottom: 14, zIndex: 10, backgroundColor: 'rgba(4, 4, 8, 0.96)', borderBottomWidth: 1, borderColor: BOJE.border, shadowColor: '#000', shadowOpacity: 0.55, shadowRadius: 12, elevation: 8 },
   
-  levelContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: BOJE.slotOkvirZlato, borderRadius: 24, padding: 6, marginBottom: 12, borderWidth: 1, borderColor: BOJE.border },
-  levelBadgeOuter: { width: 34, height: 34, borderRadius: 17, backgroundColor: BOJE.xp, justifyContent: 'center', alignItems: 'center', shadowColor: BOJE.xp, shadowOpacity: 0.8, shadowRadius: 5, elevation: 4 },
-  prestigeBadgeOuter: { width: 34, height: 34, borderRadius: 17, backgroundColor: BOJE.prestige, justifyContent: 'center', alignItems: 'center', shadowColor: BOJE.prestige, shadowOpacity: 0.8, shadowRadius: 5, elevation: 4, marginLeft: 6, flexDirection: 'row' },
-  levelBadgeTxt: { color: '#000', fontWeight: '900', fontSize: 16 },
-  xpBarContainer: { flex: 1, height: 18, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 9, marginHorizontal: 10, overflow: 'hidden', justifyContent: 'center' },
-  xpBarFill: { position: 'absolute', height: '100%', backgroundColor: BOJE.xp, borderRadius: 9 },
-  xpText: { position: 'absolute', width: '100%', textAlign: 'center', color: '#FFF', fontSize: 10, fontWeight: '800', textShadowColor: '#000', textShadowRadius: 2 },
-  multiplierBadge: { backgroundColor: BOJE.xp, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, flexDirection: 'row', alignItems: 'center' },
-  multiplierTxt: { color: '#000', fontSize: 11, fontWeight: '900' },
+  levelContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: BOJE.slotOkvirZlato, borderRadius: 26, padding: 6, marginBottom: 10, borderWidth: 1, borderColor: BOJE.border },
+  levelBadgeOuter: { width: Math.round(34 * uiScale), height: Math.round(34 * uiScale), borderRadius: Math.round(17 * uiScale), backgroundColor: BOJE.xp, justifyContent: 'center', alignItems: 'center', shadowColor: BOJE.xp, shadowOpacity: 0.8, shadowRadius: 6, elevation: 5 },
+  prestigeBadgeOuter: { width: Math.round(34 * uiScale), height: Math.round(34 * uiScale), borderRadius: Math.round(17 * uiScale), backgroundColor: BOJE.prestige, justifyContent: 'center', alignItems: 'center', shadowColor: BOJE.prestige, shadowOpacity: 0.8, shadowRadius: 6, elevation: 5, marginLeft: 6, flexDirection: 'row' },
+  levelBadgeTxt: { color: '#000', fontWeight: '900', fontSize: Math.round(16 * uiScale) },
+  xpBarContainer: { flex: 1, height: Math.round(18 * uiScale), backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: Math.round(9 * uiScale), marginHorizontal: 10, overflow: 'hidden', justifyContent: 'center' },
+  xpBarFill: { position: 'absolute', height: '100%', backgroundColor: BOJE.xp, borderRadius: Math.round(9 * uiScale) },
+  xpText: { position: 'absolute', width: '100%', textAlign: 'center', color: '#FFF', fontSize: Math.round(10 * uiScale), fontWeight: '800', textShadowColor: '#000', textShadowRadius: 2 },
+  multiplierBadge: { backgroundColor: BOJE.xp, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, flexDirection: 'row', alignItems: 'center', shadowColor: BOJE.xp, shadowOpacity: 0.4, shadowRadius: 6, elevation: 3 },
+  multiplierTxt: { color: '#000', fontSize: Math.round(11 * uiScale), fontWeight: '900' },
 
   headerMainStats: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
-  statChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: BOJE.bgCard, borderRadius: 16, borderWidth: 1, borderColor: BOJE.border, height: 38 },
-  statChipTxt: { fontSize: 15, fontWeight: '800', color: BOJE.textMain, marginLeft: 6 },
+  statChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: BOJE.bgCard, borderRadius: 16, borderWidth: 1, borderColor: BOJE.border, height: Math.round(40 * uiScale), gap: 6 },
+  statChipTxt: { fontSize: Math.round(15 * uiScale), fontWeight: '800', color: BOJE.textMain },
   
   resourceHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginTop: 8 },
-  resMiniChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: BOJE.bgCard, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: BOJE.border },
-  resChipTxt: { fontSize: 13, fontWeight: '800', color: BOJE.textMain, marginLeft: 6 },
+  resMiniChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: BOJE.bgCard, paddingVertical: Math.round(6 * uiScale), borderRadius: 12, borderWidth: 1, borderColor: BOJE.border, gap: 6 },
+  resChipTxt: { fontSize: Math.round(13 * uiScale), fontWeight: '800', color: BOJE.textMain },
   
-  defenseMatrix: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0, 212, 255, 0.05)', marginTop: 12, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(0, 212, 255, 0.2)' },
+  defenseMatrix: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0, 212, 255, 0.06)', marginTop: 10, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(0, 212, 255, 0.25)' },
   defenseTitle: { color: BOJE.stit, fontSize: 12, fontWeight: '900', letterSpacing: 1, marginRight: 12 },
   shieldSlotsContainer: { flex: 1, flexDirection: 'row', gap: 6 },
   shieldSlot: { flex: 1, height: 12, borderRadius: 6, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
@@ -1256,63 +1257,63 @@ const styles = StyleSheet.create({
   shieldEmpty: { opacity: 0.5 },
   shieldGlow: { width: '100%', height: '100%', backgroundColor: BOJE.stit, shadowColor: BOJE.stit, shadowOpacity: 1, shadowRadius: 8, elevation: 4 },
 
-  messageBubble: { flexDirection: 'row', backgroundColor: BOJE.bgCard, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 16, marginBottom: 24, borderWidth: 1, borderColor: BOJE.border, alignItems: 'center', justifyContent: 'center', shadowColor: BOJE.slotVatra, shadowOpacity: 0.3, shadowRadius: 10, elevation: 5 },
-  messageText: { color: BOJE.slotVatra, fontSize: 13, fontWeight: '900', letterSpacing: 1 },
+  messageBubble: { flexDirection: 'row', backgroundColor: 'rgba(20, 22, 35, 0.98)', paddingHorizontal: 16, paddingVertical: Math.round(14 * uiScale), borderRadius: 18, marginBottom: 20, borderWidth: 1, borderColor: 'rgba(255,51,0,0.35)', alignItems: 'center', justifyContent: 'center', shadowColor: BOJE.slotVatra, shadowOpacity: 0.45, shadowRadius: 14, elevation: 7 },
+  messageText: { color: BOJE.slotVatra, fontSize: Math.round(13 * uiScale), fontWeight: '900', letterSpacing: 1 },
   
-  content: { flex: 1, paddingHorizontal: 16 },
+  content: { flex: 1, paddingHorizontal: 14 },
   scrollContent: { paddingBottom: 120, paddingTop: 10 }, 
 
   gameContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 60 },
   
-  slotMachineOuter: { backgroundColor: '#0D0F17', padding: 8, borderRadius: 24, borderWidth: 2, borderColor: '#222533', width: '100%', marginBottom: 32, shadowColor: BOJE.slotVatra, shadowOffset: {width: 0, height: 10}, shadowOpacity: 0.2, shadowRadius: 30, elevation: 15 },
-  slotMachineInner: { backgroundColor: BOJE.slotRolaCrna, padding: 10, borderRadius: 16, borderWidth: 2, borderColor: '#000', overflow: 'hidden', position: 'relative' }, 
+  slotMachineOuter: { backgroundColor: '#080A12', padding: 10, borderRadius: 28, borderWidth: 2, borderColor: 'rgba(255,255,255,0.10)', width: '100%', marginBottom: 26, shadowColor: BOJE.slotVatra, shadowOffset: {width: 0, height: 12}, shadowOpacity: 0.30, shadowRadius: 40, elevation: 20 },
+  slotMachineInner: { backgroundColor: BOJE.slotRolaCrna, padding: 10, borderRadius: 20, borderWidth: 2, borderColor: '#000', overflow: 'hidden', position: 'relative' }, 
   gridColumnsWrapper: { flexDirection: 'row', justifyContent: 'space-between', gap: 6 },
   gridColumn: { flex: 1, gap: 6 },
-  slotItem: { width: slotSize, height: slotSize, borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 2 },
-  slotItemWinning: { borderWidth: 3, borderRadius: 16, shadowOpacity: 1, shadowRadius: 15, elevation: 10, backgroundColor: 'rgba(255,51,0,0.15)' },
+  slotItem: { width: slotSize, height: slotSize, borderRadius: Math.round(16 * uiScale), justifyContent: 'center', alignItems: 'center', borderWidth: 2 },
+  slotItemWinning: { borderWidth: 3, borderRadius: Math.round(16 * uiScale), shadowOpacity: 1, shadowRadius: 18, elevation: 12, backgroundColor: 'rgba(255,51,0,0.18)' },
 
-  betContainer: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 24 },
-  betBtn: { paddingVertical: 12, paddingHorizontal: 22, borderRadius: 20, backgroundColor: BOJE.bgCard, borderWidth: 1, borderColor: BOJE.border },
-  betBtnActive: { backgroundColor: BOJE.slotVatra, borderColor: BOJE.slotVatra, shadowColor: BOJE.slotVatra, shadowOpacity: 0.5, shadowRadius: 8 },
-  betBtnText: { fontWeight: '900', color: BOJE.textMuted, fontSize: 16 },
+  betContainer: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 20 },
+  betBtn: { paddingVertical: Math.round(12 * uiScale), paddingHorizontal: Math.round(22 * uiScale), borderRadius: 22, backgroundColor: BOJE.bgCard, borderWidth: 1, borderColor: BOJE.border },
+  betBtnActive: { backgroundColor: BOJE.slotVatra, borderColor: BOJE.slotVatra, shadowColor: BOJE.slotVatra, shadowOpacity: 0.6, shadowRadius: 10, elevation: 6 },
+  betBtnText: { fontWeight: '900', color: BOJE.textMuted, fontSize: Math.round(16 * uiScale) },
   betBtnTextActive: { color: '#FFF' },
   
-  spinBtn: { backgroundColor: BOJE.energija, width: '100%', paddingVertical: 22, borderRadius: 24, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', shadowColor: BOJE.energija, shadowOpacity: 0.4, shadowRadius: 15, elevation: 8 },
+  spinBtn: { backgroundColor: BOJE.energija, width: '100%', paddingVertical: Math.round(22 * uiScale), borderRadius: 26, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', shadowColor: BOJE.energija, shadowOpacity: 0.55, shadowRadius: 20, elevation: 12 },
   spinBtnDisabled: { opacity: 0.5, transform: [{scale: 0.98}], shadowOpacity: 0 },
-  spinBtnText: { color: '#000', fontSize: 24, fontWeight: '900', letterSpacing: 2 },
-  spinCostBadge: { position: 'absolute', right: 24, backgroundColor: 'rgba(0,0,0,0.15)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, flexDirection: 'row', alignItems: 'center' },
+  spinBtnText: { color: '#000', fontSize: Math.round(24 * uiScale), fontWeight: '900', letterSpacing: 3 },
+  spinCostBadge: { position: 'absolute', right: 22, backgroundColor: 'rgba(0,0,0,0.18)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, flexDirection: 'row', alignItems: 'center' },
   spinCostTxt: { color: '#000', fontWeight: '900', fontSize: 12, marginRight: 2 },
 
-  gambleContainer: { width: '100%', backgroundColor: 'rgba(255, 215, 0, 0.08)', padding: 20, borderRadius: 24, borderWidth: 1, borderColor: BOJE.zlato + '60', alignItems: 'center' },
-  gambleTitle: { color: BOJE.textMuted, fontSize: 14, fontWeight: '900', letterSpacing: 1, marginBottom: 8 },
+  gambleContainer: { width: '100%', backgroundColor: 'rgba(255, 215, 0, 0.09)', padding: 20, borderRadius: 28, borderWidth: 1, borderColor: BOJE.zlato + '70', alignItems: 'center', shadowColor: BOJE.zlato, shadowOpacity: 0.15, shadowRadius: 14, elevation: 6 },
+  gambleTitle: { color: BOJE.textMuted, fontSize: Math.round(14 * uiScale), fontWeight: '900', letterSpacing: 1.5, marginBottom: 8 },
   gamblePrizesRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10, marginBottom: 20 },
-  gamblePrizeTxt: { color: BOJE.zlato, fontSize: 18, fontWeight: '900', textShadowColor: '#000', textShadowRadius: 5 },
-  gambleButtonsRow: { flexDirection: 'row', gap: 12, width: '100%', marginBottom: 16 },
-  gambleBtn: { flex: 1, paddingVertical: 18, borderRadius: 16, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 10, elevation: 6 },
-  gambleBtnTxt: { color: '#FFF', fontSize: 15, fontWeight: '900', letterSpacing: 1 },
-  collectBtn: { backgroundColor: BOJE.energija, width: '100%', paddingVertical: 18, borderRadius: 16, alignItems: 'center' },
-  collectBtnTxt: { color: '#000', fontSize: 16, fontWeight: '900', letterSpacing: 1 },
+  gamblePrizeTxt: { color: BOJE.zlato, fontSize: Math.round(18 * uiScale), fontWeight: '900', textShadowColor: '#000', textShadowRadius: 5 },
+  gambleButtonsRow: { flexDirection: 'row', gap: 12, width: '100%', marginBottom: 14 },
+  gambleBtn: { flex: 1, paddingVertical: Math.round(18 * uiScale), borderRadius: 18, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 12, elevation: 8 },
+  gambleBtnTxt: { color: '#FFF', fontSize: Math.round(15 * uiScale), fontWeight: '900', letterSpacing: 1 },
+  collectBtn: { backgroundColor: BOJE.energija, width: '100%', paddingVertical: Math.round(18 * uiScale), borderRadius: 18, alignItems: 'center', shadowColor: BOJE.energija, shadowOpacity: 0.35, shadowRadius: 10, elevation: 5 },
+  collectBtnTxt: { color: '#000', fontSize: Math.round(16 * uiScale), fontWeight: '900', letterSpacing: 1 },
 
-  subTitle: { fontSize: 16, fontWeight: '900', color: BOJE.textMain, marginBottom: 16, marginLeft: 4, letterSpacing: 1, textTransform: 'uppercase' },
+  subTitle: { fontSize: Math.round(16 * uiScale), fontWeight: '900', color: BOJE.textMain, marginBottom: 16, marginLeft: 4, letterSpacing: 1.2, textTransform: 'uppercase' },
 
-  card: { backgroundColor: BOJE.bgCard, padding: 20, borderRadius: 24, marginBottom: 16, borderWidth: 1, borderColor: BOJE.border },
+  card: { backgroundColor: BOJE.bgCard, padding: 20, borderRadius: 24, marginBottom: 14, borderWidth: 1, borderColor: BOJE.border, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: {width: 0, height: 4}, elevation: 5 },
   cardMaxed: { borderColor: BOJE.zlato + '40', backgroundColor: BOJE.zlato + '08' },
-  cardDamaged: { borderColor: BOJE.slotVatra, backgroundColor: 'rgba(255, 51, 0, 0.05)', shadowColor: BOJE.slotVatra, shadowOpacity: 0.2, shadowRadius: 10, elevation: 5 },
+  cardDamaged: { borderColor: BOJE.slotVatra, backgroundColor: 'rgba(255, 51, 0, 0.06)', shadowColor: BOJE.slotVatra, shadowOpacity: 0.25, shadowRadius: 12, elevation: 6 },
   cardTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
   iconBadge: { width: 48, height: 48, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
   zgradaIconBg: { width: 56, height: 56, borderRadius: 20, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
-  cardTitle: { fontSize: 18, fontWeight: '800', color: BOJE.textMain },
-  levelBadge: { backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  buildCardLevel: { fontSize: 12, fontWeight: '900', color: BOJE.textMuted },
-  perkText: { fontSize: 13, fontWeight: '600', color: BOJE.xp, marginTop: 6 },
-  cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderColor: BOJE.border, paddingTop: 16 },
+  cardTitle: { fontSize: Math.round(17 * uiScale), fontWeight: '800', color: BOJE.textMain },
+  levelBadge: { backgroundColor: 'rgba(255,255,255,0.06)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  buildCardLevel: { fontSize: Math.round(12 * uiScale), fontWeight: '900', color: BOJE.textMuted },
+  perkText: { fontSize: Math.round(13 * uiScale), fontWeight: '600', color: BOJE.xp, marginTop: 6 },
+  cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderColor: BOJE.border, paddingTop: 14 },
   
   repairBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: BOJE.slotVatra, paddingHorizontal: 6, paddingVertical: 4, borderRadius: 8, marginRight: 4 },
   repairBadgeTxt: { color: '#FFF', fontSize: 10, fontWeight: '900', marginLeft: 4 },
 
-  actionBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 14 },
-  actionBtnTxt: { color: '#000', fontWeight: '900', fontSize: 13, letterSpacing: 0.5 },
-  maxTxt: { color: BOJE.zlato, fontWeight: '800', fontSize: 13, letterSpacing: 1 },
+  actionBtn: { paddingHorizontal: Math.round(20 * uiScale), paddingVertical: Math.round(12 * uiScale), borderRadius: 14 },
+  actionBtnTxt: { color: '#000', fontWeight: '900', fontSize: Math.round(13 * uiScale), letterSpacing: 0.5 },
+  maxTxt: { color: BOJE.zlato, fontWeight: '800', fontSize: Math.round(13 * uiScale), letterSpacing: 1 },
   
   missionProgressContainer: { width: '100%', height: 6, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 3, marginTop: 10, overflow: 'hidden' },
   missionProgressBar: { height: '100%', borderRadius: 3 },
@@ -1335,32 +1336,32 @@ const styles = StyleSheet.create({
   
   trendBadge: { padding: 4, borderRadius: 8 },
 
-  floatingNavbar: { position: 'absolute', bottom: Platform.OS === 'ios' ? 30 : 20, left: 10, right: 10, flexDirection: 'row', justifyContent: 'space-evenly', backgroundColor: BOJE.navBg, paddingVertical: 14, borderRadius: 28, borderWidth: 1, borderColor: BOJE.border },
-  navBtn: { alignItems: 'center', justifyContent: 'center', flexDirection: 'row', paddingHorizontal: 6 },
-  navIconContainer: { marginRight: 4 },
-  navIconActive: { },
-  navText: { fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
+  floatingNavbar: { position: 'absolute', bottom: Platform.OS === 'ios' ? 28 : 16, left: 10, right: 10, flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', backgroundColor: BOJE.navBg, paddingVertical: 10, paddingHorizontal: 6, borderRadius: 32, borderWidth: 1, borderColor: BOJE.border, shadowColor: '#000', shadowOpacity: 0.6, shadowRadius: 24, elevation: 18 },
+  navBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 2 },
+  navTabPill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 22 },
+  navTabPillActive: { backgroundColor: BOJE.energija, shadowColor: BOJE.energija, shadowOpacity: 0.5, shadowRadius: 10, elevation: 5 },
+  navText: { fontSize: Math.round(11 * uiScale), fontWeight: '900', letterSpacing: 0.5, color: '#000', marginLeft: 5 },
 
   // Daily bonus modal
-  modalOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', zIndex: 200, paddingHorizontal: 24 },
-  modalCard: { backgroundColor: '#0F1020', borderRadius: 28, padding: 28, width: '100%', borderWidth: 1, borderColor: BOJE.zlato + '60', alignItems: 'center', shadowColor: BOJE.zlato, shadowOpacity: 0.3, shadowRadius: 20, elevation: 20 },
-  modalTitle: { fontSize: 24, fontWeight: '900', color: BOJE.zlato, letterSpacing: 2, marginBottom: 8 },
-  modalSubtitle: { fontSize: 13, color: BOJE.textMuted, fontWeight: '700', marginBottom: 20, letterSpacing: 1 },
+  modalOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.88)', justifyContent: 'center', alignItems: 'center', zIndex: 200, paddingHorizontal: 24 },
+  modalCard: { backgroundColor: '#0C0E1C', borderRadius: 32, padding: 28, width: '100%', borderWidth: 1, borderColor: BOJE.zlato + '70', alignItems: 'center', shadowColor: BOJE.zlato, shadowOpacity: 0.35, shadowRadius: 28, elevation: 24 },
+  modalTitle: { fontSize: Math.round(24 * uiScale), fontWeight: '900', color: BOJE.zlato, letterSpacing: 2, marginBottom: 8 },
+  modalSubtitle: { fontSize: Math.round(13 * uiScale), color: BOJE.textMuted, fontWeight: '700', marginBottom: 20, letterSpacing: 1 },
   dnevnaStreakRow: { flexDirection: 'row', gap: 6, marginBottom: 24, flexWrap: 'wrap', justifyContent: 'center' },
-  dnevniDanBadge: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center' },
-  dnevniDanAktivan: { backgroundColor: BOJE.zlato + '30', borderColor: BOJE.zlato, shadowColor: BOJE.zlato, shadowOpacity: 0.6, shadowRadius: 6, elevation: 4 },
+  dnevniDanBadge: { width: 38, height: 38, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center' },
+  dnevniDanAktivan: { backgroundColor: BOJE.zlato + '35', borderColor: BOJE.zlato, shadowColor: BOJE.zlato, shadowOpacity: 0.65, shadowRadius: 8, elevation: 5 },
   dnevniDanPreuzet: { backgroundColor: BOJE.xp + '20', borderColor: BOJE.xp + '60' },
-  dnevniDanBroj: { color: BOJE.textMain, fontSize: 13, fontWeight: '900' },
+  dnevniDanBroj: { color: BOJE.textMain, fontSize: Math.round(13 * uiScale), fontWeight: '900' },
   modalNagradeRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 12, marginBottom: 28 },
-  modalNagradaTxt: { fontSize: 22, fontWeight: '900', color: BOJE.zlato, textShadowColor: '#000', textShadowRadius: 5 },
-  modalBtn: { backgroundColor: BOJE.zlato, width: '100%', paddingVertical: 18, borderRadius: 18, alignItems: 'center' },
-  modalBtnTxt: { color: '#000', fontSize: 18, fontWeight: '900', letterSpacing: 2 },
+  modalNagradaTxt: { fontSize: Math.round(22 * uiScale), fontWeight: '900', color: BOJE.zlato, textShadowColor: '#000', textShadowRadius: 5 },
+  modalBtn: { backgroundColor: BOJE.zlato, width: '100%', paddingVertical: Math.round(18 * uiScale), borderRadius: 20, alignItems: 'center', shadowColor: BOJE.zlato, shadowOpacity: 0.4, shadowRadius: 12, elevation: 6 },
+  modalBtnTxt: { color: '#000', fontSize: Math.round(18 * uiScale), fontWeight: '900', letterSpacing: 2 },
 
   // Tab switcher (missions/achievements)
-  tabSwitcher: { flexDirection: 'row', backgroundColor: BOJE.bgCard, borderRadius: 16, padding: 4, marginTop: 10, marginBottom: 4, borderWidth: 1, borderColor: BOJE.border },
-  tabSwitchBtn: { flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
-  tabSwitchActive: { backgroundColor: 'rgba(255,255,255,0.07)' },
-  tabSwitchTxt: { fontSize: 13, fontWeight: '900', color: BOJE.textMuted, letterSpacing: 0.5 },
+  tabSwitcher: { flexDirection: 'row', backgroundColor: BOJE.bgCard, borderRadius: 18, padding: 4, marginTop: 10, marginBottom: 4, borderWidth: 1, borderColor: BOJE.border },
+  tabSwitchBtn: { flex: 1, paddingVertical: 11, borderRadius: 14, alignItems: 'center' },
+  tabSwitchActive: { backgroundColor: 'rgba(255,255,255,0.09)' },
+  tabSwitchTxt: { fontSize: Math.round(13 * uiScale), fontWeight: '900', color: BOJE.textMuted, letterSpacing: 0.5 },
 
   // Stats summary row
   statsSummaryRow: { flexDirection: 'row', gap: 8, marginBottom: 16, marginTop: 6 },
@@ -1383,5 +1384,5 @@ const styles = StyleSheet.create({
   turboTxt: { fontSize: 11, fontWeight: '900', color: BOJE.textMuted, letterSpacing: 0.5 },
 
   // Lucky spin variant of spin button
-  spinBtnLucky: { backgroundColor: BOJE.xp, shadowColor: BOJE.xp },
+  spinBtnLucky: { backgroundColor: BOJE.xp, shadowColor: BOJE.xp, shadowOpacity: 0.6, shadowRadius: 22, elevation: 14 },
 });
