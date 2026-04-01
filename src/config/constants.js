@@ -40,6 +40,7 @@ export const BOJE = {
   xp:              '#34D399',
   misije:          '#FB923C',
   prestige:        '#FCD34D',
+  klan:            '#38BDF8',
 };
 
 // ─── Tečaj tržnice ────────────────────────────────────────────────────────────
@@ -143,4 +144,31 @@ export const STREAK_BONUS_PER_WIN        = 0.15;
 export const WILD_BOOST_CHANCE_PER_LEVEL = 0.04;
 
 // ─── Redoslijed ekrana (za navigaciju swipeom) ────────────────────────────────
-export const POREDAK_EKRANA = ['automat', 'selo', 'misije', 'trgovina', 'nadogradnje'];
+export const POREDAK_EKRANA = ['automat', 'selo', 'misije', 'trgovina', 'nadogradnje', 'klan'];
+
+// ─── Kozmetika — skinovi zgrada ───────────────────────────────────────────────
+export const ZGRADE_SKINOVI = [
+  { id: 'default',    naziv: 'Klasično',       emodzi: '🏚',  boja: '#64748B', cijenaDijamanti: 0   },
+  { id: 'medieval',   naziv: 'Srednji Vijek',  emodzi: '🏰',  boja: '#B45309', cijenaDijamanti: 50  },
+  { id: 'japanese',   naziv: 'Japansko',       emodzi: '⛩️',  boja: '#DC2626', cijenaDijamanti: 100 },
+  { id: 'futuristic', naziv: 'Futurističko',   emodzi: '🚀',  boja: '#0EA5E9', cijenaDijamanti: 200 },
+];
+
+// ─── Klan — predlošci zadataka ────────────────────────────────────────────────
+export const KLAN_ZADACI_SABLONI = [
+  { opis: 'Ukupno zavrti automat 200 puta (klan)',  tip: 'spin',   cilj: 200,  nagrada: { dijamanti: 15, zlato: 800 } },
+  { opis: 'Ukupno prikupi 5000 zlata (klan)',       tip: 'zlato',  cilj: 5000, nagrada: { dijamanti: 10, energija: 100 } },
+  { opis: 'Izgradi ili nadogradi 5 zgrada (klan)',  tip: 'zgrada', cilj: 5,    nagrada: { dijamanti: 20, drvo: 500 } },
+  { opis: 'Doniraj 1000 zlata klanu',               tip: 'donacija', cilj: 1000, nagrada: { dijamanti: 8, kamen: 300 } },
+  { opis: 'Ostvari 50 dobitnih linija (klan)',      tip: 'dobitak', cilj: 50,   nagrada: { dijamanti: 12, energija: 80 } },
+  { opis: 'Kupi ili nadogradi 3 komada opreme (klan)', tip: 'oprema', cilj: 3,  nagrada: { dijamanti: 10, zeljezo: 200 } },
+];
+
+export const generirajKlanZadatke = () =>
+  KLAN_ZADACI_SABLONI.map((s, i) => ({
+    id: i,
+    ...s,
+    trenutno: 0,
+    zavrseno: false,
+    preuzeto: false,
+  }));

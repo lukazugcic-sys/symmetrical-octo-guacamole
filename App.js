@@ -67,6 +67,8 @@ export default function App() {
   const dostignucaDone   = useGameStore((s) => s.dostignucaDone);
   const ukupnoVrtnji     = useGameStore((s) => s.ukupnoVrtnji);
   const ukupnoZlata      = useGameStore((s) => s.ukupnoZlata);
+  const aktivniSkin      = useGameStore((s) => s.aktivniSkin);
+  const klan             = useGameStore((s) => s.klan);
 
   // ─── Inicijalno učitavanje ────────────────────────────────────────────────
   useEffect(() => { ucitaj(); }, [ucitaj]);
@@ -76,7 +78,8 @@ export default function App() {
     if (ucitavam) return;
     spremi();
   }, [spremi, igracRazina, prestigeRazina, xp, energija, zlato, dijamanti, resursi,
-      gradevine, ostecenja, razine, stitovi, misije, luckySpinCounter, winStreak, ucitavam]);
+      gradevine, ostecenja, razine, stitovi, misije, luckySpinCounter, winStreak,
+      aktivniSkin, klan, ucitavam]);
 
   // ─── Auto-save dostignuća ─────────────────────────────────────────────────
   useEffect(() => {

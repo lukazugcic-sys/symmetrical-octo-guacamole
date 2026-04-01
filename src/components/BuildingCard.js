@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Coins, TreePine, Mountain, Pickaxe, Flame, AlertTriangle } from 'lucide-react-native';
 import { useGameStore } from '../store/gameStore';
 import PrikazCijene from './PrikazCijene';
-import { BOJE, uiScale, FONT_FAMILY } from '../config/constants';
+import { BOJE, ZGRADE_SKINOVI, uiScale, FONT_FAMILY } from '../config/constants';
 import { izracunajPasivniMnozitelj } from '../utils/economy';
 
 /**
@@ -17,6 +17,7 @@ const BuildingCard = ({ zgrada }) => {
   const razine    = useGameStore((s) => s.razine);
   const igracRazina    = useGameStore((s) => s.igracRazina);
   const prestigeRazina = useGameStore((s) => s.prestigeRazina);
+  const aktivniSkin    = useGameStore((s) => s.aktivniSkin);
 
   const nadogradiZgradu = useGameStore((s) => s.nadogradiZgradu);
   const popraviZgradu   = useGameStore((s) => s.popraviZgradu);
@@ -28,6 +29,10 @@ const BuildingCard = ({ zgrada }) => {
   const c           = zgrada.cijena(lv + 1);
   const ZIcon       = zgrada.ikona;
   const jeMax       = lv >= zgrada.maxLv;
+
+  // Aktivni skin — za kozmetiku zgrada
+  const skin = ZGRADE_SKINOVI.find((s) => s.id === aktivniSkin) ?? ZGRADE_SKINOVI[0];
+  const skinBoja = skin.id === 'default' ? zgrada.bazaBoja : skin.boja;
 
   const mozeKupiti = zlato >= c.zlato
     && resursi.drvo    >= (c.drvo    || 0)
@@ -45,12 +50,14 @@ const BuildingCard = ({ zgrada }) => {
       <View style={styles.cardTop}>
         <View style={[
           styles.zgradaIconBg,
-          { backgroundColor: zgrada.bazaBoja + '15', borderColor: zgrada.bazaBoja + '50' },
+          { backgroundColor: skinBoja + '15', borderColor: skinBoja + '50' },
           jeOstecena && { backgroundColor: BOJE.slotVatra + '20', borderColor: BOJE.slotVatra },
         ]}>
           {jeOstecena
             ? <Flame size={26} color={BOJE.slotVatra} strokeWidth={2.5} />
-            : <ZIcon size={26} color={zgrada.bazaBoja} strokeWidth={2} />
+            : skin.id !== 'default'
+              ? <Text style={{ fontSize: 24 }}>{skin.emodzi}</Text>
+              : <ZIcon size={26} color={skinBoja} strokeWidth={2} />
           }
         </View>
 
@@ -104,7 +111,7 @@ const BuildingCard = ({ zgrada }) => {
         ) : !jeMax && (
           <TouchableOpacity
             activeOpacity={0.7}
-            style={[styles.actionBtn, { backgroundColor: mozeKupiti ? zgrada.bazaBoja : BOJE.slotOkvirZlato }]}
+            style={[styles.actionBtn, { backgroundColor: mozeKupiti ? skinBoja : BOJE.slotOkvirZlato }]}
             onPress={() => nadogradiZgradu(zgrada)}
           >
             <Text style={[styles.actionBtnTxt, !mozeKupiti && { color: BOJE.textMuted }]}>

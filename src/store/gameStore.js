@@ -3,12 +3,20 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initDB, dbGet, dbSet } from '../db/database';
 import {
   BAZA_TECAJ, ZGRADE, LUCKY_SPIN_INTERVAL, MS_PER_DAY, DNEVNE_NAGRADE,
-  generirajMisiju, DOSTIGNUCA,
+  generirajMisiju, DOSTIGNUCA, generirajKlanZadatke,
 } from '../config/constants';
 import {
   izracunajMaxEnergiju, izracunajMaxStitova, izracunajPasivniMnozitelj,
   izracunajPotrebniXp,
 } from '../utils/economy';
+
+const PRAZNI_KLAN = {
+  naziv:         null,
+  razina:        0,
+  xp:            0,
+  zadaci:        [],
+  zadnjiRefresh: null,
+};
 
 const pocetnoStanje = {
   ucitavam:         true,
@@ -36,6 +44,8 @@ const pocetnoStanje = {
   winStreak:        0,
   poruka:           'SPREMAN ZA VRTNJU',
   levelUpData:      null, // { razina: N } — pokreće LevelUpToast
+  aktivniSkin:      'default', // ID aktivnog skina zgrada
+  klan:             { ...PRAZNI_KLAN }, // Klan / Ceh igrača
 };
 
 export const useGameStore = create((set, get) => ({
@@ -98,6 +108,8 @@ export const useGameStore = create((set, get) => ({
           ...(d.trend                                                ? { trend: d.trend }                                       : {}),
           ...(d.luckySpinCounter !== undefined                       ? { luckySpinCounter: d.luckySpinCounter }                 : {}),
           ...(d.winStreak !== undefined                              ? { winStreak: d.winStreak }                               : {}),
+          ...(d.aktivniSkin                                          ? { aktivniSkin: d.aktivniSkin }                           : {}),
+          ...(d.klan                                                 ? { klan: { ...PRAZNI_KLAN, ...d.klan } }                  : {}),
         });
       }
 
@@ -156,6 +168,8 @@ export const useGameStore = create((set, get) => ({
         razine: s.razine, stitovi: s.stitovi, misije: s.misije,
         tecaj: s.tecaj, trend: s.trend,
         luckySpinCounter: s.luckySpinCounter, winStreak: s.winStreak,
+        aktivniSkin: s.aktivniSkin,
+        klan: s.klan,
       }));
     } catch (e) { console.error('Failed to save game state:', e); }
   },
@@ -329,6 +343,7 @@ export const useGameStore = create((set, get) => ({
       poruka: `${zgrada.naziv.toUpperCase()} NADOGRAĐEN!`,
     }));
     get().azurirajMisiju('zgrada');
+    get().azurirajKlanZadatak('zgrada');
     get().provjeriDostignuca(undefined, undefined, lv + 1, undefined);
   },
 
@@ -392,6 +407,7 @@ export const useGameStore = create((set, get) => ({
       poruka: 'OPREMA POBOLJŠANA',
     }));
     get().azurirajMisiju('oprema');
+    get().azurirajKlanZadatak('oprema');
   },
 
   // ─── Tržnica ──────────────────────────────────────────────────────────────
@@ -431,5 +447,126 @@ export const useGameStore = create((set, get) => ({
       });
       get().azurirajMisiju('zlato', ukupnaCijena);
     }
+  },
+
+  // ─── Kozmetika — skinovi zgrada ─────────────────────────────────────────────
+  kupiSkin: (skin) => {
+    const s = get();
+    if (s.aktivniSkin === skin.id) return;
+    if (skin.cijenaDijamanti > 0 && s.dijamanti < skin.cijenaDijamanti) {
+      set({ poruka: 'NEDOVOLJNO DIJAMANATA' });
+      return;
+    }
+    set({
+      dijamanti:  skin.cijenaDijamanti > 0 ? s.dijamanti - skin.cijenaDijamanti : s.dijamanti,
+      aktivniSkin: skin.id,
+      poruka: `${skin.emodzi} SKIN "${skin.naziv.toUpperCase()}" AKTIVIRAN`,
+    });
+  },
+
+  // ─── Klan — osnivanje i upravljanje ─────────────────────────────────────────
+  osnujiKlan: (naziv) => {
+    if (!naziv || naziv.trim().length < 2) return;
+    set({
+      klan: {
+        naziv:         naziv.trim(),
+        razina:        1,
+        xp:            0,
+        zadaci:        generirajKlanZadatke(),
+        zadnjiRefresh: new Date().toISOString(),
+      },
+      poruka: `⚔️ KLAN "${naziv.trim().toUpperCase()}" OSNOVAN!`,
+    });
+  },
+
+  doniraiUKlan: (iznosZlato) => {
+    const s = get();
+    if (!s.klan.naziv) return;
+    if (s.zlato < iznosZlato) {
+      set({ poruka: 'NEDOVOLJNO ZLATA ZA DONACIJU' });
+      return;
+    }
+    const xpGain  = Math.floor(iznosZlato / 10);
+    const noviXp  = s.klan.xp + xpGain;
+    const xpZaRazinu = s.klan.razina * 1000;
+    const novaRazina = noviXp >= xpZaRazinu ? s.klan.razina + 1 : s.klan.razina;
+
+    const noviZadaci = s.klan.zadaci.map((z) =>
+      z.tip === 'donacija' && !z.zavrseno
+        ? { ...z, trenutno: Math.min(z.cilj, z.trenutno + iznosZlato) }
+        : z
+    ).map((z) => (!z.zavrseno && z.trenutno >= z.cilj ? { ...z, zavrseno: true } : z));
+
+    set((state) => ({
+      zlato: state.zlato - iznosZlato,
+      klan: {
+        ...state.klan,
+        xp:      noviXp >= xpZaRazinu ? 0 : noviXp,
+        razina:  novaRazina,
+        zadaci:  noviZadaci,
+      },
+      poruka: `💰 DONIRANO ${iznosZlato} ZLATA KLANU (+${xpGain} XP)`,
+    }));
+    get().azurirajMisiju('donacija', iznosZlato);
+  },
+
+  azurirajKlanZadatak: (tip, kolicina = 1) => {
+    const s = get();
+    if (!s.klan.naziv) return;
+    const noviZadaci = s.klan.zadaci.map((z) => {
+      if (z.tip === tip && !z.zavrseno) {
+        const novoTrenutno = Math.min(z.cilj, z.trenutno + kolicina);
+        return { ...z, trenutno: novoTrenutno, zavrseno: novoTrenutno >= z.cilj };
+      }
+      return z;
+    });
+    set((state) => ({ klan: { ...state.klan, zadaci: noviZadaci } }));
+  },
+
+  preuzmiKlanNagradu: (zadatakId) => {
+    const s = get();
+    const zadatak = s.klan.zadaci.find((z) => z.id === zadatakId);
+    if (!zadatak || !zadatak.zavrseno || zadatak.preuzeto) return;
+
+    const { dijamanti = 0, zlato = 0, energija = 0, drvo = 0, kamen = 0, zeljezo = 0 } = zadatak.nagrada;
+    const noviZadaci = s.klan.zadaci.map((z) => z.id === zadatakId ? { ...z, preuzeto: true } : z);
+    const xpGain  = 200;
+    const noviXp  = s.klan.xp + xpGain;
+    const xpZaRazinu = s.klan.razina * 1000;
+    const novaRazina = noviXp >= xpZaRazinu ? s.klan.razina + 1 : s.klan.razina;
+
+    set((state) => ({
+      dijamanti: state.dijamanti + dijamanti,
+      zlato:     state.zlato     + zlato,
+      energija:  state.energija  + energija,
+      resursi: {
+        drvo:    state.resursi.drvo    + drvo,
+        kamen:   state.resursi.kamen   + kamen,
+        zeljezo: state.resursi.zeljezo + zeljezo,
+      },
+      klan: {
+        ...state.klan,
+        xp:     noviXp >= xpZaRazinu ? 0 : noviXp,
+        razina: novaRazina,
+        zadaci: noviZadaci,
+      },
+      poruka: '⚔️ KLANSKI ZADATAK PREUZET!',
+    }));
+  },
+
+  refreshKlanZadatke: () => {
+    const s = get();
+    if (!s.klan.naziv) return;
+    const zadnjiRefresh = s.klan.zadnjiRefresh ? new Date(s.klan.zadnjiRefresh) : null;
+    const tjedno = 7 * 24 * 60 * 60 * 1000;
+    if (zadnjiRefresh && (Date.now() - zadnjiRefresh.getTime()) < tjedno) return;
+
+    set((state) => ({
+      klan: {
+        ...state.klan,
+        zadaci:        generirajKlanZadatke(),
+        zadnjiRefresh: new Date().toISOString(),
+      },
+    }));
   },
 }));

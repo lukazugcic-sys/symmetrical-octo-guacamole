@@ -1,18 +1,21 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Zap } from 'lucide-react-native';
+import { Zap, Sparkles } from 'lucide-react-native';
 import { useGameStore } from '../store/gameStore';
 import { useSlotStore } from '../store/slotStore';
 import { useSlotMachine } from '../hooks/useSlotMachine';
+import { useSeasonalEvent } from '../hooks/useSeasonalEvent';
 import SlotReel from '../components/SlotReel';
+import EventBanner from '../components/EventBanner';
 import { BOJE, LUCKY_SPIN_INTERVAL, MAX_WIN_STREAK, STREAK_BONUS_PER_WIN, uiScale, FONT_FAMILY } from '../config/constants';
-import { Sparkles } from 'lucide-react-native';
 
 /**
  * Ekran automata — vrtnja, prikaz mreže simbola, gamble i preuzimanje dobitka.
  * Flash i shake efekti dolaze iz UIContext (bez prop drillinga).
  */
-const SlotScreen = () => {          = useGameStore((s) => s.poruka);
+const SlotScreen = () => {
+  const poruka          = useGameStore((s) => s.poruka);
+  const aktivniDogadaj  = useSeasonalEvent();
   const energija        = useGameStore((s) => s.energija);
   const luckySpinCounter = useGameStore((s) => s.luckySpinCounter);
   const winStreak       = useGameStore((s) => s.winStreak);
@@ -32,6 +35,9 @@ const SlotScreen = () => {          = useGameStore((s) => s.poruka);
 
   return (
     <View style={styles.gameContainer}>
+      {/* Sezonalni događaj */}
+      <EventBanner dogadaj={aktivniDogadaj} />
+
       {/* Poruka */}
       <View style={styles.messageBubble}>
         <Sparkles size={16} color={BOJE.slotVatra} style={{ marginRight: 8 }} />
