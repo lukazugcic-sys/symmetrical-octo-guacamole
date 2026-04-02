@@ -1,5 +1,12 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, PanResponder, StyleSheet, Platform } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  interpolateColor,
+} from 'react-native-reanimated';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Zap, Building2, Trophy, ShoppingCart, Sliders, Users, Crown, Sword, Hammer, Swords } from 'lucide-react-native';
 import SlotScreen        from '../screens/SlotScreen';
@@ -34,6 +41,68 @@ const TAB_KONFIGURACIJA = [
   { routeName: 'Turnir',    ikona: Swords,       boja: BOJE.turnir      },
 ];
 
+// ─── Animirani indikator stranice (dot) ──────────────────────────────────────
+const PageDot = React.memo(({ aktivan }) => {
+  const progress = useSharedValue(aktivan ? 1 : 0);
+
+  useEffect(() => {
+    progress.value = withTiming(aktivan ? 1 : 0, { duration: 280 });
+  }, [aktivan, progress]);
+
+  const animStyle = useAnimatedStyle(() => ({
+    width:           5 + progress.value * 13,
+    opacity:         0.35 + progress.value * 0.65,
+    backgroundColor: interpolateColor(
+      progress.value,
+      [0, 1],
+      ['rgba(255,255,255,0.18)', BOJE.energija]
+    ),
+  }));
+
+  return <Animated.View style={[styles.pageIndicatorDot, animStyle]} />;
+});
+
+// ─── Animirani tab gumb ───────────────────────────────────────────────────────
+const TabButton = React.memo(({ tab, aktivan, onPress }) => {
+  const scale = useSharedValue(aktivan ? 1.0 : 0.88);
+
+  useEffect(() => {
+    scale.value = withSpring(aktivan ? 1.0 : 0.88, { damping: 14, stiffness: 200 });
+  }, [aktivan, scale]);
+
+  const TIcon    = tab.ikona;
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.7}
+      onPress={onPress}
+      style={styles.navBtn}
+    >
+      <Animated.View style={[
+        styles.navTabPill,
+        aktivan
+          ? [styles.navTabPillActive, { backgroundColor: tab.boja, shadowColor: tab.boja }]
+          : styles.navTabPillInactive,
+        animStyle,
+      ]}>
+        <TIcon
+          size={aktivan ? 20 : 18}
+          color={aktivan ? '#000' : BOJE.textMuted}
+          strokeWidth={aktivan ? 2.5 : 1.8}
+        />
+        {aktivan && (
+          <Text style={styles.navText}>
+            {tab.routeName.toUpperCase()}
+          </Text>
+        )}
+      </Animated.View>
+    </TouchableOpacity>
+  );
+});
+
 // ─── Prilagođena navigacijska traka ──────────────────────────────────────────
 const CustomTabBar = ({ state, navigation }) => {
   // Swipe gesta između tabova
@@ -54,48 +123,23 @@ const CustomTabBar = ({ state, navigation }) => {
 
   return (
     <View style={styles.navWrapper} {...swipeRef.panHandlers}>
-      {/* Indikator stranica (dots) */}
+      {/* Animirani indikator stranica (dots) */}
       <View style={styles.pageIndicatorRow}>
         {TAB_KONFIGURACIJA.map((_, i) => (
-          <View
-            key={i}
-            style={[styles.pageIndicatorDot, state.index === i && styles.pageIndicatorDotActive]}
-          />
+          <PageDot key={i} aktivan={state.index === i} />
         ))}
       </View>
 
       {/* Floating navigacijska traka */}
       <View style={styles.floatingNavbar}>
-        {TAB_KONFIGURACIJA.map((tab, i) => {
-          const aktivan = state.index === i;
-          const TIcon   = tab.ikona;
-          return (
-            <TouchableOpacity
-              key={tab.routeName}
-              activeOpacity={0.7}
-              onPress={() => navigation.navigate(tab.routeName)}
-              style={styles.navBtn}
-            >
-              <View style={[
-                styles.navTabPill,
-                aktivan
-                  ? [styles.navTabPillActive, { backgroundColor: tab.boja, shadowColor: tab.boja }]
-                  : styles.navTabPillInactive,
-              ]}>
-                <TIcon
-                  size={aktivan ? 20 : 18}
-                  color={aktivan ? '#000' : BOJE.textMuted}
-                  strokeWidth={aktivan ? 2.5 : 1.8}
-                />
-                {aktivan && (
-                  <Text style={styles.navText}>
-                    {tab.routeName.toUpperCase()}
-                  </Text>
-                )}
-              </View>
-            </TouchableOpacity>
-          );
-        })}
+        {TAB_KONFIGURACIJA.map((tab, i) => (
+          <TabButton
+            key={tab.routeName}
+            tab={tab}
+            aktivan={state.index === i}
+            onPress={() => navigation.navigate(tab.routeName)}
+          />
+        ))}
       </View>
     </View>
   );
@@ -133,20 +177,8 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
   },
   pageIndicatorDot: {
-    width: 5,
     height: 5,
     borderRadius: 2.5,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-  },
-  pageIndicatorDotActive: {
-    width: 18,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: BOJE.energija,
-    shadowColor: BOJE.energija,
-    shadowOpacity: 0.9,
-    shadowRadius: 6,
-    elevation: 3,
   },
   floatingNavbar: {
     marginHorizontal: 10,

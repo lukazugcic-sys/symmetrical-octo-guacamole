@@ -1,7 +1,39 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Animated, StyleSheet } from 'react-native';
+import ReAnimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+  cancelAnimation,
+  Easing as ReEasing,
+} from 'react-native-reanimated';
 import { useSlotStore } from '../store/slotStore';
 import { BLAGO, BOJE, slotSize, uiScale } from '../config/constants';
+
+// ─── Pulsing glow overlay za pobjednička polja ────────────────────────────────
+const WinPulse = React.memo(() => {
+  const glow = useSharedValue(0);
+
+  useEffect(() => {
+    glow.value = withRepeat(
+      withSequence(
+        withTiming(1,   { duration: 350, easing: ReEasing.out(ReEasing.quad) }),
+        withTiming(0.15, { duration: 350, easing: ReEasing.in(ReEasing.quad) }),
+      ),
+      -1,
+      false,
+    );
+    return () => cancelAnimation(glow);
+  }, [glow]);
+
+  const pulseStyle = useAnimatedStyle(() => ({
+    opacity: glow.value,
+  }));
+
+  return <ReAnimated.View style={[StyleSheet.absoluteFill, styles.winPulseLayer, pulseStyle]} />;
+});
 
 /**
  * Mreža automata — 5 stupaca × 3 reda.
@@ -50,6 +82,7 @@ const SlotReel = ({ stupciAnims, stupciBlurs, winScaleAnims }) => {
                   { transform: [{ scale: winScaleAnims[apsolutniIndeks] }], opacity },
                 ]}
               >
+                {isWin && <WinPulse />}
                 <SIcon
                   size={slotSize * (isWild ? 0.65 : 0.55)}
                   color={isWin ? '#FFF' : boja}
@@ -82,6 +115,10 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     elevation: 12,
     backgroundColor: BOJE.slotVatra + '2E',
+  },
+  winPulseLayer: {
+    borderRadius: Math.round(14 * uiScale),
+    backgroundColor: BOJE.slotVatra + '55',
   },
 });
 
