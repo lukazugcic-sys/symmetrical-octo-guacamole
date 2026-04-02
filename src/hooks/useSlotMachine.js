@@ -172,6 +172,7 @@ export const useSlotMachine = () => {
     useGameStore.getState().azurirajKlanZadatak('spin');
     useGameStore.getState().evidentirajClanRatBodove('spin', 1);
     useGameStore.getState().dodajSezonaXp('spin', 1);
+    useGameStore.getState().dodajTurnirBodove(1);
 
     let dobijeniXp  = ulog * 2;
     const novaVrtnja = gs.ukupnoVrtnji + 1;
@@ -342,6 +343,10 @@ export const useSlotMachine = () => {
           useGameStore.getState().azurirajMisiju('streak');
           useGameStore.getState().dodajSezonaXp('streak', 1);
         }
+
+        // Turnir bodovi: +20 za jackpot, +10 za 4-u-nizu, +5 za obični dobitak
+        const turnirBodovi = jackpotLinija ? 20 : (linijaDobitnih >= 2 ? 10 : 5);
+        useGameStore.getState().dodajTurnirBodove(turnirBodovi);
 
         useSlotStore.getState().setDobitakNaCekanju({
           zlato:     ukupnoZlato,

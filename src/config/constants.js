@@ -43,6 +43,8 @@ export const BOJE = {
   prestige:        '#FCD34D',
   klan:            '#38BDF8',
   ljestvica:       '#FBBF24',
+  kovacnica:       '#F97316',
+  turnir:          '#EC4899',
 };
 
 // ─── Tečaj tržnice ────────────────────────────────────────────────────────────
@@ -167,7 +169,7 @@ export const SHIELD_GRANT_MIN_BET        = 10; // Min bet for bonus shield grant
 export const MAX_GAMBLE_ROUNDS           = 5;  // Max consecutive gamble attempts per win
 
 // ─── Redoslijed ekrana (za navigaciju swipeom) ────────────────────────────────
-export const POREDAK_EKRANA = ['automat', 'selo', 'misije', 'trgovina', 'nadogradnje', 'klan', 'ljestvica', 'junaci'];
+export const POREDAK_EKRANA = ['automat', 'selo', 'misije', 'trgovina', 'nadogradnje', 'klan', 'ljestvica', 'junaci', 'kovacnica', 'turnir'];
 
 // ─── Kozmetika — skinovi zgrada ───────────────────────────────────────────────
 export const ZGRADE_SKINOVI = [
@@ -296,3 +298,139 @@ export const BATTLE_PASS_NAGRADE = Array.from({ length: BATTLE_PASS_MAX_RAZINA }
     },
   };
 });
+
+// ─── Kovačnica — recepti za izradu predmeta ───────────────────────────────────
+export const RECEPTI = [
+  {
+    id: 'zlatni_amulet',
+    naziv: 'Zlatni Amulet',
+    emodzi: '📿',
+    opis: '+15% zlatnih dobitaka',
+    detalji: '1 sat',
+    cijena: { drvo: 50, kamen: 30, zeljezo: 0 },
+    tip: 'zlato',
+    bonus: 15,
+    trajanjeSek: 3600,
+    boja: '#FBBF24',
+  },
+  {
+    id: 'sretni_talisman',
+    naziv: 'Sretni Talisman',
+    emodzi: '🍀',
+    opis: '+8% šanse za dobitak',
+    detalji: '2 sata',
+    cijena: { drvo: 0, kamen: 20, zeljezo: 30 },
+    tip: 'luck',
+    bonus: 8,
+    trajanjeSek: 7200,
+    boja: '#22C55E',
+  },
+  {
+    id: 'knjiga_mudrosti',
+    naziv: 'Knjiga Mudrosti',
+    emodzi: '📚',
+    opis: '+25% XP iz vrtnji',
+    detalji: '1 sat',
+    cijena: { drvo: 40, kamen: 0, zeljezo: 40 },
+    tip: 'xp',
+    bonus: 25,
+    trajanjeSek: 3600,
+    boja: '#34D399',
+  },
+  {
+    id: 'energetski_kristal',
+    naziv: 'Energetski Kristal',
+    emodzi: '🔮',
+    opis: '+15 energije odmah',
+    detalji: 'Trenutno',
+    cijena: { drvo: 0, kamen: 60, zeljezo: 20 },
+    tip: 'energija_instant',
+    bonus: 15,
+    trajanjeSek: 0,
+    boja: '#A3E635',
+  },
+  {
+    id: 'stit_runa',
+    naziv: 'Štit Runa',
+    emodzi: '🛡️',
+    opis: 'Obnovi sve štitove odmah',
+    detalji: 'Trenutno',
+    cijena: { drvo: 0, kamen: 50, zeljezo: 50 },
+    tip: 'stit_instant',
+    bonus: 0,
+    trajanjeSek: 0,
+    boja: '#22D3EE',
+  },
+  {
+    id: 'heroska_esencija',
+    naziv: 'Heroska Esencija',
+    emodzi: '⚗️',
+    opis: 'Nasumični hero fragmenti (2–4)',
+    detalji: 'Trenutno',
+    cijena: { drvo: 100, kamen: 100, zeljezo: 50 },
+    tip: 'hero_fragment',
+    bonus: 0,
+    trajanjeSek: 0,
+    boja: '#A855F7',
+  },
+];
+
+// ─── Turnir — tjedne razine i nagrade ────────────────────────────────────────
+export const TURNIR_RAZINE = [
+  { id: 'bronza',   naziv: 'Bronza',   emodzi: '🥉', minBodova: 0,    nagrada: { zlato: 500 } },
+  { id: 'srebro',   naziv: 'Srebro',   emodzi: '🥈', minBodova: 500,  nagrada: { dijamanti: 15, zlato: 1500 } },
+  { id: 'zlato',    naziv: 'Zlato',    emodzi: '🥇', minBodova: 2000, nagrada: { dijamanti: 35, zlato: 3000 } },
+  { id: 'dijamant', naziv: 'Dijamant', emodzi: '💎', minBodova: 5000, nagrada: { dijamanti: 100, zlato: 10000 } },
+];
+
+// ─── Sanduk — tipovi sa nagradama ─────────────────────────────────────────────
+export const SANDUK_TIPOVI = [
+  {
+    id: 'besplatni',
+    naziv: 'Dnevni Sanduk',
+    emodzi: '📦',
+    boja: '#94A3B8',
+    cijenaDijamanti: 0,
+    besplatanJednom: true,
+    nagrade: [
+      { tip: 'zlato',         min: 200,  max: 600  },
+      { tip: 'energija',      min: 10,   max: 30   },
+      { tip: 'drvo',          min: 30,   max: 100  },
+      { tip: 'kamen',         min: 20,   max: 80   },
+      { tip: 'hero_fragment', min: 0,    max: 2, sansa: 0.25 },
+    ],
+  },
+  {
+    id: 'srebrni',
+    naziv: 'Srebrni Sanduk',
+    emodzi: '🗝️',
+    boja: '#CBD5E1',
+    cijenaDijamanti: 50,
+    besplatanJednom: false,
+    nagrade: [
+      { tip: 'zlato',         min: 1000, max: 2500  },
+      { tip: 'energija',      min: 40,   max: 80    },
+      { tip: 'drvo',          min: 100,  max: 300   },
+      { tip: 'kamen',         min: 80,   max: 250   },
+      { tip: 'zeljezo',       min: 40,   max: 120   },
+      { tip: 'hero_fragment', min: 1,    max: 3, sansa: 1.0  },
+    ],
+  },
+  {
+    id: 'zlatni',
+    naziv: 'Zlatni Sanduk',
+    emodzi: '👑',
+    boja: '#FBBF24',
+    cijenaDijamanti: 200,
+    besplatanJednom: false,
+    nagrade: [
+      { tip: 'zlato',         min: 5000, max: 10000 },
+      { tip: 'dijamanti',     min: 10,   max: 30    },
+      { tip: 'energija',      min: 80,   max: 150   },
+      { tip: 'drvo',          min: 300,  max: 600   },
+      { tip: 'kamen',         min: 250,  max: 500   },
+      { tip: 'zeljezo',       min: 100,  max: 250   },
+      { tip: 'hero_fragment', min: 3,    max: 6, sansa: 1.0  },
+    ],
+  },
+];
