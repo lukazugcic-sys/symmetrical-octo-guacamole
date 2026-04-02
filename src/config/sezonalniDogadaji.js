@@ -18,7 +18,7 @@ export const SEZONALNI_DOGADAJI = [
     opis:   'Lubanje napadaju češće, ali jackpot je dvostruk!',
     pocetakMjesec: 10, pocetakDan: 15,
     krajMjesec:    10, krajDan:    31,
-    modifikatorBlaga: { skull: 2.5, gem: 1.8, gold: 0.7 },
+    modifikatorBlaga: { skull: 1.8, gem: 1.8, gold: 0.7 },
     bonusMnozitelj: 2.0,
   },
   {
@@ -52,7 +52,7 @@ export const SEZONALNI_DOGADAJI = [
     pocetakMjesec: 7, pocetakDan: 1,
     krajMjesec:    7, krajDan:    31,
     modifikatorBlaga: { gold: 2.0, energy: 1.8 },
-    bonusMnozitelj: 1.25,
+    bonusMnozitelj: 1.5,
   },
 ];
 

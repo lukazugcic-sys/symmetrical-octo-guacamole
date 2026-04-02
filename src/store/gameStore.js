@@ -10,6 +10,7 @@ import {
   izracunajMaxEnergiju, izracunajMaxStitova, izracunajPasivniMnozitelj,
   izracunajPotrebniXp,
 } from '../utils/economy';
+import { randomFloat } from '../utils/helpers';
 import { spremiCloud }      from '../firebase/cloudSave';
 import { azurirajLjestvicu } from '../firebase/leaderboard';
 
@@ -24,7 +25,14 @@ const zakaziCloudSpremanje = (uid, payload) => {
   useGameStore.setState({ cloudSaveStatus: 'saving' });
   cloudSaveTimeout = setTimeout(() => {
     spremiCloud(uid, payload)
-      .then(() => useGameStore.setState({ cloudSaveStatus: 'saved' }))
+      .then(() => {
+        useGameStore.setState({ cloudSaveStatus: 'saved' });
+        // Auto-hide "saved" status after 3s
+        setTimeout(() => {
+          const current = useGameStore.getState().cloudSaveStatus;
+          if (current === 'saved') useGameStore.setState({ cloudSaveStatus: 'idle' });
+        }, 3000);
+      })
       .catch(() => useGameStore.setState({ cloudSaveStatus: 'error' }));
   }, 3000);
 };
@@ -285,7 +293,7 @@ export const useGameStore = create((set, get) => ({
       const noviTecaj = { ...state.tecaj };
       const noviTrend = {};
       ['drvo', 'kamen', 'zeljezo', 'dijamant'].forEach((res) => {
-        const promjena = 0.7 + (Math.random() * 0.6);
+        const promjena = 0.7 + (randomFloat() * 0.6);
         const novaKupi   = Math.max(1, Math.floor(BAZA_TECAJ[res].kupi   * promjena));
         const novaProdaj = Math.max(1, Math.floor(BAZA_TECAJ[res].prodaj * promjena));
         noviTrend[res]  = novaKupi > state.tecaj[res].kupi ? 1 : (novaKupi < state.tecaj[res].kupi ? -1 : 0);
@@ -298,18 +306,28 @@ export const useGameStore = create((set, get) => ({
   // ─── XP i level ────────────────────────────────────────────────────────────
   provjeriLevelUp: () => {
     const s = get();
-    const potrebanXp = izracunajPotrebniXp(s.igracRazina);
-    if (s.xp >= potrebanXp) {
-      const novaRazina = s.igracRazina + 1;
+    let currentXp = s.xp;
+    let currentRazina = s.igracRazina;
+    let potrebanXp = izracunajPotrebniXp(currentRazina);
+
+    while (currentXp >= potrebanXp) {
+      currentXp -= potrebanXp;
+      currentRazina += 1;
+      potrebanXp = izracunajPotrebniXp(currentRazina);
+    }
+
+    if (currentRazina > s.igracRazina) {
+      const levelsGained = currentRazina - s.igracRazina;
       const maxEnergija = izracunajMaxEnergiju(s.razine.baterija || 0);
       set({
-        xp:          s.xp - potrebanXp,
-        igracRazina: novaRazina,
-        dijamanti:   s.dijamanti + 5,
+        xp:          currentXp,
+        igracRazina: currentRazina,
+        dijamanti:   s.dijamanti + (5 * levelsGained),
         energija:    maxEnergija,
-        poruka:      `LEVEL UP! RAZINA ${novaRazina}`,
-        levelUpData: { razina: novaRazina },
+        poruka:      `LEVEL UP! RAZINA ${currentRazina}`,
+        levelUpData: { razina: currentRazina },
       });
+      get().provjeriDostignuca(undefined, undefined, undefined, undefined);
     }
   },
 
@@ -485,7 +503,7 @@ export const useGameStore = create((set, get) => ({
       ...(bonusState.dijamanti !== undefined ? { dijamanti: bonusState.dijamanti } : {}),
       ...(bonusState.aktivniSkin ? { aktivniSkin: bonusState.aktivniSkin } : {}),
       ...(bonusState.klanPopustAktivan ? { klanPopustAktivan: bonusState.klanPopustAktivan } : {}),
-      poruka:         `PRESTIGE USPJEŠAN! NOVI MNOŽITELJ x${1 + (noviPrestige * 0.5)}${bonusPoruka}`,
+      poruka:         `PRESTIGE USPJEŠAN! NOVI MNOŽITELJ x${(1 + (noviPrestige * 0.35)).toFixed(2)}${bonusPoruka}`,
     });
     get().provjeriDostignuca(undefined, undefined, undefined, noviPrestige);
   },

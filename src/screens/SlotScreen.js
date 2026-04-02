@@ -8,7 +8,7 @@ import { useSeasonalEvent } from '../hooks/useSeasonalEvent';
 import SlotReel   from '../components/SlotReel';
 import EventBanner from '../components/EventBanner';
 import RaidModal  from '../components/RaidModal';
-import { BOJE, LUCKY_SPIN_INTERVAL, MAX_WIN_STREAK, STREAK_BONUS_PER_WIN, uiScale, FONT_FAMILY } from '../config/constants';
+import { BOJE, LUCKY_SPIN_INTERVAL, MAX_WIN_STREAK, STREAK_BONUS_PER_WIN, MAX_GAMBLE_ROUNDS, uiScale, FONT_FAMILY } from '../config/constants';
 
 /**
  * Ekran automata — vrtnja, prikaz mreže simbola, gamble i preuzimanje dobitka.
@@ -47,7 +47,7 @@ const SlotScreen = () => {
       {/* Poruka */}
       <View style={styles.messageBubble}>
         <Sparkles size={16} color={BOJE.slotVatra} style={{ marginRight: 8 }} />
-        <Text style={styles.messageText} numberOfLines={1}>{poruka}</Text>
+        <Text style={styles.messageText} numberOfLines={2}>{poruka}</Text>
         <Sparkles size={16} color={BOJE.slotVatra} style={{ marginLeft: 8 }} />
         <TouchableOpacity onPress={() => setPrikazLegend(true)} style={styles.legendBtn}>
           <CircleHelp size={16} color={BOJE.textMain} />
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 7,
   },
-  messageText: { color: BOJE.slotVatra, fontSize: Math.round(13 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 1 },
+  messageText: { flex: 1, color: BOJE.slotVatra, fontSize: Math.round(13 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 1, textAlign: 'center' },
   legendBtn: { marginLeft: 8, padding: 2 },
   boostBadge: { alignSelf: 'stretch', backgroundColor: BOJE.energija + '22', borderWidth: 1, borderColor: BOJE.energija + '66', borderRadius: 12, paddingVertical: 6, marginBottom: 10 },
   boostTxt: { color: BOJE.energija, textAlign: 'center', fontFamily: FONT_FAMILY, fontWeight: '900', fontSize: 12 },
