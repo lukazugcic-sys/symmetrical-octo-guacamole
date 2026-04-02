@@ -92,6 +92,7 @@ const selectRandomHeroByWeight = () => {
 };
 
 const PRAZNI_KLAN = {
+  naziv:         null,
   razina:        0,
   xp:            0,
   zadaci:        [],
@@ -1052,7 +1053,8 @@ export const useGameStore = create((set, get) => ({
   },
 
   postaviClanRat: (war) => set((state) => ({ clanRat: { ...state.clanRat, ...war } })),
-  postaviRevengeTarget: (meta) => set({ revengeTarget: meta || null }), (tip, kolicina = 1) => {
+  postaviRevengeTarget: (meta) => set({ revengeTarget: meta || null }),
+  evidentirajClanRatBodove: (tip, kolicina = 1) => {
     const s = get();
     if (!s.clanRat?.aktivan) return;
     const base = tip === 'raid' ? 10 : tip === 'misija' ? 25 : 1;
