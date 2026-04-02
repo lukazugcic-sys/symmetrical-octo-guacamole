@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   SafeAreaView, StatusBar, StyleSheet, Animated, View, Text,
-  TouchableOpacity, ActivityIndicator,
+  TouchableOpacity, ActivityIndicator, AppState,
 } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { enableScreens } from 'react-native-screens';
@@ -12,6 +12,8 @@ import { UIContext }    from './src/context/UIContext';
 import Header           from './src/components/Header';
 import WinCelebration   from './src/components/WinCelebration';
 import LevelUpToast     from './src/components/LevelUpToast';
+import BattlePassModal  from './src/components/BattlePassModal';
+import OfflineBonusModal from './src/components/OfflineBonusModal';
 import AppNavigator     from './src/navigation/AppNavigator';
 import useAuth          from './src/hooks/useAuth';
 import useNotifications from './src/hooks/useNotifications';
@@ -26,6 +28,7 @@ export default function App() {
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const flashAnim = useRef(new Animated.Value(0)).current;
   const [flashBoja, setFlashBoja] = useState('rgba(0,0,0,0)');
+  const [prikaziBattlePass, setPrikaziBattlePass] = useState(false);
 
   const onFlash = useCallback((boja) => {
     setFlashBoja(boja);
@@ -74,11 +77,38 @@ export default function App() {
   const klan             = useGameStore((s) => s.klan);
   const zadnjiVideniEventId = useGameStore((s) => s.zadnjiVideniEventId);
   const oznaciEventVidjen = useGameStore((s) => s.oznaciEventVidjen);
+  const zadnjiOnlineMs = useGameStore((s) => s.zadnjiOnlineMs);
+  const primijeniOfflineNapredak = useGameStore((s) => s.primijeniOfflineNapredak);
   const [prikaziEventModal, setPrikaziEventModal] = useState(false);
   const aktivniDogadaj = useSeasonalEvent();
 
   // ─── Inicijalno učitavanje ────────────────────────────────────────────────
   useEffect(() => { ucitaj(); }, [ucitaj]);
+
+  useEffect(() => {
+    if (ucitavam) return;
+    const now = Date.now();
+    if (zadnjiOnlineMs && now > zadnjiOnlineMs) {
+      primijeniOfflineNapredak(Math.floor((now - zadnjiOnlineMs) / 1000));
+    }
+    useGameStore.setState({ zadnjiOnlineMs: now });
+  }, [ucitavam, zadnjiOnlineMs, primijeniOfflineNapredak]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'background' || state === 'inactive') {
+        useGameStore.setState({ zadnjiOnlineMs: Date.now() });
+      }
+      if (state === 'active') {
+        const last = useGameStore.getState().zadnjiOnlineMs;
+        if (last && Date.now() > last) {
+          useGameStore.getState().primijeniOfflineNapredak(Math.floor((Date.now() - last) / 1000));
+        }
+        useGameStore.setState({ zadnjiOnlineMs: Date.now() });
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   // ─── Auto-save glavnih podataka ───────────────────────────────────────────
   useEffect(() => {
@@ -188,10 +218,12 @@ export default function App() {
 
           {/* Level-up toast */}
           <LevelUpToast />
+          <OfflineBonusModal />
+          <BattlePassModal visible={prikaziBattlePass} onClose={() => setPrikaziBattlePass(false)} />
 
           {/* Sadržaj aplikacije — shake wrapper */}
           <Animated.View style={[styles.mainWrapper, { transform: [{ translateX: shakeAnim }] }]}>
-            <Header />
+            <Header onOpenBattlePass={() => setPrikaziBattlePass(true)} />
             <AppNavigator />
           </Animated.View>
 

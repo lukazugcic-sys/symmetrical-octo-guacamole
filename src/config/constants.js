@@ -180,6 +180,11 @@ export const ZGRADE_SKINOVI = [
 export const CIJENA_DVOSTRUKI_BOOST = 5000;
 export const TRAJANJE_DVOSTRUKI_BOOST = 20;
 export const STIT_REGEN_INTERVAL_SEK = 90;
+export const OFFLINE_MAX_SEK = 8 * 60 * 60;
+export const BATTLE_PASS_TIER_XP = 100;
+export const BATTLE_PASS_MAX_RAZINA = 30;
+export const BATTLE_PASS_PREMIUM_CIJENA = 200;
+export const MAX_AD_VIEWS_DNEVNO = 5;
 
 // ─── Klan — predlošci zadataka ────────────────────────────────────────────────
 export const KLAN_ZADACI_SABLONI = [
@@ -199,3 +204,37 @@ export const generirajKlanZadatke = () =>
     zavrseno: false,
     preuzeto: false,
   }));
+
+export const BATTLE_PASS_SEASON_THEME = {
+  halloween: { naziv: 'Noć Vještica', emodzi: '🎃', skin: 'medieval' },
+  bozic: { naziv: 'Božićni Festival', emodzi: '🎄', skin: 'japanese' },
+  nova_godina: { naziv: 'Nova Godina', emodzi: '🎆', skin: 'futuristic' },
+  ljeto: { naziv: 'Ljetni Festival', emodzi: '☀️', skin: 'default' },
+  default: { naziv: 'Klasična Sezona', emodzi: '🏁', skin: 'default' },
+};
+
+export const BATTLE_PASS_NAGRADE = Array.from({ length: BATTLE_PASS_MAX_RAZINA }, (_, idx) => {
+  const razina = idx + 1;
+  const premiumSkinTier = razina % 10 === 0;
+  return {
+    razina,
+    xpPotrebno: razina * BATTLE_PASS_TIER_XP,
+    free: {
+      zlato: razina * 250,
+      energija: razina % 3 === 0 ? 20 : 0,
+      drvo: razina % 2 === 0 ? razina * 20 : 0,
+      kamen: razina % 2 === 1 ? razina * 20 : 0,
+      zeljezo: razina % 5 === 0 ? razina * 15 : 0,
+      dijamanti: razina % 7 === 0 ? 5 : 0,
+    },
+    premium: {
+      zlato: razina * 500,
+      energija: 30,
+      dijamanti: 5 + Math.floor(razina / 2),
+      drvo: razina * 25,
+      kamen: razina * 25,
+      zeljezo: razina * 20,
+      skin: premiumSkinTier ? ZGRADE_SKINOVI[(Math.floor(razina / 10) % ZGRADE_SKINOVI.length)].id : null,
+    },
+  };
+});

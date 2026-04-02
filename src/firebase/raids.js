@@ -24,7 +24,7 @@ import {
   getDocs, doc, runTransaction, addDoc, serverTimestamp, getDoc,
 } from 'firebase/firestore';
 import { db } from './config';
-import { shuffle } from '../utils/helpers';
+import { randomInt, shuffle } from '../utils/helpers';
 
 const KOLEKCIJA_PLAYERS = 'players';
 const KOLEKCIJA_RAIDS   = 'raids';
@@ -82,7 +82,7 @@ export const dohvatiMete = async (napadacUid, n = 5) => {
  * @param {string} metaUid
  * @returns {Promise<{drvo, kamen, zeljezo}|null>} ukradeni resursi ili null ako napad nije uspio
  */
-export const izvrsiNapad = async (napadacUid, metaUid) => {
+export const izvrsiNapad = async (napadacUid, metaUid, options = {}) => {
   if (!napadacUid || !metaUid) return null;
   try {
     const napadacRef = doc(db, KOLEKCIJA_PLAYERS, napadacUid);
@@ -101,14 +101,16 @@ export const izvrsiNapad = async (napadacUid, metaUid) => {
       // Provjeri štitove
       if ((metaData.stitovi ?? 0) > 0) return;
       const zadnjiNapadMs = metaData.zadnjiNapadMs ?? 0;
-      if (Date.now() - zadnjiNapadMs < RAID_COOLDOWN_MS) return;
+      const jeRetaliation = !!options.retaliation;
+      if (!jeRetaliation && Date.now() - zadnjiNapadMs < RAID_COOLDOWN_MS) return;
 
       const resursiMete = metaData.resursi ?? { drvo: 0, kamen: 0, zeljezo: 0 };
       metaImeIgraca = metaData.imeIgraca ?? 'Meta';
+      const lootMultiplier = jeRetaliation ? 1.25 : 1;
       ukradeno = {
-        drvo:    Math.floor((resursiMete.drvo    ?? 0) * POSTOTAK_KRADJE),
-        kamen:   Math.floor((resursiMete.kamen   ?? 0) * POSTOTAK_KRADJE),
-        zeljezo: Math.floor((resursiMete.zeljezo ?? 0) * POSTOTAK_KRADJE),
+        drvo:    Math.floor((resursiMete.drvo    ?? 0) * POSTOTAK_KRADJE * lootMultiplier),
+        kamen:   Math.floor((resursiMete.kamen   ?? 0) * POSTOTAK_KRADJE * lootMultiplier),
+        zeljezo: Math.floor((resursiMete.zeljezo ?? 0) * POSTOTAK_KRADJE * lootMultiplier),
       };
 
       const noviResursi = {
@@ -119,13 +121,14 @@ export const izvrsiNapad = async (napadacUid, metaUid) => {
 
       const novaMetaPovijest = [
         {
-          id: `in-${Date.now()}-${Math.random()}`,
+          id: `in-${Date.now()}-${randomInt(1000000000)}`,
           tip: 'incoming',
           napadacUid,
           napadacIme: napadacData.imeIgraca ?? 'Napadač',
           vrijemeNapadaMs: Date.now(),
           ukradeno,
           mozeProtunapadDo: Date.now() + RETALIATION_WINDOW_MS,
+          retaliation: jeRetaliation,
         },
         ...((metaData.raidPovijest ?? []).slice(0, 19)),
       ];

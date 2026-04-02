@@ -6,7 +6,7 @@ import { BOJE, uiScale, FONT_FAMILY } from '../config/constants';
 import {
   kreirajKlan, slušajKlan, doniraiXpKlanu, azurirajKlanZadatak,
   preuzmiNagradu as preuzmiNagraduCloud,
-  osvjeziZadatkeAkoTreba, slugKlana,
+  osvjeziZadatkeAkoTreba, slugKlana, osigurajClanRat, slusajClanRat, zakljuciClanRatAkoIstekao,
 } from '../firebase/clanMultiplayer';
 import { posaljiNotifikaciju } from '../hooks/useNotifications';
 import { ucitajCloud } from '../firebase/cloudSave';
@@ -30,7 +30,11 @@ const ClanScreen = () => {
   const [imeTxt,     setImeTxt]     = useState('');
   const [cloudKlan,  setCloudKlan]  = useState(null); // real-time Firestore podaci
   const [clanMembers, setClanMembers] = useState([]);
+  const [tab, setTab] = useState('zadaci');
+  const [cloudWar, setCloudWar] = useState(null);
   const unsubscribeRef = useRef(null);
+  const warUnsubscribeRef = useRef(null);
+  const warSyncTimerRef = useRef(null);
 
   // ─── Real-time Firestore listener ────────────────────────────────────────────
   useEffect(() => {
@@ -77,6 +81,48 @@ const ClanScreen = () => {
     if (cloudKlan) ucitajClanMembers();
     return () => { aktivan = false; };
   }, [cloudKlan]);
+
+  useEffect(() => {
+    let aktivan = true;
+    if (!klan.naziv) return undefined;
+    const clanId = slugKlana(klan.naziv);
+    osigurajClanRat(clanId, klan.naziv, klan.razina || 1).then((war) => {
+      if (!aktivan || !war?.id) return;
+      useGameStore.getState().postaviClanRat({
+        aktivan: war.status === 'active',
+        warId: war.id,
+        klanA: war.klanA,
+        klanB: war.klanB,
+        bodovi: war.bodovi,
+        pocelo: war.pocelo,
+        zavrsilo: war.zavrsilo,
+        status: war.status,
+        nagrada: war.nagrada,
+      });
+      if (warUnsubscribeRef.current) warUnsubscribeRef.current();
+      warUnsubscribeRef.current = slusajClanRat(war.id, (d) => {
+        setCloudWar(d);
+        useGameStore.getState().postaviClanRat({
+          aktivan: d.status === 'active',
+          warId: d.id,
+          klanA: d.klanA,
+          klanB: d.klanB,
+          bodovi: d.bodovi,
+          pocelo: d.pocelo,
+          zavrsilo: d.zavrsilo,
+          status: d.status,
+          nagrada: d.nagrada,
+        });
+      });
+      if (warSyncTimerRef.current) clearInterval(warSyncTimerRef.current);
+      warSyncTimerRef.current = setInterval(() => setCloudWar((prev) => (prev ? { ...prev } : prev)), 30000);
+    }).catch(() => {});
+    return () => {
+      aktivan = false;
+      if (warUnsubscribeRef.current) { warUnsubscribeRef.current(); warUnsubscribeRef.current = null; }
+      if (warSyncTimerRef.current) { clearInterval(warSyncTimerRef.current); warSyncTimerRef.current = null; }
+    };
+  }, [klan.naziv, klan.razina]);
 
   // Koristi cloud podatke ako su dostupni, inače lokalne
   const aktivniKlan = cloudKlan ?? klan;
@@ -174,9 +220,18 @@ const ClanScreen = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Tjedni zadaci */}
-      <Text style={styles.sectionTitle}>TJEDNI KLANSKI ZADACI</Text>
+      <View style={styles.tabRow}>
+        <TouchableOpacity style={[styles.tabBtn, tab === 'zadaci' && styles.tabBtnActive]} onPress={() => setTab('zadaci')}>
+          <Text style={[styles.tabTxt, tab === 'zadaci' && styles.tabTxtActive]}>ZADACI</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.tabBtn, tab === 'rat' && styles.tabBtnActive]} onPress={() => setTab('rat')}>
+          <Text style={[styles.tabTxt, tab === 'rat' && styles.tabTxtActive]}>RAT</Text>
+        </TouchableOpacity>
+      </View>
 
+      {tab === 'zadaci' ? (
+        <>
+      <Text style={styles.sectionTitle}>TJEDNI KLANSKI ZADACI</Text>
       {aktivniKlan.zadaci.map((z) => {
         const postotak = Math.min(1, z.trenutno / z.cilj);
         // Provjeri je li ovaj igrač već preuzeo nagradu (cloud: preuzetoOd array, lokalno: preuzeto bool)
@@ -275,6 +330,32 @@ const ClanScreen = () => {
           <Text style={styles.memberMeta}>Lv {m.razina} · ★{m.prestige} · {Math.floor(m.zlato)} 🪙</Text>
         </View>
       ))}
+      </>
+      ) : (
+        <View style={styles.warCard}>
+          <Text style={styles.sectionTitle}>KLAN RAT (24h)</Text>
+          <Text style={styles.warLine}>{cloudWar?.klanA?.naziv ?? aktivniKlan.naziv} vs {cloudWar?.klanB?.naziv ?? 'Rivali'}</Text>
+          <Text style={styles.warScore}>BODOVI: {(cloudWar?.bodovi?.A ?? 0)} : {(cloudWar?.bodovi?.B ?? 0)}</Text>
+          <Text style={styles.warLine}>
+            Status: {cloudWar?.status ?? 'active'} ·
+            {cloudWar?.zavrsilo ? ` ${Math.max(0, Math.floor((cloudWar.zavrsilo - Date.now()) / 60000))} min` : ' 24h'}
+          </Text>
+          <TouchableOpacity
+            style={styles.btn}
+            onPress={async () => {
+              const rez = await zakljuciClanRatAkoIstekao(cloudWar?.id);
+              if (rez?.pobjednik === 'A') {
+                useGameStore.getState().zavrsiClanRat(true);
+                useGameStore.setState({ aktivniSkin: rez?.nagrada?.skin || useGameStore.getState().aktivniSkin });
+              } else if (rez) {
+                useGameStore.getState().zavrsiClanRat(false);
+              }
+            }}
+          >
+            <Text style={styles.btnTxt}>PROVJERI ISHOD</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
     </ScrollView>
   );
@@ -358,6 +439,14 @@ const styles = StyleSheet.create({
   },
   memberName: { color: BOJE.textMain, fontFamily: FONT_FAMILY, fontWeight: '800', fontSize: 13, marginBottom: 2 },
   memberMeta: { color: BOJE.textMuted, fontFamily: FONT_FAMILY, fontSize: 11 },
+  tabRow: { flexDirection: 'row', backgroundColor: BOJE.bgCard, borderRadius: 12, borderWidth: 1, borderColor: BOJE.border, marginBottom: 10, padding: 4 },
+  tabBtn: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 10 },
+  tabBtnActive: { backgroundColor: BOJE.klan + '20' },
+  tabTxt: { color: BOJE.textMuted, fontFamily: FONT_FAMILY, fontWeight: '800', fontSize: 12 },
+  tabTxtActive: { color: BOJE.klan },
+  warCard: { backgroundColor: BOJE.bgCard, borderRadius: 14, borderWidth: 1, borderColor: BOJE.border, padding: 14 },
+  warLine: { color: BOJE.textMuted, fontFamily: FONT_FAMILY, fontSize: 12, marginBottom: 6 },
+  warScore: { color: BOJE.textMain, fontFamily: FONT_FAMILY, fontWeight: '900', fontSize: 20, marginBottom: 8 },
 });
 
 export default ClanScreen;

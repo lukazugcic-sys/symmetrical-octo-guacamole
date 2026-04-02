@@ -169,6 +169,8 @@ export const useSlotMachine = () => {
     }
     useGameStore.getState().azurirajMisiju('spin');
     useGameStore.getState().azurirajKlanZadatak('spin');
+    useGameStore.getState().evidentirajClanRatBodove('spin', 1);
+    useGameStore.getState().dodajSezonaXp('spin', 1);
 
     let dobijeniXp  = ulog * 2;
     const novaVrtnja = gs.ukupnoVrtnji + 1;
@@ -325,7 +327,10 @@ export const useSlotMachine = () => {
 
         const noviWinStreak = gs2.winStreak + 1;
         useGameStore.setState({ winStreak: noviWinStreak });
-        if (noviWinStreak >= 3) useGameStore.getState().azurirajMisiju('streak');
+        if (noviWinStreak >= 3) {
+          useGameStore.getState().azurirajMisiju('streak');
+          useGameStore.getState().dodajSezonaXp('streak', 1);
+        }
 
         useSlotStore.getState().setDobitakNaCekanju({
           zlato:     ukupnoZlato,

@@ -31,6 +31,7 @@ import { db } from './config';
 import { generirajKlanZadatke } from '../config/constants';
 
 const KOLEKCIJA = 'clans';
+const KOLEKCIJA_WARS = 'ratKlanova';
 const xpZaKlanRazinu = (razina = 1) => Math.max(1000, razina * 1000);
 
 /** Generira konzistentni clanId iz naziva (slug). */
@@ -213,4 +214,69 @@ export const osvjeziZadatkeAkoTreba = async (clanId) => {
   } catch (err) {
     console.warn('[Clan] osvjeziZadatkeAkoTreba greška:', err.message);
   }
+};
+
+export const osigurajClanRat = async (clanId, clanNaziv, clanRazina = 1) => {
+  if (!clanId || !clanNaziv) return null;
+  const warId = `${new Date().toISOString().slice(0, 10)}_${clanId}`;
+  const ref = doc(db, KOLEKCIJA_WARS, warId);
+  const postojeci = await getDoc(ref);
+  if (postojeci.exists()) return { id: postojeci.id, ...postojeci.data() };
+  const sada = Date.now();
+  const kraj = sada + (24 * 60 * 60 * 1000);
+  const matchBand = Math.max(1, Math.floor(clanRazina / 5));
+  await setDoc(ref, {
+    klanA: { id: clanId, naziv: clanNaziv, razina: clanRazina },
+    klanB: { id: `bot_${matchBand}`, naziv: `Rivali ${matchBand}`, razina: clanRazina },
+    pocelo: sada,
+    zavrsilo: kraj,
+    bodovi: { A: 0, B: 0 },
+    nagrada: { xp: 500, skin: 'futuristic' },
+    status: 'active',
+    kreiran: serverTimestamp(),
+  });
+  const snap = await getDoc(ref);
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+};
+
+export const slusajClanRat = (warId, callback) => {
+  if (!warId) return () => {};
+  return onSnapshot(
+    doc(db, KOLEKCIJA_WARS, warId),
+    (snap) => { if (snap.exists()) callback({ id: snap.id, ...snap.data() }); },
+    (err) => console.warn('[ClanWar] slusajClanRat greška:', err.message),
+  );
+};
+
+export const dodajBodoveClanRatu = async (warId, side = 'A', points = 1) => {
+  if (!warId || points <= 0) return;
+  const ref = doc(db, KOLEKCIJA_WARS, warId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+    const data = snap.data();
+    if (data.status !== 'active') return;
+    const bodovi = data.bodovi ?? { A: 0, B: 0 };
+    const novi = { ...bodovi, [side]: (bodovi[side] ?? 0) + points };
+    tx.update(ref, { bodovi: novi });
+  });
+};
+
+export const zakljuciClanRatAkoIstekao = async (warId) => {
+  if (!warId) return null;
+  const ref = doc(db, KOLEKCIJA_WARS, warId);
+  let rezultat = null;
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+    const data = snap.data();
+    if (data.status !== 'active') return;
+    const gotovo = Date.now() >= (data.zavrsilo ?? 0);
+    if (!gotovo) return;
+    const bodovi = data.bodovi ?? { A: 0, B: 0 };
+    const pobjednik = (bodovi.A ?? 0) >= (bodovi.B ?? 0) ? 'A' : 'B';
+    rezultat = { ...data, pobjednik };
+    tx.update(ref, { status: 'ended', pobjednik });
+  });
+  return rezultat;
 };
