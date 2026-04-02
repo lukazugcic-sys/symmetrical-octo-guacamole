@@ -45,6 +45,7 @@ export const BOJE = {
   ljestvica:       '#FBBF24',
   kovacnica:       '#F97316',
   turnir:          '#EC4899',
+  tamnica:         '#7C3AED',
 };
 
 // ─── Tečaj tržnice ────────────────────────────────────────────────────────────
@@ -104,6 +105,8 @@ export const BAZA_MISIJA = [
   { opis: 'Aktiviraj Lucky Spin',         tip: 'luckySpin', cilj: 1,     nagrada: { dijamanti: 4, energija: 40 } },
   { opis: 'Aktiviraj Lucky Spin 3 puta',  tip: 'luckySpin', cilj: 3,     nagrada: { dijamanti: 10, zlato: 1000 } },
   { opis: 'Ostvari niz od 3 dobitka',     tip: 'streak',    cilj: 3,     nagrada: { dijamanti: 6, energija: 60 } },
+  { opis: 'Porazi 5 neprijatelja u tami', tip: 'tamnica',   cilj: 5,     nagrada: { dijamanti: 5, energija: 50 } },
+  { opis: 'Dođi do 10. sprata tamnice',   tip: 'tamnica',   cilj: 10,    nagrada: { dijamanti: 15, energija: 100 } },
 ];
 
 export const generirajMisiju = (excludeTipovi = []) => {
@@ -434,3 +437,34 @@ export const SANDUK_TIPOVI = [
     ],
   },
 ];
+
+// ─── Tamnica — dungeon sustav ─────────────────────────────────────────────────
+export const TAMNICA_KOST_ENERGIJE = 20;
+export const TAMNICA_IGRAC_MAX_HP  = 200;
+
+// Tipovi neprijatelja — skaliraju po spratu
+export const TAMNICA_NEPRIJATELJI = [
+  { id: 'sluz',    naziv: 'Šljuzavac',      emodzi: '🟢', bazaHp:  60,  napadMin:  5, napadMax: 12, nagrada: { zlato:  60, tokenovi: 1 } },
+  { id: 'pauk',    naziv: 'Otrovni Pauk',   emodzi: '🕷️', bazaHp: 100,  napadMin:  8, napadMax: 18, nagrada: { zlato: 100, tokenovi: 1 } },
+  { id: 'goblin',  naziv: 'Divlji Goblin',  emodzi: '👺', bazaHp: 170,  napadMin: 14, napadMax: 26, nagrada: { zlato: 180, tokenovi: 2 } },
+  { id: 'vampir',  naziv: 'Vampirski Knez', emodzi: '🧛', bazaHp: 270,  napadMin: 22, napadMax: 38, nagrada: { zlato: 300, tokenovi: 2 } },
+  { id: 'zmaj',    naziv: 'Drevni Zmaj',    emodzi: '🐉', bazaHp: 430,  napadMin: 32, napadMax: 55, nagrada: { zlato: 500, tokenovi: 3 } },
+];
+
+// Boss neprijatelji svakih 5 spratova
+export const TAMNICA_BOSSOVI = [
+  { sprat:  5, naziv: 'Gargon Sjene',      emodzi: '💀', hpMnozac: 3.0, napadMnozac: 2.0, bonus: { zlato:  600, dijamanti:  3, tokenovi:  5 } },
+  { sprat: 10, naziv: 'Noćni Vladar',       emodzi: '👑', hpMnozac: 3.5, napadMnozac: 2.2, bonus: { zlato: 1200, dijamanti:  5, tokenovi:  8 } },
+  { sprat: 15, naziv: 'Zmaj Ognjene Gore',  emodzi: '🔥', hpMnozac: 4.0, napadMnozac: 2.5, bonus: { zlato: 2500, dijamanti:  8, tokenovi: 12 } },
+  { sprat: 20, naziv: 'Sjena Vječnosti',    emodzi: '🌑', hpMnozac: 5.0, napadMnozac: 3.0, bonus: { zlato: 5000, dijamanti: 15, tokenovi: 20 } },
+];
+
+// Trajne nadogradnje koje se kupuju tamničarskim tokenima
+export const TAMNICA_SHOP = [
+  { id: 'snaga',   naziv: 'Oštrica Tame',    emodzi: '⚔️', opis: '+15 napada po razini',  kost: 8,  maxRazina: 5, bonusPoRazini: 15 },
+  { id: 'obrana',  naziv: 'Tamnički Oklop',  emodzi: '🛡️', opis: '+25 max HP po razini',  kost: 6,  maxRazina: 5, bonusPoRazini: 25 },
+  { id: 'vampir',  naziv: 'Vampirski Čin',   emodzi: '🩸', opis: '+8% lifesteala po razini', kost: 12, maxRazina: 3, bonusPoRazini: 8  },
+];
+
+export const TAMNICA_NAPAD_BAZA    = 20;  // bazični napad igrača u tamnici
+export const TAMNICA_RANDOM_RASPON = 16;  // randomInt(N) → 0 … N-1 dodano na napad

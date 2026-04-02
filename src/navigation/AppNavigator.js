@@ -8,7 +8,7 @@ import Animated, {
   interpolateColor,
 } from 'react-native-reanimated';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Zap, Building2, Trophy, ShoppingCart, Sliders, Users, Crown, Sword, Hammer, Swords } from 'lucide-react-native';
+import { Zap, Building2, Trophy, ShoppingCart, Sliders, Users, Crown, Sword, Hammer, Swords, Shield } from 'lucide-react-native';
 import SlotScreen        from '../screens/SlotScreen';
 import VillageScreen     from '../screens/VillageScreen';
 import MissionsScreen    from '../screens/MissionsScreen';
@@ -19,6 +19,7 @@ import LeaderboardScreen from '../screens/LeaderboardScreen';
 import HeroesScreen      from '../screens/HeroesScreen';
 import KovacnicaScreen   from '../screens/KovacnicaScreen';
 import TurnirScreen      from '../screens/TurnirScreen';
+import TamnicaScreen     from '../screens/TamnicaScreen';
 import ErrorBoundary     from '../components/ErrorBoundary';
 import { BOJE, uiScale, FONT_FAMILY } from '../config/constants';
 
@@ -39,6 +40,7 @@ const TAB_KONFIGURACIJA = [
   { routeName: 'Junaci',    ikona: Sword,        boja: BOJE.nadogradnje },
   { routeName: 'Kovačnica', ikona: Hammer,       boja: BOJE.kovacnica   },
   { routeName: 'Turnir',    ikona: Swords,       boja: BOJE.turnir      },
+  { routeName: 'Tamnica',   ikona: Shield,       boja: BOJE.tamnica     },
 ];
 
 // ─── Animirani indikator stranice (dot) ──────────────────────────────────────
@@ -162,6 +164,7 @@ const AppNavigator = () => (
     <Tab.Screen name="Junaci">{() => <ErrorBoundary><HeroesScreen /></ErrorBoundary>}</Tab.Screen>
     <Tab.Screen name="Kovačnica">{() => <ErrorBoundary><KovacnicaScreen /></ErrorBoundary>}</Tab.Screen>
     <Tab.Screen name="Turnir">{() => <ErrorBoundary><TurnirScreen /></ErrorBoundary>}</Tab.Screen>
+    <Tab.Screen name="Tamnica">{() => <ErrorBoundary><TamnicaScreen /></ErrorBoundary>}</Tab.Screen>
   </Tab.Navigator>
 );
 

@@ -10,6 +10,8 @@ import {
   JUNACI, HERO_DROP_TEZINE, HERO_FRAGMENTI_ZA_OTKLJ, HERO_FRAGMENTI_ZA_RAZINU,
   HERO_MAX_RAZINA, HERO_SUMMON_KOST, HERO_MAX_AKTIVNIH,
   RECEPTI, TURNIR_RAZINE, SANDUK_TIPOVI,
+  TAMNICA_NEPRIJATELJI, TAMNICA_BOSSOVI, TAMNICA_KOST_ENERGIJE, TAMNICA_IGRAC_MAX_HP, TAMNICA_SHOP,
+  TAMNICA_NAPAD_BAZA, TAMNICA_RANDOM_RASPON,
 } from '../config/constants';
 import { dohvatiAktivniDogadaj } from '../config/sezonalniDogadaji';
 import {
@@ -44,6 +46,50 @@ const noviTurnir = (datum = new Date()) => ({
   bodovi: 0,
   nagradePreuzete: {},
 });
+
+// ─── Tamnica — pomoćna funkcija za postavljanje sprata ────────────────────────
+const setupTamnicaSprat = (sprat, snagaRazina = 0, obranaRazina = 0) => {
+  const tierIndex = Math.min(Math.floor((sprat - 1) / 3), TAMNICA_NEPRIJATELJI.length - 1);
+  const nep = TAMNICA_NEPRIJATELJI[tierIndex];
+  const isBoss = sprat % 5 === 0;
+  const scaleMult = 1 + (sprat - 1) * 0.25;
+  let hp = Math.ceil(nep.bazaHp * scaleMult);
+  let bossData = null;
+  if (isBoss) {
+    const defined = TAMNICA_BOSSOVI.find((b) => b.sprat === sprat);
+    const last = TAMNICA_BOSSOVI[TAMNICA_BOSSOVI.length - 1];
+    bossData = defined ?? {
+      ...last,
+      hpMnozac: last.hpMnozac + (sprat - last.sprat) * 0.1,
+      napadMnozac: last.napadMnozac + (sprat - last.sprat) * 0.05,
+      bonus: {
+        zlato: Math.floor(last.bonus.zlato * (1 + (sprat - last.sprat) * 0.15)),
+        dijamanti: Math.floor(last.bonus.dijamanti * (1 + (sprat - last.sprat) * 0.1)),
+        tokenovi: Math.floor(last.bonus.tokenovi * (1 + (sprat - last.sprat) * 0.1)),
+      },
+    };
+    hp = Math.ceil(hp * bossData.hpMnozac);
+  }
+  const igracMaxHp = TAMNICA_IGRAC_MAX_HP + obranaRazina * TAMNICA_SHOP[1].bonusPoRazini;
+  return { hp, nep, bossData, isBoss, tierIndex, igracMaxHp };
+};
+
+const pocetnoTamnicaStanje = {
+  aktivna:      false,
+  sprat:        0,
+  maxSprat:     0,
+  neprijHp:     0,
+  neprijMaxHp:  0,
+  neprijTipId:  null,
+  neprijBoss:   false,
+  igracHp:      TAMNICA_IGRAC_MAX_HP,
+  igracMaxHp:   TAMNICA_IGRAC_MAX_HP,
+  tokenovi:     0,
+  snagaRazina:  0,
+  obranaRazina: 0,
+  vampirRazina: 0,
+  zadnjiIshod:  null,
+};
 
 const odrediThemeSezone = (datum = new Date()) => {
   const aktivniDogadaj = dohvatiAktivniDogadaj(datum);
@@ -171,6 +217,7 @@ const pocetnoStanje = {
   kovanice:      {}, // map: receptId → { expiresAt: ms } — active crafted item bonuses
   turnir:        noviTurnir(), // weekly tournament state
   sandukDatum:   '', // date string when free chest was last opened
+  tamnica:       { ...pocetnoTamnicaStanje }, // dungeon system
 };
 
 export const useGameStore = create((set, get) => ({
@@ -270,6 +317,17 @@ export const useGameStore = create((set, get) => ({
           ...(d.kovanice && typeof d.kovanice === 'object' ? { kovanice: d.kovanice } : {}),
           ...(d.turnir && typeof d.turnir === 'object' ? { turnir: { ...noviTurnir(), ...d.turnir } } : {}),
           ...(d.sandukDatum !== undefined ? { sandukDatum: d.sandukDatum } : {}),
+          ...(d.tamnica && typeof d.tamnica === 'object' ? {
+            tamnica: {
+              ...pocetnoTamnicaStanje,
+              maxSprat:     d.tamnica.maxSprat     ?? 0,
+              tokenovi:     d.tamnica.tokenovi     ?? 0,
+              snagaRazina:  d.tamnica.snagaRazina  ?? 0,
+              obranaRazina: d.tamnica.obranaRazina ?? 0,
+              vampirRazina: d.tamnica.vampirRazina ?? 0,
+              // Don't restore an active run — always start fresh
+            },
+          } : {}),
         });
         if (sourceKey === '@save_game_eco_v30') {
           const migratedPayload = {
@@ -361,6 +419,7 @@ export const useGameStore = create((set, get) => ({
       kovanice: s.kovanice,
       turnir: s.turnir,
       sandukDatum: s.sandukDatum,
+      tamnica: s.tamnica,
     };
     set({ cloudSaveStatus: s.uid ? 'saving' : 'idle', zadnjiCloudPayload: payload });
     try {
@@ -615,6 +674,204 @@ export const useGameStore = create((set, get) => ({
         nagradePreuzete: { ...(state.turnir?.nagradePreuzete ?? {}), [razina]: true },
       },
       poruka: `${def.emodzi} TURNIRSKA NAGRADA PREUZETA: ${def.naziv.toUpperCase()}!`,
+    }));
+  },
+
+  // ─── Tamnica (Dungeon) ─────────────────────────────────────────────────────
+
+  /**
+   * Pokreni novu dungeon turu. Oduzme energiju, postavi neprijatelja na spratu 1.
+   */
+  zapocniTamnicu: () => {
+    const s = get();
+    if (s.tamnica?.aktivna) return;
+    if (s.energija < TAMNICA_KOST_ENERGIJE) {
+      set({ poruka: `TREBA ${TAMNICA_KOST_ENERGIJE} ⚡ ZA ULAZAK U TAMNICU` });
+      return;
+    }
+    const t = s.tamnica ?? pocetnoTamnicaStanje;
+    const sprat = 1;
+    const { hp, nep, bossData, isBoss, igracMaxHp } = setupTamnicaSprat(sprat, t.snagaRazina, t.obranaRazina);
+    set((state) => ({
+      energija: state.energija - TAMNICA_KOST_ENERGIJE,
+      tamnica: {
+        ...state.tamnica,
+        aktivna:     true,
+        sprat,
+        neprijHp:    hp,
+        neprijMaxHp: hp,
+        neprijTipId: nep.id,
+        neprijBoss:  isBoss,
+        igracHp:     igracMaxHp,
+        igracMaxHp,
+        zadnjiIshod: null,
+      },
+      poruka: `🗝️ UŠAO U TAMNICU — SPRAT ${sprat}`,
+    }));
+  },
+
+  /**
+   * Udari neprijatelja. Neprijatelj uzvrati. Ako neprijatelj padne — prijeđi na
+   * sljedeći sprat. Ako igrač padne — kraj runde.
+   */
+  napadniUTamnici: () => {
+    const s = get();
+    if (!s.tamnica?.aktivna) return;
+    const t = s.tamnica;
+    const tierIndex = Math.min(Math.floor((t.sprat - 1) / 3), TAMNICA_NEPRIJATELJI.length - 1);
+    const nep = TAMNICA_NEPRIJATELJI[tierIndex];
+    const scaleMult = 1 + (t.sprat - 1) * 0.15;
+
+    // Napad igrača
+    const bazaNapad = TAMNICA_NAPAD_BAZA + (t.snagaRazina * TAMNICA_SHOP[0].bonusPoRazini);
+    const igracSteta = bazaNapad + randomInt(TAMNICA_RANDOM_RASPON);
+
+    // Napad neprijatelja
+    let neprijMin = Math.ceil(nep.napadMin * scaleMult);
+    let neprijMax = Math.ceil(nep.napadMax * scaleMult);
+    if (t.neprijBoss) {
+      const defined = TAMNICA_BOSSOVI.find((b) => b.sprat === t.sprat);
+      const last = TAMNICA_BOSSOVI[TAMNICA_BOSSOVI.length - 1];
+      const nm = defined?.napadMnozac ?? (last.napadMnozac + (t.sprat - last.sprat) * 0.05);
+      neprijMin = Math.ceil(neprijMin * nm);
+      neprijMax = Math.ceil(neprijMax * nm);
+    }
+    const neprijSteta = neprijMin + randomInt(Math.max(1, neprijMax - neprijMin + 1));
+
+    // Lifesteal
+    const lifestealPct = t.vampirRazina * TAMNICA_SHOP[2].bonusPoRazini;
+    const lifesteal = Math.floor(igracSteta * lifestealPct / 100);
+
+    const noviNeprijHp = Math.max(0, t.neprijHp - igracSteta);
+    const noviIgracHp  = Math.min(t.igracMaxHp, Math.max(0, t.igracHp - neprijSteta + lifesteal));
+
+    if (noviNeprijHp <= 0) {
+      // Neprijatelj poražen — nagrade i sljedeći sprat
+      const spratMult = 1 + (t.sprat - 1) * 0.2;
+      const nagradeZlato = Math.floor(nep.nagrada.zlato * spratMult);
+      let nagradeTokenovi = nep.nagrada.tokenovi;
+      let nagradenDijamanti = 0;
+      let bossBonus = null;
+
+      if (t.neprijBoss) {
+        const defined = TAMNICA_BOSSOVI.find((b) => b.sprat === t.sprat);
+        const last = TAMNICA_BOSSOVI[TAMNICA_BOSSOVI.length - 1];
+        const bd = defined ?? {
+          ...last,
+          bonus: {
+            zlato:     Math.floor(last.bonus.zlato     * (1 + (t.sprat - last.sprat) * 0.15)),
+            dijamanti: Math.floor(last.bonus.dijamanti * (1 + (t.sprat - last.sprat) * 0.1)),
+            tokenovi:  Math.floor(last.bonus.tokenovi  * (1 + (t.sprat - last.sprat) * 0.1)),
+          },
+        };
+        nagradeTokenovi += bd.bonus.tokenovi;
+        nagradenDijamanti = bd.bonus.dijamanti;
+        bossBonus = bd.bonus;
+      }
+
+      const noviSprat  = t.sprat + 1;
+      const noviMaxSprat = Math.max(t.maxSprat, t.sprat);
+      const { hp: sljedeciHp, nep: sljedeciNep, isBoss: sljedeciBoss } =
+        setupTamnicaSprat(noviSprat, t.snagaRazina, t.obranaRazina);
+
+      set((state) => ({
+        zlato:     state.zlato     + nagradeZlato + (bossBonus?.zlato ?? 0),
+        dijamanti: state.dijamanti + nagradenDijamanti,
+        ukupnoZlata: state.ukupnoZlata + nagradeZlato + (bossBonus?.zlato ?? 0),
+        tamnica: {
+          ...state.tamnica,
+          sprat:       noviSprat,
+          maxSprat:    noviMaxSprat,
+          neprijHp:    sljedeciHp,
+          neprijMaxHp: sljedeciHp,
+          neprijTipId: sljedeciNep.id,
+          neprijBoss:  sljedeciBoss,
+          igracHp:     noviIgracHp,
+          tokenovi:    state.tamnica.tokenovi + nagradeTokenovi,
+          zadnjiIshod: { tip: 'pobjeda', igracSteta, neprijSteta, nagradeZlato: nagradeZlato + (bossBonus?.zlato ?? 0), nagradeTokenovi, bossBonus },
+        },
+        poruka: t.neprijBoss
+          ? `💀 BOSS POBIJEĐEN! +${(nagradeZlato + (bossBonus?.zlato ?? 0)).toLocaleString()} 🪙 +${nagradenDijamanti} 💎`
+          : `✅ SPRAT ${t.sprat} PROČIŠĆEN! +${nagradeZlato} 🪙`,
+      }));
+      get().dodajXp(t.sprat * 5);
+      get().azurirajMisiju('tamnica');
+
+    } else if (noviIgracHp <= 0) {
+      // Igrač poginuo — kraj runde
+      const noviMaxSprat = Math.max(t.maxSprat, t.sprat - 1);
+      set((state) => ({
+        tamnica: {
+          ...state.tamnica,
+          aktivna:     false,
+          sprat:       0,
+          maxSprat:    noviMaxSprat,
+          neprijHp:    0,
+          igracHp:     0,
+          zadnjiIshod: { tip: 'smrt', dostigniSprat: t.sprat },
+        },
+        poruka: `💀 POGINUO SI NA SPRATU ${t.sprat} TAMNICE`,
+      }));
+    } else {
+      // Borba u toku
+      set((state) => ({
+        tamnica: {
+          ...state.tamnica,
+          neprijHp: noviNeprijHp,
+          igracHp:  noviIgracHp,
+          zadnjiIshod: { tip: 'borba', igracSteta, neprijSteta },
+        },
+      }));
+    }
+  },
+
+  /**
+   * Pobijegni iz tamnice. Zadržavaš tokenove i napredak maxSprat.
+   */
+  pobijegniIzTamnice: () => {
+    const s = get();
+    if (!s.tamnica?.aktivna) return;
+    const t = s.tamnica;
+    const noviMaxSprat = Math.max(t.maxSprat, t.sprat - 1);
+    set((state) => ({
+      tamnica: {
+        ...state.tamnica,
+        aktivna:     false,
+        sprat:       0,
+        maxSprat:    noviMaxSprat,
+        neprijHp:    0,
+        igracHp:     0,
+        zadnjiIshod: { tip: 'bijeg', dostigniSprat: t.sprat },
+      },
+      poruka: `🏃 POBJEGAO SA SPRATA ${t.sprat} TAMNICE`,
+    }));
+  },
+
+  /**
+   * Kupi trajnu nadogradnju u tamničarskoj oružarni.
+   */
+  kupiTamnicuNadogradnju: (nadId) => {
+    const s = get();
+    const def = TAMNICA_SHOP.find((n) => n.id === nadId);
+    if (!def) return;
+    const kljucRazine = `${nadId}Razina`;
+    const trenutnaRazina = s.tamnica?.[kljucRazine] ?? 0;
+    if (trenutnaRazina >= def.maxRazina) {
+      set({ poruka: `${def.naziv.toUpperCase()} JE NA MAKSIMALNOJ RAZINI` });
+      return;
+    }
+    const kost = def.kost * (trenutnaRazina + 1);
+    if ((s.tamnica?.tokenovi ?? 0) < kost) {
+      set({ poruka: `TREBA ${kost} 🔑 TOKENA ZA NADOGRADNJU` });
+      return;
+    }
+    set((state) => ({
+      tamnica: {
+        ...state.tamnica,
+        tokenovi:        (state.tamnica.tokenovi ?? 0) - kost,
+        [kljucRazine]:   trenutnaRazina + 1,
+      },
+      poruka: `${def.emodzi} ${def.naziv.toUpperCase()} NADOGRAĐEN NA RAZINU ${trenutnaRazina + 1}!`,
     }));
   },
 
