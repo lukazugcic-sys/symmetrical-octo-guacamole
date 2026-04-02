@@ -3,7 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initDB, dbGet, dbSet } from '../db/database';
 import {
   BAZA_TECAJ, ZGRADE, LUCKY_SPIN_INTERVAL, DNEVNE_NAGRADE,
-  generirajMisiju, DOSTIGNUCA, generirajKlanZadatke,
+  generirajMisiju, generirajUnikatneMisije, DOSTIGNUCA, generirajKlanZadatke,
+  STIT_REGEN_INTERVAL_SEK, CIJENA_DVOSTRUKI_BOOST, TRAJANJE_DVOSTRUKI_BOOST,
 } from '../config/constants';
 import {
   izracunajMaxEnergiju, izracunajMaxStitova, izracunajPasivniMnozitelj,
@@ -20,7 +21,7 @@ const zakaziCloudSpremanje = (uid, payload) => {
   if (!uid) return;
   if (cloudSaveTimeout) clearTimeout(cloudSaveTimeout);
   cloudSaveTimeout = setTimeout(() => {
-    spremiCloud(uid, payload);
+    spremiCloud(uid, payload).catch(() => {});
   }, 3000);
 };
 
@@ -47,9 +48,10 @@ const pocetnoStanje = {
   gradevine:        { pilana: 1, kamenolom: 0, rudnik: 0 },
   ostecenja:        { pilana: false, kamenolom: false, rudnik: false },
   razine:           { sreca: 0, pojacalo: 0, baterija: 0, oklop: 0 },
-  misije:           [generirajMisiju(), generirajMisiju(), generirajMisiju()],
+  misije:           generirajUnikatneMisije(3),
   ukupnoVrtnji:     0,
   ukupnoZlata:      0,
+  ukupnoRaidova:    0,
   dostignucaDone:   {},
   dnevniStreak:     0,
   prikazDnevneNagrade: false,
@@ -61,6 +63,13 @@ const pocetnoStanje = {
   poruka:           'SPREMAN ZA VRTNJU',
   levelUpData:      null, // { razina: N } — pokreće LevelUpToast
   aktivniSkin:      'default', // ID aktivnog skina zgrada
+  spinBoostPreostalo: 0, // gold sink: sljedećih N spinova daju 2x dobitak
+  stitRegenSekundi: STIT_REGEN_INTERVAL_SEK,
+  raidPovijest:     [],
+  cloudSaveStatus:  'idle', // idle | saving | saved | error
+  zadnjiCloudPayload: null,
+  klanPopustAktivan: false,
+  prestigeMilestones: {},
   klan:             { ...PRAZNI_KLAN }, // Klan / Ceh igrača
 };
 
@@ -127,6 +136,11 @@ export const useGameStore = create((set, get) => ({
           ...(d.luckySpinCounter !== undefined                       ? { luckySpinCounter: d.luckySpinCounter }                 : {}),
           ...(d.winStreak !== undefined                              ? { winStreak: d.winStreak }                               : {}),
           ...(d.aktivniSkin                                          ? { aktivniSkin: d.aktivniSkin }                           : {}),
+          ...(d.spinBoostPreostalo !== undefined                     ? { spinBoostPreostalo: d.spinBoostPreostalo }             : {}),
+          ...(d.stitRegenSekundi !== undefined                       ? { stitRegenSekundi: d.stitRegenSekundi }                 : {}),
+          ...(Array.isArray(d.raidPovijest)                          ? { raidPovijest: d.raidPovijest.slice(0, 20) }            : {}),
+          ...(d.klanPopustAktivan !== undefined                      ? { klanPopustAktivan: d.klanPopustAktivan }               : {}),
+          ...(d.prestigeMilestones                                   ? { prestigeMilestones: d.prestigeMilestones }             : {}),
           ...(d.klan                                                 ? { klan: { ...PRAZNI_KLAN, ...d.klan } }                  : {}),
         });
       }
@@ -188,14 +202,21 @@ export const useGameStore = create((set, get) => ({
       tecaj: s.tecaj, trend: s.trend,
       luckySpinCounter: s.luckySpinCounter, winStreak: s.winStreak,
       aktivniSkin: s.aktivniSkin,
+      spinBoostPreostalo: s.spinBoostPreostalo,
+      stitRegenSekundi: s.stitRegenSekundi,
+      raidPovijest: s.raidPovijest.slice(0, 20),
+      klanPopustAktivan: s.klanPopustAktivan,
+      prestigeMilestones: s.prestigeMilestones,
       klan: s.klan,
     };
+    set({ cloudSaveStatus: s.uid ? 'saving' : 'idle', zadnjiCloudPayload: payload });
     try {
       await dbSet('@save_game_eco_v30', JSON.stringify(payload));
     } catch (e) { console.error('Failed to save game state:', e); }
     // Sinkroniziraj u Firestore (ne blokira — tiha greška ako nema mreže)
     if (s.uid) {
       zakaziCloudSpremanje(s.uid, { ...payload, imeIgraca: s.imeIgraca });
+      set({ cloudSaveStatus: 'saved' });
       azurirajLjestvicu(s.uid, {
         imeIgraca:      s.imeIgraca,
         igracRazina:    s.igracRazina,
@@ -204,6 +225,18 @@ export const useGameStore = create((set, get) => ({
         ukupnoVrtnji:   s.ukupnoVrtnji,
         klan:           s.klan,
       });
+    }
+  },
+
+  retryCloudSave: async () => {
+    const s = get();
+    if (!s.uid || !s.zadnjiCloudPayload) return;
+    set({ cloudSaveStatus: 'saving' });
+    try {
+      await spremiCloud(s.uid, { ...s.zadnjiCloudPayload, imeIgraca: s.imeIgraca });
+      set({ cloudSaveStatus: 'saved' });
+    } catch (_) {
+      set({ cloudSaveStatus: 'error' });
     }
   },
 
@@ -232,9 +265,12 @@ export const useGameStore = create((set, get) => ({
         kamen:   state.resursi.kamen   + (!state.ostecenja.kamenolom ? (state.gradevine.kamenolom * ZGRADE[1].bazaProizvodnja * pasivniMnozitelj) : 0),
         zeljezo: state.resursi.zeljezo + (!state.ostecenja.rudnik    ? (state.gradevine.rudnik    * ZGRADE[2].bazaProizvodnja * pasivniMnozitelj) : 0),
       },
-      stitovi: (state.stitovi < maxStitova && Math.random() < 0.10)
+      stitovi: (state.stitovi < maxStitova && state.stitRegenSekundi <= 1)
         ? state.stitovi + 1
         : state.stitovi,
+      stitRegenSekundi: state.stitovi >= maxStitova
+        ? STIT_REGEN_INTERVAL_SEK
+        : (state.stitRegenSekundi <= 1 ? STIT_REGEN_INTERVAL_SEK : state.stitRegenSekundi - 1),
     }));
   },
 
@@ -305,6 +341,9 @@ export const useGameStore = create((set, get) => ({
       if (d.tip === 'ukupnoZlato' && novoZlato       !== undefined && novoZlato       >= d.cilj) ispunjeno = true;
       if (d.tip === 'gradnja'     && novaTipGradnje  !== undefined && novaTipGradnje  >= d.cilj) ispunjeno = true;
       if (d.tip === 'prestige'    && noviPrestige    !== undefined && noviPrestige    >= d.cilj) ispunjeno = true;
+      if (d.tip === 'raid'        && s.ukupnoRaidova !== undefined && s.ukupnoRaidova >= d.cilj) ispunjeno = true;
+      if (d.tip === 'klan'        && s.klan?.naziv                              && d.cilj <= 1) ispunjeno = true;
+      if (d.tip === 'razina'      && s.igracRazina   !== undefined && s.igracRazina   >= d.cilj) ispunjeno = true;
       if (ispunjeno) {
         novaDostignuca[d.id] = true;
         nagrade.push(d.nagrada);
@@ -343,9 +382,12 @@ export const useGameStore = create((set, get) => ({
   },
 
   preuzmiNagraduMisije: (id, nagrada) => {
-    set((state) => ({
-      misije: state.misije.map((m) => (m.id === id ? generirajMisiju() : m)),
-    }));
+    set((state) => {
+      const postojeceTipovi = state.misije.filter((m) => m.id !== id).map((m) => m.tip);
+      return {
+        misije: state.misije.map((m) => (m.id === id ? generirajMisiju(postojeceTipovi) : m)),
+      };
+    });
     get().primiNagradu(nagrada);
     set({ poruka: 'MISIJA ZAVRŠENA! NAGRADA PREUZETA.' });
   },
@@ -404,6 +446,24 @@ export const useGameStore = create((set, get) => ({
   izvrsiPrestige: () => {
     const s = get();
     const noviPrestige = s.prestigeRazina + 1;
+    const milestone = { ...(s.prestigeMilestones || {}) };
+    let bonusPoruka = '';
+    let bonusState = {};
+    if (noviPrestige >= 1 && !milestone['1']) {
+      milestone['1'] = true;
+      bonusState = { ...bonusState, dijamanti: s.dijamanti + 30, aktivniSkin: s.aktivniSkin === 'default' ? 'medieval' : s.aktivniSkin };
+      bonusPoruka += ' | PRESTIGE I: +30💎 + Medieval skin';
+    }
+    if (noviPrestige >= 3 && !milestone['3']) {
+      milestone['3'] = true;
+      bonusState = { ...bonusState, klanPopustAktivan: true };
+      bonusPoruka += ' | PRESTIGE III: 50% popust osnivanja klana';
+    }
+    if (noviPrestige >= 5 && !milestone['5']) {
+      milestone['5'] = true;
+      bonusState = { ...bonusState, energija: 35 };
+      bonusPoruka += ' | PRESTIGE V: bonus energija';
+    }
     set({
       prestigeRazina: noviPrestige,
       igracRazina:    1,
@@ -412,10 +472,14 @@ export const useGameStore = create((set, get) => ({
       ostecenja:      { pilana: false, kamenolom: false, rudnik: false },
       resursi:        { drvo: 0, kamen: 0, zeljezo: 0 },
       zlato:          50,
-      energija:       10,
+      energija:       bonusState.energija ?? 10,
       winStreak:      0,
       luckySpinCounter: LUCKY_SPIN_INTERVAL,
-      poruka:         `PRESTIGE USPJEŠAN! NOVI MNOŽITELJ x${1 + (noviPrestige * 0.5)}`,
+      prestigeMilestones: milestone,
+      ...(bonusState.dijamanti !== undefined ? { dijamanti: bonusState.dijamanti } : {}),
+      ...(bonusState.aktivniSkin ? { aktivniSkin: bonusState.aktivniSkin } : {}),
+      ...(bonusState.klanPopustAktivan ? { klanPopustAktivan: bonusState.klanPopustAktivan } : {}),
+      poruka:         `PRESTIGE USPJEŠAN! NOVI MNOŽITELJ x${1 + (noviPrestige * 0.5)}${bonusPoruka}`,
     });
     get().provjeriDostignuca(undefined, undefined, undefined, noviPrestige);
   },
@@ -423,7 +487,7 @@ export const useGameStore = create((set, get) => ({
   // ─── Nadogradnje (oprema) ──────────────────────────────────────────────────
   kupiAlat: (alat) => {
     const s = get();
-    const mult = Math.pow(1.6, s.razine[alat.id] || 0);
+    const mult = Math.pow(1.4, s.razine[alat.id] || 0);
     const zl   = Math.floor(alat.cZlato  * mult);
     const ka   = Math.floor(alat.cKamen  * mult);
     const ze   = Math.floor(alat.cZeljezo * mult);
@@ -507,7 +571,13 @@ export const useGameStore = create((set, get) => ({
       set({ poruka: 'NEISPRAVNO IME KLANA (2-50 ZNAKOVA)' });
       return;
     }
+    const cijenaOsnivanja = get().klanPopustAktivan ? 500 : 1000;
+    if (get().zlato < cijenaOsnivanja) {
+      set({ poruka: `NEDOVOLJNO ZLATA ZA OSNIVANJE KLANA (${cijenaOsnivanja})` });
+      return;
+    }
     set({
+      zlato: get().zlato - cijenaOsnivanja,
       klan: {
         naziv:         cistiNaziv,
         razina:        1,
@@ -517,6 +587,7 @@ export const useGameStore = create((set, get) => ({
       },
       poruka: `⚔️ KLAN "${cistiNaziv.toUpperCase()}" OSNOVAN!`,
     });
+    get().provjeriDostignuca(undefined, undefined, undefined, undefined);
   },
 
   doniraiUKlan: (iznosZlato) => {
@@ -610,6 +681,40 @@ export const useGameStore = create((set, get) => ({
     }));
   },
 
+  kupiDvostrukiBoost: () => {
+    const s = get();
+    if (s.zlato < CIJENA_DVOSTRUKI_BOOST) {
+      set({ poruka: 'NEDOVOLJNO ZLATA ZA BOOST' });
+      return;
+    }
+    set({
+      zlato: s.zlato - CIJENA_DVOSTRUKI_BOOST,
+      spinBoostPreostalo: s.spinBoostPreostalo + TRAJANJE_DVOSTRUKI_BOOST,
+      poruka: `BOOST AKTIVAN! SLJEDEĆIH ${TRAJANJE_DVOSTRUKI_BOOST} SPINOVA JE 2x`,
+    });
+  },
+
+  iskoristiBoostSpin: () => {
+    const s = get();
+    if ((s.spinBoostPreostalo ?? 0) <= 0) return false;
+    set({ spinBoostPreostalo: s.spinBoostPreostalo - 1 });
+    return true;
+  },
+
+  kupiEnergijuHitno: () => {
+    const s = get();
+    const cijena = 100;
+    if (s.zlato < cijena) {
+      set({ poruka: 'NEDOVOLJNO ZLATA ZA ENERGIJU' });
+      return;
+    }
+    set((state) => ({
+      zlato: state.zlato - cijena,
+      energija: state.energija + 100,
+      poruka: 'KUPLJENO +100 ENERGIJE',
+    }));
+  },
+
   // ─── Backend / Auth ────────────────────────────────────────────────────────
 
   /** Postavi Firebase UID (poziva se iz useAuth hooka). */
@@ -622,12 +727,24 @@ export const useGameStore = create((set, get) => ({
    * Dodaj resurse ukradene u raidu.
    * @param {{ drvo?: number, kamen?: number, zeljezo?: number }} ukradeno
    */
-  primiResurse: (ukradeno) => set((state) => ({
+  primiResurse: (ukradeno, meta = {}) => set((state) => ({
     resursi: {
       drvo:    state.resursi.drvo    + (ukradeno.drvo    ?? 0),
       kamen:   state.resursi.kamen   + (ukradeno.kamen   ?? 0),
       zeljezo: state.resursi.zeljezo + (ukradeno.zeljezo ?? 0),
     },
+    ukupnoRaidova: state.ukupnoRaidova + 1,
+    raidPovijest: [
+      {
+        id: `out-${Date.now()}-${Math.random()}`,
+        tip: 'outgoing',
+        metaUid: meta.uid ?? null,
+        metaIme: meta.imeIgraca ?? 'Meta',
+        vrijemeNapadaMs: Date.now(),
+        ukradeno,
+      },
+      ...(state.raidPovijest ?? []).slice(0, 19),
+    ],
     poruka: `⚔️ PLJAČKA: +${Math.floor(ukradeno.drvo ?? 0)}🌲 +${Math.floor(ukradeno.kamen ?? 0)}⛰️ +${Math.floor(ukradeno.zeljezo ?? 0)}⛏️`,
   })),
 }));

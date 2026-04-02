@@ -28,12 +28,15 @@ import { BOJE, uiScale, FONT_FAMILY } from '../config/constants';
 const RaidModal = ({ vidljiv, onZatvori }) => {
   const [mete,      setMete]      = useState([]);
   const [ucitava,   setUcitava]   = useState(false);
-  const [napadaUid, setNapadaUid] = useState(null); // uid mete koja se napadá
+  const [napadaUid, setNapadaUid] = useState(null); // uid mete koja se napada
   const [rezultat,  setRezultat]  = useState(null);  // { drvo, kamen, zeljezo } ili 'blokirano'
   const [greska,    setGreska]    = useState(null);
+  const [mode,      setMode]      = useState('normal'); // normal | retaliation
+  const [retaliationMeta, setRetaliationMeta] = useState(null);
 
   const uid      = useGameStore((s) => s.uid);
   const primiResurse = useGameStore((s) => s.primiResurse);
+  const raidPovijest = useGameStore((s) => s.raidPovijest);
 
   const ucitajMete = useCallback(async () => {
     if (!uid) return;
@@ -52,6 +55,27 @@ const RaidModal = ({ vidljiv, onZatvori }) => {
   }, [uid]);
 
   useEffect(() => {
+    const kandidat = (raidPovijest ?? []).find((r) =>
+      r.tip === 'incoming'
+      && r.napadacUid
+      && r.mozeProtunapadDo
+      && Date.now() < r.mozeProtunapadDo
+    );
+    if (kandidat) {
+      setMode('retaliation');
+      setRetaliationMeta({
+        uid: kandidat.napadacUid,
+        imeIgraca: kandidat.napadacIme ?? 'Napadač',
+        igracRazina: 1,
+        resursi: { drvo: 0, kamen: 0, zeljezo: 0 },
+      });
+    } else {
+      setMode('normal');
+      setRetaliationMeta(null);
+    }
+  }, [raidPovijest, vidljiv]);
+
+  useEffect(() => {
     if (vidljiv) ucitajMete();
     else {
       setMete([]);
@@ -64,9 +88,10 @@ const RaidModal = ({ vidljiv, onZatvori }) => {
   const napadni = async (metaUid) => {
     if (!uid || napadaUid) return;
     setNapadaUid(metaUid);
+    const metaObj = mete.find((m) => m.uid === metaUid) || retaliationMeta || { uid: metaUid, imeIgraca: 'Meta' };
     const ukradeno = await izvrsiNapad(uid, metaUid);
     if (ukradeno) {
-      primiResurse(ukradeno);
+      primiResurse(ukradeno, { uid: metaUid, imeIgraca: ukradeno.metaImeIgraca ?? metaObj.imeIgraca });
       setRezultat(ukradeno);
     } else {
       setRezultat('blokirano');
@@ -135,7 +160,9 @@ const RaidModal = ({ vidljiv, onZatvori }) => {
           </View>
 
           <Text style={styles.modalOpis}>
-            Lubanje su formirale napadnu liniju! Odaberi igrača kojeg ćeš opljačkati.
+            {mode === 'retaliation'
+              ? 'Uhvatio si trag napadača — izvrši protunapad unutar 1h.'
+              : 'Lubanje su formirale napadnu liniju! Odaberi igrača kojeg ćeš opljačkati.'}
           </Text>
 
           {/* Rezultat napada */}
@@ -157,7 +184,11 @@ const RaidModal = ({ vidljiv, onZatvori }) => {
           )}
 
           {/* Lista meta */}
-          {ucitava ? (
+          {mode === 'retaliation' && retaliationMeta ? (
+            <View style={styles.lista}>
+              {renderMeta({ item: retaliationMeta })}
+            </View>
+          ) : ucitava ? (
             <View style={styles.loadingBox}>
               <ActivityIndicator color={BOJE.slotVatra} />
               <Text style={styles.ucitavaTxt}>Tražim protivnike…</Text>

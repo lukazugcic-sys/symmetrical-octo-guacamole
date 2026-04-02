@@ -65,7 +65,7 @@ export const ZGRADE = [
     bazaProizvodnja: 2,
   },
   {
-    id: 'kamenolom', naziv: 'Rudnik', maxLv: 10, ikona: Mountain, bazaBoja: BOJE.kamen,
+    id: 'kamenolom', naziv: 'Kamenolom', maxLv: 10, ikona: Mountain, bazaBoja: BOJE.kamen,
     cijena: (lv) => ({
       zlato:   Math.floor(250 * Math.pow(1.65, lv - 1)),
       drvo:    Math.floor(100 * Math.pow(1.5,  lv - 1)),
@@ -82,7 +82,7 @@ export const ZGRADE = [
       kamen:   Math.floor(200 * Math.pow(1.5,  lv - 1)),
       zeljezo: Math.floor(50  * Math.pow(1.5,  lv - 1)),
     }),
-    bazaProizvodnja: 0.5,
+    bazaProizvodnja: 1.0,
   },
 ];
 
@@ -103,9 +103,23 @@ export const BAZA_MISIJA = [
   { opis: 'Ostvari niz od 3 dobitka',     tip: 'streak',    cilj: 3,     nagrada: { dijamanti: 6, energija: 60 } },
 ];
 
-export const generirajMisiju = () => {
-  const sablon = BAZA_MISIJA[Math.floor(Math.random() * BAZA_MISIJA.length)];
+export const generirajMisiju = (excludeTipovi = []) => {
+  const dostupne = BAZA_MISIJA.filter((m) => !excludeTipovi.includes(m.tip));
+  const pool = dostupne.length ? dostupne : BAZA_MISIJA;
+  const sablon = pool[Math.floor(Math.random() * pool.length)];
   return { id: Date.now() + Math.random(), ...sablon, trenutno: 0, zavrseno: false };
+};
+
+export const generirajUnikatneMisije = (broj = 3) => {
+  const odabrane = [];
+  const tipovi = new Set();
+  while (odabrane.length < broj) {
+    const misija = generirajMisiju([...tipovi]);
+    odabrane.push(misija);
+    tipovi.add(misija.tip);
+    if (tipovi.size >= BAZA_MISIJA.length) break;
+  }
+  return odabrane;
 };
 
 // ─── Dostignuća ───────────────────────────────────────────────────────────────
@@ -118,6 +132,11 @@ export const DOSTIGNUCA = [
   { id: 'zlato50000',naziv: 'Tajkun',           opis: 'Prikupi ukupno 50000 zlata iz dobitaka',      tip: 'ukupnoZlato', cilj: 50000, nagrada: { dijamanti: 20 } },
   { id: 'prestige1', naziv: 'Obnova',           opis: 'Izvrši prestige po prvi put',                 tip: 'prestige',    cilj: 1,     nagrada: { dijamanti: 25 } },
   { id: 'gradnja5',  naziv: 'Graditelj',        opis: 'Nadogradi bilo koju zgradu na razinu 5',      tip: 'gradnja',     cilj: 5,     nagrada: { zlato: 500, kamen: 200 } },
+  { id: 'raid10',    naziv: 'Pljačkaš',         opis: 'Uspješno izvrši 10 raidova',                   tip: 'raid',        cilj: 10,    nagrada: { dijamanti: 20, zlato: 1500 } },
+  { id: 'klan1',     naziv: 'Član Klana',       opis: 'Osnuj ili pridruži se klanu',                  tip: 'klan',        cilj: 1,     nagrada: { dijamanti: 10 } },
+  { id: 'spin1000',  naziv: 'Legenda Automata', opis: 'Zavrti automat 1000 puta',                     tip: 'spin',        cilj: 1000,  nagrada: { dijamanti: 60 } },
+  { id: 'lv50',      naziv: 'Veteran',          opis: 'Dosegni razinu 50',                            tip: 'razina',      cilj: 50,    nagrada: { dijamanti: 35, energija: 200 } },
+  { id: 'zlato100k', naziv: 'Magnat',           opis: 'Prikupi ukupno 100000 zlata iz dobitaka',      tip: 'ukupnoZlato', cilj: 100000, nagrada: { dijamanti: 50 } },
 ];
 
 // ─── Dnevne nagrade ───────────────────────────────────────────────────────────
@@ -154,6 +173,10 @@ export const ZGRADE_SKINOVI = [
   { id: 'japanese',   naziv: 'Japansko',       emodzi: '⛩️',  boja: '#DC2626', cijenaDijamanti: 100 },
   { id: 'futuristic', naziv: 'Futurističko',   emodzi: '🚀',  boja: '#0EA5E9', cijenaDijamanti: 200 },
 ];
+
+export const CIJENA_DVOSTRUKI_BOOST = 5000;
+export const TRAJANJE_DVOSTRUKI_BOOST = 20;
+export const STIT_REGEN_INTERVAL_SEK = 90;
 
 // ─── Klan — predlošci zadataka ────────────────────────────────────────────────
 export const KLAN_ZADACI_SABLONI = [
