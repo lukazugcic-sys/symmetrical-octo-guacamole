@@ -9,6 +9,7 @@ import {
   BATTLE_PASS_SEASON_THEME, OFFLINE_MAX_SEK, MAX_AD_VIEWS_DNEVNO,
   JUNACI, HERO_DROP_TEZINE, HERO_FRAGMENTI_ZA_OTKLJ, HERO_FRAGMENTI_ZA_RAZINU,
   HERO_MAX_RAZINA, HERO_SUMMON_KOST, HERO_MAX_AKTIVNIH,
+  RECEPTI, TURNIR_RAZINE, SANDUK_TIPOVI,
 } from '../config/constants';
 import { dohvatiAktivniDogadaj } from '../config/sezonalniDogadaji';
 import {
@@ -32,7 +33,17 @@ const BP_XP_DOGADAJI = {
   spin: 1,
 };
 const TRAJANJE_SEZONE_MS = 30 * 24 * 60 * 60 * 1000;
+const TRAJANJE_TJEDNA_MS = 7 * 24 * 60 * 60 * 1000;
 const RAID_ID_UPPER_BOUND = 1000000000;
+
+const tjedanBroj = (datum = new Date()) =>
+  Math.floor(datum.getTime() / TRAJANJE_TJEDNA_MS);
+
+const noviTurnir = (datum = new Date()) => ({
+  tjedniBroj: tjedanBroj(datum),
+  bodovi: 0,
+  nagradePreuzete: {},
+});
 
 const odrediThemeSezone = (datum = new Date()) => {
   const aktivniDogadaj = dohvatiAktivniDogadaj(datum);
@@ -157,6 +168,9 @@ const pocetnoStanje = {
   revengeTarget: null,
   junaci:        {}, // map: heroId → { fragmenti: number, razina: number }
   aktivniJunaci: [], // max HERO_MAX_AKTIVNIH active hero IDs
+  kovanice:      {}, // map: receptId → { expiresAt: ms } — active crafted item bonuses
+  turnir:        noviTurnir(), // weekly tournament state
+  sandukDatum:   '', // date string when free chest was last opened
 };
 
 export const useGameStore = create((set, get) => ({
@@ -253,6 +267,9 @@ export const useGameStore = create((set, get) => ({
           ...(d.revengeTarget ? { revengeTarget: d.revengeTarget } : {}),
           ...(d.junaci && typeof d.junaci === 'object' ? { junaci: d.junaci } : {}),
           ...(Array.isArray(d.aktivniJunaci) ? { aktivniJunaci: d.aktivniJunaci } : {}),
+          ...(d.kovanice && typeof d.kovanice === 'object' ? { kovanice: d.kovanice } : {}),
+          ...(d.turnir && typeof d.turnir === 'object' ? { turnir: { ...noviTurnir(), ...d.turnir } } : {}),
+          ...(d.sandukDatum !== undefined ? { sandukDatum: d.sandukDatum } : {}),
         });
         if (sourceKey === '@save_game_eco_v30') {
           const migratedPayload = {
@@ -341,6 +358,9 @@ export const useGameStore = create((set, get) => ({
       revengeTarget: s.revengeTarget,
       junaci: s.junaci,
       aktivniJunaci: s.aktivniJunaci,
+      kovanice: s.kovanice,
+      turnir: s.turnir,
+      sandukDatum: s.sandukDatum,
     };
     set({ cloudSaveStatus: s.uid ? 'saving' : 'idle', zadnjiCloudPayload: payload });
     try {
@@ -387,6 +407,7 @@ export const useGameStore = create((set, get) => ({
   // ─── Tajmeri (poziva se iz useVillage / useMarket hookova) ─────────────────
   timerTick: () => {
     get().provjeriSezonu();
+    get().provjeriTurnir();
     get().resetirajAdsAkoNoviDan();
     const s = get();
     const maxEnergija    = izracunajMaxEnergiju(s.razine.baterija || 0);
@@ -396,23 +417,32 @@ export const useGameStore = create((set, get) => ({
     const heroPasivno    = 1 + (izracunajHeroBonus(s.junaci, s.aktivniJunaci, 'pasivno') / 100);
     const heroEnergija   = izracunajHeroBonus(s.junaci, s.aktivniJunaci, 'energija');
     const ukupniPasivni  = pasivniMnozitelj * heroPasivno;
+    const sada           = Date.now();
 
-    set((state) => ({
-      energija: state.energija < maxEnergija
-        ? Math.min(maxEnergija, state.energija + 1 + heroEnergija)
-        : state.energija,
-      resursi: {
-        drvo:    state.resursi.drvo    + (!state.ostecenja.pilana    ? (state.gradevine.pilana    * ZGRADE[0].bazaProizvodnja * ukupniPasivni) : 0),
-        kamen:   state.resursi.kamen   + (!state.ostecenja.kamenolom ? (state.gradevine.kamenolom * ZGRADE[1].bazaProizvodnja * ukupniPasivni) : 0),
-        zeljezo: state.resursi.zeljezo + (!state.ostecenja.rudnik    ? (state.gradevine.rudnik    * ZGRADE[2].bazaProizvodnja * ukupniPasivni) : 0),
-      },
-      stitovi: (state.stitovi < maxStitova && state.stitRegenSekundi <= 1)
-        ? state.stitovi + 1
-        : state.stitovi,
-      stitRegenSekundi: state.stitovi >= maxStitova
-        ? STIT_REGEN_INTERVAL_SEK
-        : (state.stitRegenSekundi <= 1 ? STIT_REGEN_INTERVAL_SEK : state.stitRegenSekundi - 1),
-    }));
+    set((state) => {
+      // Ukloni istekle crafted bonuse
+      const novaKovanice = {};
+      Object.entries(state.kovanice).forEach(([id, v]) => {
+        if (v.expiresAt && v.expiresAt > sada) novaKovanice[id] = v;
+      });
+      return {
+        energija: state.energija < maxEnergija
+          ? Math.min(maxEnergija, state.energija + 1 + heroEnergija)
+          : state.energija,
+        resursi: {
+          drvo:    state.resursi.drvo    + (!state.ostecenja.pilana    ? (state.gradevine.pilana    * ZGRADE[0].bazaProizvodnja * ukupniPasivni) : 0),
+          kamen:   state.resursi.kamen   + (!state.ostecenja.kamenolom ? (state.gradevine.kamenolom * ZGRADE[1].bazaProizvodnja * ukupniPasivni) : 0),
+          zeljezo: state.resursi.zeljezo + (!state.ostecenja.rudnik    ? (state.gradevine.rudnik    * ZGRADE[2].bazaProizvodnja * ukupniPasivni) : 0),
+        },
+        stitovi: (state.stitovi < maxStitova && state.stitRegenSekundi <= 1)
+          ? state.stitovi + 1
+          : state.stitovi,
+        stitRegenSekundi: state.stitovi >= maxStitova
+          ? STIT_REGEN_INTERVAL_SEK
+          : (state.stitRegenSekundi <= 1 ? STIT_REGEN_INTERVAL_SEK : state.stitRegenSekundi - 1),
+        kovanice: novaKovanice,
+      };
+    });
   },
 
   timerMarket: () => {
@@ -544,10 +574,181 @@ export const useGameStore = create((set, get) => ({
     get().primiNagradu(nagrada);
     get().dodajSezonaXp('misija');
     get().evidentirajClanRatBodove('misija', 1);
+    get().dodajTurnirBodove(50);
     set({ poruka: 'MISIJA ZAVRŠENA! NAGRADA PREUZETA.' });
   },
 
-  // ─── Selo (zgrade i prestige) ──────────────────────────────────────────────
+  // ─── Turnir ────────────────────────────────────────────────────────────────
+  provjeriTurnir: () => {
+    const s = get();
+    const trenutniTjedan = tjedanBroj();
+    if (s.turnir?.tjedniBroj !== trenutniTjedan) {
+      set({ turnir: noviTurnir(), poruka: '🏆 NOVI TURNIR POČEO! Bodi se za nagrade!' });
+    }
+  },
+
+  dodajTurnirBodove: (kolicina) => {
+    set((state) => ({
+      turnir: {
+        ...state.turnir,
+        bodovi: (state.turnir?.bodovi ?? 0) + kolicina,
+      },
+    }));
+  },
+
+  preuzimiTurnirNagradu: (razina) => {
+    const s = get();
+    const def = TURNIR_RAZINE.find((r) => r.id === razina);
+    if (!def) return;
+    if ((s.turnir?.bodovi ?? 0) < def.minBodova) {
+      set({ poruka: 'NEMAŠ DOVOLJNO TURNIRSKIH BODOVA' });
+      return;
+    }
+    if (s.turnir?.nagradePreuzete?.[razina]) {
+      set({ poruka: 'NAGRADA VEĆ PREUZETA ZA OVAJ TJEDAN' });
+      return;
+    }
+    get().primiNagradu(def.nagrada);
+    set((state) => ({
+      turnir: {
+        ...state.turnir,
+        nagradePreuzete: { ...(state.turnir?.nagradePreuzete ?? {}), [razina]: true },
+      },
+      poruka: `${def.emodzi} TURNIRSKA NAGRADA PREUZETA: ${def.naziv.toUpperCase()}!`,
+    }));
+  },
+
+  // ─── Kovačnica (Crafting) ──────────────────────────────────────────────────
+  izradiPredmet: (receptId) => {
+    const s = get();
+    const recept = RECEPTI.find((r) => r.id === receptId);
+    if (!recept) return;
+
+    // Provjeri ima li dovoljno resursa
+    if (
+      (recept.cijena.drvo    > 0 && s.resursi.drvo    < recept.cijena.drvo)    ||
+      (recept.cijena.kamen   > 0 && s.resursi.kamen   < recept.cijena.kamen)   ||
+      (recept.cijena.zeljezo > 0 && s.resursi.zeljezo < recept.cijena.zeljezo)
+    ) {
+      set({ poruka: 'FALE RESURSI ZA IZRADU' });
+      return;
+    }
+
+    // Provjeri je li timed buff već aktivan
+    if (recept.trajanjeSek > 0 && s.kovanice[receptId]?.expiresAt > Date.now()) {
+      set({ poruka: `${recept.naziv.toUpperCase()} JE VEĆ AKTIVAN` });
+      return;
+    }
+
+    // Oduzmi resurse
+    set((state) => ({
+      resursi: {
+        drvo:    state.resursi.drvo    - (recept.cijena.drvo    || 0),
+        kamen:   state.resursi.kamen   - (recept.cijena.kamen   || 0),
+        zeljezo: state.resursi.zeljezo - (recept.cijena.zeljezo || 0),
+      },
+    }));
+
+    // Primijeni efekt
+    if (recept.tip === 'energija_instant') {
+      const maxEnergija = izracunajMaxEnergiju(s.razine.baterija || 0);
+      set((state) => ({ energija: Math.min(maxEnergija, state.energija + recept.bonus) }));
+      set({ poruka: `⚡ +${recept.bonus} ENERGIJE!` });
+    } else if (recept.tip === 'stit_instant') {
+      const heroMaxStit = Math.floor(izracunajHeroBonus(s.junaci, s.aktivniJunaci, 'stit'));
+      const maxStitova  = izracunajMaxStitova(s.razine.oklop || 0) + heroMaxStit;
+      set({ stitovi: maxStitova, stitRegenSekundi: STIT_REGEN_INTERVAL_SEK, poruka: '🛡️ ŠTITOVI OBNOVLJENI!' });
+    } else if (recept.tip === 'hero_fragment') {
+      const kolicina = randomInt(3) + 2;
+      get().dodijeliHeroFragmente(null, kolicina);
+      set({ poruka: `⚗️ HEROSKA ESENCIJA: +${kolicina} FRAGMENTA!` });
+    } else if (recept.trajanjeSek > 0) {
+      // Timed buff
+      set((state) => ({
+        kovanice: {
+          ...state.kovanice,
+          [receptId]: { expiresAt: Date.now() + recept.trajanjeSek * 1000 },
+        },
+        poruka: `${recept.emodzi} ${recept.naziv.toUpperCase()} AKTIVIRAN!`,
+      }));
+    }
+  },
+
+  // ─── Dnevni sanduk ─────────────────────────────────────────────────────────
+  otvoriSanduk: (tipId) => {
+    const s = get();
+    const def = SANDUK_TIPOVI.find((t) => t.id === tipId);
+    if (!def) return null;
+
+    const danas = new Date().toDateString();
+
+    // Provjeri besplatni sanduk
+    if (def.besplatanJednom && s.sandukDatum === danas) {
+      set({ poruka: 'BESPLATNI SANDUK JE VEĆ OTVOREN DANAS' });
+      return null;
+    }
+
+    // Provjeri dijamante za premium sanduke
+    if (!def.besplatanJednom && s.dijamanti < def.cijenaDijamanti) {
+      set({ poruka: `TREBA ${def.cijenaDijamanti} 💎 ZA SANDUK` });
+      return null;
+    }
+
+    // Oduzmi cijenu
+    if (!def.besplatanJednom) {
+      set((state) => ({ dijamanti: state.dijamanti - def.cijenaDijamanti }));
+    }
+
+    // Generiraj nagrade
+    const nagradeIshod = {};
+    def.nagrade.forEach((n) => {
+      if (n.tip === 'hero_fragment') {
+        const sansa = n.sansa ?? 0;
+        if (sansa >= 1 || randomFloat() < sansa) {
+          const kolicina = randomInt(n.max - n.min + 1) + n.min;
+          if (kolicina > 0) {
+            nagradeIshod.hero_fragment = (nagradeIshod.hero_fragment || 0) + kolicina;
+          }
+        }
+      } else if (n.max > n.min) {
+        nagradeIshod[n.tip] = randomInt(n.max - n.min + 1) + n.min;
+      } else {
+        nagradeIshod[n.tip] = n.min;
+      }
+    });
+
+    // Primijeni nagrade
+    if (nagradeIshod.zlato) {
+      set((state) => ({ zlato: state.zlato + nagradeIshod.zlato, ukupnoZlata: state.ukupnoZlata + nagradeIshod.zlato }));
+    }
+    if (nagradeIshod.dijamanti) {
+      set((state) => ({ dijamanti: state.dijamanti + nagradeIshod.dijamanti }));
+    }
+    if (nagradeIshod.energija) {
+      const maxEnergija = izracunajMaxEnergiju(s.razine.baterija || 0);
+      set((state) => ({ energija: Math.min(maxEnergija, state.energija + nagradeIshod.energija) }));
+    }
+    if (nagradeIshod.drvo || nagradeIshod.kamen || nagradeIshod.zeljezo) {
+      set((state) => ({
+        resursi: {
+          drvo:    state.resursi.drvo    + (nagradeIshod.drvo    || 0),
+          kamen:   state.resursi.kamen   + (nagradeIshod.kamen   || 0),
+          zeljezo: state.resursi.zeljezo + (nagradeIshod.zeljezo || 0),
+        },
+      }));
+    }
+    if (nagradeIshod.hero_fragment) {
+      get().dodijeliHeroFragmente(null, nagradeIshod.hero_fragment);
+    }
+
+    // Označi besplatni sanduk
+    if (def.besplatanJednom) {
+      set({ sandukDatum: danas });
+    }
+
+    set({ poruka: `${def.emodzi} SANDUK OTVOREN!` });
+    return nagradeIshod;
+  },
   nadogradiZgradu: (zgrada) => {
     const s = get();
     const lv = s.gradevine[zgrada.id] || 0;

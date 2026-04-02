@@ -5,9 +5,10 @@ import { useGameStore } from '../store/gameStore';
 import { useSlotStore } from '../store/slotStore';
 import { useSlotMachine } from '../hooks/useSlotMachine';
 import { useSeasonalEvent } from '../hooks/useSeasonalEvent';
-import SlotReel   from '../components/SlotReel';
+import SlotReel    from '../components/SlotReel';
 import EventBanner from '../components/EventBanner';
-import RaidModal  from '../components/RaidModal';
+import RaidModal   from '../components/RaidModal';
+import SandukModal from '../components/SandukModal';
 import { BOJE, LUCKY_SPIN_INTERVAL, MAX_WIN_STREAK, STREAK_BONUS_PER_WIN, MAX_GAMBLE_ROUNDS, uiScale, FONT_FAMILY } from '../config/constants';
 import { useRewardedAds } from '../hooks/useRewardedAds';
 
@@ -24,7 +25,9 @@ const SlotScreen = () => {
   const kupiEnergijuHitno = useGameStore((s) => s.kupiEnergijuHitno);
   const spinBoostPreostalo = useGameStore((s) => s.spinBoostPreostalo);
   const [prikazLegend, setPrikazLegend] = useState(false);
+  const [prikazSanduk, setPrikazSanduk] = useState(false);
   const stitovi = useGameStore((s) => s.stitovi);
+  const sandukDatum = useGameStore((s) => s.sandukDatum);
   const dobitakRef = useSlotStore((s) => s.dobitakNaCekanju);
   const { prikaziRewardedAd } = useRewardedAds();
 
@@ -43,18 +46,31 @@ const SlotScreen = () => {
   const jeFreeSpin = luckySpinCounter === 1;
   const streakMultiplier = 1 + (Math.min(winStreak, MAX_WIN_STREAK) * STREAK_BONUS_PER_WIN);
 
+  const danas = new Date().toDateString();
+  const besplatniOtvoren = sandukDatum === danas;
+
   return (
     <View style={styles.gameContainer}>
       {/* Sezonalni događaj */}
       <EventBanner dogadaj={aktivniDogadaj} />
 
-      {/* Poruka */}
-      <View style={styles.messageBubble}>
-        <Sparkles size={16} color={BOJE.slotVatra} style={{ marginRight: 8 }} />
-        <Text style={styles.messageText} numberOfLines={2}>{poruka}</Text>
-        <Sparkles size={16} color={BOJE.slotVatra} style={{ marginLeft: 8 }} />
-        <TouchableOpacity onPress={() => setPrikazLegend(true)} style={styles.legendBtn}>
-          <CircleHelp size={16} color={BOJE.textMain} />
+      {/* Poruka + sanduk gumb */}
+      <View style={styles.topRow}>
+        <View style={[styles.messageBubble, { flex: 1 }]}>
+          <Sparkles size={16} color={BOJE.slotVatra} style={{ marginRight: 8 }} />
+          <Text style={styles.messageText} numberOfLines={2}>{poruka}</Text>
+          <Sparkles size={16} color={BOJE.slotVatra} style={{ marginLeft: 8 }} />
+          <TouchableOpacity onPress={() => setPrikazLegend(true)} style={styles.legendBtn}>
+            <CircleHelp size={16} color={BOJE.textMain} />
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity
+          style={[styles.sandukBtn, besplatniOtvoren && styles.sandukBtnOtvoren]}
+          onPress={() => setPrikazSanduk(true)}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.sandukEmodzi}>📦</Text>
+          {!besplatniOtvoren && <View style={styles.sandukDot} />}
         </TouchableOpacity>
       </View>
 
@@ -182,6 +198,10 @@ const SlotScreen = () => {
         vidljiv={raidAktivan}
         onZatvori={() => setRaidAktivan(false)}
       />
+      <SandukModal
+        vidljiv={prikazSanduk}
+        onZatvori={() => setPrikazSanduk(false)}
+      />
       <Modal visible={prikazLegend} transparent animationType="fade" onRequestClose={() => setPrikazLegend(false)}>
         <View style={styles.legendOverlay}>
           <View style={styles.legendCard}>
@@ -208,13 +228,43 @@ const SlotScreen = () => {
 const styles = StyleSheet.create({
   gameContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 60 },
 
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 20,
+    alignSelf: 'stretch',
+  },
+  sandukBtn: {
+    width: 50,
+    height: 50,
+    borderRadius: 16,
+    backgroundColor: 'rgba(20, 22, 35, 0.98)',
+    borderWidth: 1,
+    borderColor: '#FBBF2459',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sandukBtnOtvoren: { borderColor: BOJE.border, opacity: 0.6 },
+  sandukEmodzi: { fontSize: 22 },
+  sandukDot: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#22C55E',
+    borderWidth: 1.5,
+    borderColor: '#06060F',
+  },
+
   messageBubble: {
     flexDirection: 'row',
     backgroundColor: 'rgba(20, 22, 35, 0.98)',
     paddingHorizontal: 16,
     paddingVertical: Math.round(14 * uiScale),
     borderRadius: 18,
-    marginBottom: 20,
     borderWidth: 1,
     borderColor: BOJE.slotVatra + '59',
     alignItems: 'center',
