@@ -130,7 +130,7 @@ const KovacnicaScreen = () => {
               style={[
                 styles.izradiBtn,
                 (!mozeIzraditi || vecAktivan)
-                  ? styles.izradiiBtnOff
+                  ? styles.izradiBtnOff
                   : { backgroundColor: recept.boja + '25', borderColor: recept.boja + '70' },
               ]}
               onPress={() => izradiPredmet(recept.id)}
@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
   },
-  izradiiBtnOff: {
+  izradiBtnOff: {
     backgroundColor: 'rgba(255,255,255,0.04)',
     borderColor: BOJE.border,
   },

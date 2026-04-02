@@ -4,13 +4,13 @@ import { Trophy } from 'lucide-react-native';
 import { useGameStore } from '../store/gameStore';
 import { TURNIR_RAZINE, BOJE, uiScale, FONT_FAMILY } from '../config/constants';
 
-const doDatka = (danUTjednu) => (danUTjednu === 0 ? 1 : 8 - danUTjednu);
+const danaDoSljedecegPonedjeljka = (danUTjednu) => (danUTjednu === 0 ? 1 : 8 - danUTjednu);
 
 const vrijemeDoPonedjeljka = () => {
   const sada = new Date();
   const danUTjednu = sada.getDay();
   const sljedeciPonedjeljak = new Date(sada);
-  sljedeciPonedjeljak.setDate(sada.getDate() + doDatka(danUTjednu));
+  sljedeciPonedjeljak.setDate(sada.getDate() + danaDoSljedecegPonedjeljka(danUTjednu));
   sljedeciPonedjeljak.setHours(0, 0, 0, 0);
   const preostaloMs = sljedeciPonedjeljak - sada;
   const h = Math.floor(preostaloMs / (60 * 60 * 1000));

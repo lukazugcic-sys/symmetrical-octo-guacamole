@@ -273,7 +273,8 @@ export const BATTLE_PASS_SEASON_THEME = {
   default: { naziv: 'Klasična Sezona', emodzi: '🏁', skin: 'default' },
 };
 
-export const BATTLE_PASS_NAGRADE = Array.from({ length: BATTLE_PASS_MAX_RAZINA }, (_, idx) => {  const razina = idx + 1;
+export const BATTLE_PASS_NAGRADE = Array.from({ length: BATTLE_PASS_MAX_RAZINA }, (_, idx) => {
+  const razina = idx + 1;
   const premiumSkinTier = razina % 10 === 0;
   return {
     razina,
