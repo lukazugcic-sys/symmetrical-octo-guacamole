@@ -1,5 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from 'react-native-reanimated';
 import { Zap, Sparkles, CircleHelp, Shield, Skull, Star, Gem, Coins, TreePine, Mountain, Pickaxe, BatteryCharging } from 'lucide-react-native';
 import { useGameStore } from '../store/gameStore';
 import { useSlotStore } from '../store/slotStore';
@@ -48,6 +53,14 @@ const SlotScreen = () => {
 
   const danas = new Date().toDateString();
   const besplatniOtvoren = sandukDatum === danas;
+
+  // Animacija spin gumba
+  const spinBtnScale = useSharedValue(1);
+  const spinBtnStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: spinBtnScale.value }],
+  }));
+  const onSpinPressIn  = useCallback(() => { spinBtnScale.value = withSpring(0.93, { damping: 15, stiffness: 350 }); }, []);
+  const onSpinPressOut = useCallback(() => { spinBtnScale.value = withSpring(1.0,  { damping: 10, stiffness: 220 }); }, []);
 
   return (
     <View style={styles.gameContainer}>
@@ -158,25 +171,29 @@ const SlotScreen = () => {
           </View>
 
           {/* Spin gumb */}
-          <TouchableOpacity
-            activeOpacity={0.8}
-            style={[
-              styles.spinBtn,
-              jeFreeSpin && styles.spinBtnLucky,
-              (vrti || (!jeFreeSpin && energija < ulog)) && styles.spinBtnDisabled,
-            ]}
-            onPress={zavrtiMasinu}
-            disabled={vrti}
-          >
-            <Zap size={24} color="#000" fill="#000" style={{ position: 'absolute', left: 24 }} />
-            <Text style={styles.spinBtnText}>{vrti ? 'VRTIM...' : (jeFreeSpin ? '🍀 FREE SPIN' : 'SPIN')}</Text>
-            {!jeFreeSpin && (
-              <View style={styles.spinCostBadge}>
-                <Text style={styles.spinCostTxt}>-{ulog}</Text>
-                <Zap size={10} color="#000" fill="#000" />
-              </View>
-            )}
-          </TouchableOpacity>
+          <Animated.View style={spinBtnStyle}>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={[
+                styles.spinBtn,
+                jeFreeSpin && styles.spinBtnLucky,
+                (vrti || (!jeFreeSpin && energija < ulog)) && styles.spinBtnDisabled,
+              ]}
+              onPress={zavrtiMasinu}
+              onPressIn={onSpinPressIn}
+              onPressOut={onSpinPressOut}
+              disabled={vrti}
+            >
+              <Zap size={24} color="#000" fill="#000" style={{ position: 'absolute', left: 24 }} />
+              <Text style={styles.spinBtnText}>{vrti ? 'VRTIM...' : (jeFreeSpin ? '🍀 FREE SPIN' : 'SPIN')}</Text>
+              {!jeFreeSpin && (
+                <View style={styles.spinCostBadge}>
+                  <Text style={styles.spinCostTxt}>-{ulog}</Text>
+                  <Zap size={10} color="#000" fill="#000" />
+                </View>
+              )}
+            </TouchableOpacity>
+          </Animated.View>
           {!jeFreeSpin && energija < ulog && !vrti && (
             <View style={{ gap: 8, marginTop: 10 }}>
               <TouchableOpacity style={styles.quickEnergyBtn} activeOpacity={0.8} onPress={kupiEnergijuHitno}>

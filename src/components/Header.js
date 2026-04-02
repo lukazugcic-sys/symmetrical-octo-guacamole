@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, Platform, TouchableOpacity } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, Platform, TouchableOpacity, Animated, Easing } from 'react-native';
 import { Zap, Coins, Gem, Shield, TreePine, Mountain, Pickaxe, TrendingUp, Crown } from 'lucide-react-native';
 import { useGameStore } from '../store/gameStore';
 import AnimatedStat from './AnimatedStat';
@@ -27,6 +27,26 @@ const Header = ({ onOpenBattlePass }) => {
   const potrebanXp      = izracunajPotrebniXp(igracRazina);
   const pasivniMnozitelj = izracunajPasivniMnozitelj(igracRazina, prestigeRazina);
 
+  // Animirani XP bar
+  const xpAnim = useRef(new Animated.Value(
+    Math.min(100, (xp / Math.max(1, izracunajPotrebniXp(igracRazina))) * 100)
+  )).current;
+
+  useEffect(() => {
+    const target = Math.min(100, (xp / Math.max(1, potrebanXp)) * 100);
+    Animated.timing(xpAnim, {
+      toValue:  target,
+      duration: 600,
+      easing:   Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [xp, potrebanXp, xpAnim]);
+
+  const xpWidthAnim = xpAnim.interpolate({
+    inputRange:  [0, 100],
+    outputRange: ['0%', '100%'],
+  });
+
   return (
     <View style={styles.header}>
       {cloudSaveStatus !== 'idle' && (
@@ -53,7 +73,7 @@ const Header = ({ onOpenBattlePass }) => {
         )}
 
         <View style={styles.xpBarContainer}>
-          <View style={[styles.xpBarFill, { width: `${Math.min(100, (xp / potrebanXp) * 100)}%` }]} />
+          <Animated.View style={[styles.xpBarFill, { width: xpWidthAnim }]} />
           <Text style={styles.xpText}>{xp} / {potrebanXp} XP</Text>
         </View>
 

@@ -27,6 +27,8 @@ export default function App() {
   // ─── Flash overlay + tresenje ekrana ─────────────────────────────────────
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const flashAnim = useRef(new Animated.Value(0)).current;
+  const dailyModalAnim = useRef(new Animated.Value(0)).current;
+  const eventModalAnim = useRef(new Animated.Value(0)).current;
   const [flashBoja, setFlashBoja] = useState('rgba(0,0,0,0)');
   const [prikaziBattlePass, setPrikaziBattlePass] = useState(false);
 
@@ -133,6 +135,21 @@ export default function App() {
     setPrikaziEventModal(true);
   }, [aktivniDogadaj?.id, zadnjiVideniEventId]);
 
+  // ─── Animacije modalova ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (prikazDnevneNagrade) {
+      dailyModalAnim.setValue(0);
+      Animated.spring(dailyModalAnim, { toValue: 1, damping: 16, stiffness: 180, useNativeDriver: true }).start();
+    }
+  }, [prikazDnevneNagrade, dailyModalAnim]);
+
+  useEffect(() => {
+    if (prikaziEventModal) {
+      eventModalAnim.setValue(0);
+      Animated.spring(eventModalAnim, { toValue: 1, damping: 16, stiffness: 180, useNativeDriver: true }).start();
+    }
+  }, [prikaziEventModal, eventModalAnim]);
+
   // ─── Tajmeri (pasivna produkcija + tržište) ───────────────────────────────
   useVillage();
   useMarket();
@@ -167,7 +184,7 @@ export default function App() {
           {/* Dnevna nagrada modal */}
           {prikazDnevneNagrade && dnevnaNagrada && (
             <View style={styles.modalOverlay}>
-              <View style={styles.modalCard}>
+              <Animated.View style={[styles.modalCard, { transform: [{ scale: dailyModalAnim }], opacity: dailyModalAnim }]}>
                 <Text style={styles.modalTitle}>🎁 DNEVNA NAGRADA</Text>
                 <Text style={styles.modalSubtitle}>Dan {dnevnaNagrada.streak} · Niz prijava</Text>
                 <View style={styles.dnevnaStreakRow}>
@@ -192,13 +209,13 @@ export default function App() {
                 <TouchableOpacity activeOpacity={0.8} style={styles.modalBtn} onPress={preuzmiDnevniBonus}>
                   <Text style={styles.modalBtnTxt}>PREUZMI</Text>
                 </TouchableOpacity>
-              </View>
+              </Animated.View>
             </View>
           )}
 
           {prikaziEventModal && aktivniDogadaj && (
             <View style={styles.modalOverlay}>
-              <View style={[styles.modalCard, { borderColor: (aktivniDogadaj.boja || BOJE.zlato) + '80' }]}>
+              <Animated.View style={[styles.modalCard, { borderColor: (aktivniDogadaj.boja || BOJE.zlato) + '80' }, { transform: [{ scale: eventModalAnim }], opacity: eventModalAnim }]}>
                 <Text style={styles.modalTitle}>{aktivniDogadaj.emodzi} {aktivniDogadaj.naziv.toUpperCase()}</Text>
                 <Text style={styles.modalSubtitle}>{aktivniDogadaj.opis}</Text>
                 <Text style={[styles.modalSubtitle, { color: aktivniDogadaj.boja }]}>Bonus: x{aktivniDogadaj.bonusMnozitelj}</Text>
@@ -212,7 +229,7 @@ export default function App() {
                 >
                   <Text style={styles.modalBtnTxt}>NASTAVI</Text>
                 </TouchableOpacity>
-              </View>
+              </Animated.View>
             </View>
           )}
 
