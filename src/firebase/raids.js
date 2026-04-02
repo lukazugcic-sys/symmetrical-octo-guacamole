@@ -21,7 +21,7 @@
 
 import {
   collection, query, where, orderBy, limit,
-  getDocs, doc, runTransaction, addDoc, serverTimestamp,
+  getDocs, doc, runTransaction, addDoc, serverTimestamp, getDoc,
 } from 'firebase/firestore';
 import { db } from './config';
 import { shuffle } from '../utils/helpers';
@@ -29,6 +29,8 @@ import { shuffle } from '../utils/helpers';
 const KOLEKCIJA_PLAYERS = 'players';
 const KOLEKCIJA_RAIDS   = 'raids';
 const POSTOTAK_KRADJE   = 0.15; // 15% resursa po uspješnom napadu
+const RAID_COOLDOWN_MS  = 30 * 1000;
+const RETALIATION_WINDOW_MS = 60 * 60 * 1000;
 
 /**
  * Dohvati do `n` mogućih meta za napad.
@@ -83,19 +85,26 @@ export const dohvatiMete = async (napadacUid, n = 5) => {
 export const izvrsiNapad = async (napadacUid, metaUid) => {
   if (!napadacUid || !metaUid) return null;
   try {
+    const napadacRef = doc(db, KOLEKCIJA_PLAYERS, napadacUid);
     const metaRef = doc(db, KOLEKCIJA_PLAYERS, metaUid);
     let ukradeno  = null;
+    let metaImeIgraca = 'Meta';
 
     await runTransaction(db, async (tx) => {
       const metaSnap = await tx.get(metaRef);
       if (!metaSnap.exists()) return;
 
       const metaData = metaSnap.data();
+      const napadacSnap = await tx.get(napadacRef);
+      const napadacData = napadacSnap.exists() ? napadacSnap.data() : {};
 
       // Provjeri štitove
       if ((metaData.stitovi ?? 0) > 0) return;
+      const zadnjiNapadMs = metaData.zadnjiNapadMs ?? 0;
+      if (Date.now() - zadnjiNapadMs < RAID_COOLDOWN_MS) return;
 
       const resursiMete = metaData.resursi ?? { drvo: 0, kamen: 0, zeljezo: 0 };
+      metaImeIgraca = metaData.imeIgraca ?? 'Meta';
       ukradeno = {
         drvo:    Math.floor((resursiMete.drvo    ?? 0) * POSTOTAK_KRADJE),
         kamen:   Math.floor((resursiMete.kamen   ?? 0) * POSTOTAK_KRADJE),
@@ -108,7 +117,20 @@ export const izvrsiNapad = async (napadacUid, metaUid) => {
         zeljezo: (resursiMete.zeljezo ?? 0) - ukradeno.zeljezo,
       };
 
-      tx.update(metaRef, { resursi: noviResursi });
+      const novaMetaPovijest = [
+        {
+          id: `in-${Date.now()}-${Math.random()}`,
+          tip: 'incoming',
+          napadacUid,
+          napadacIme: napadacData.imeIgraca ?? 'Napadač',
+          vrijemeNapadaMs: Date.now(),
+          ukradeno,
+          mozeProtunapadDo: Date.now() + RETALIATION_WINDOW_MS,
+        },
+        ...((metaData.raidPovijest ?? []).slice(0, 19)),
+      ];
+
+      tx.update(metaRef, { resursi: noviResursi, raidPovijest: novaMetaPovijest, zadnjiNapadMs: Date.now() });
     });
 
     if (ukradeno) {
@@ -121,9 +143,22 @@ export const izvrsiNapad = async (napadacUid, metaUid) => {
       });
     }
 
-    return ukradeno;
+    return ukradeno ? { ...ukradeno, metaImeIgraca } : null;
   } catch (err) {
     console.warn('[Raids] izvrsiNapad greška:', err.message);
     return null;
+  }
+};
+
+export const dohvatiRaidPovijest = async (uid) => {
+  if (!uid) return [];
+  try {
+    const snap = await getDoc(doc(db, KOLEKCIJA_PLAYERS, uid));
+    if (!snap.exists()) return [];
+    const data = snap.data();
+    return Array.isArray(data.raidPovijest) ? data.raidPovijest : [];
+  } catch (err) {
+    console.warn('[Raids] dohvatiRaidPovijest greška:', err.message);
+    return [];
   }
 };

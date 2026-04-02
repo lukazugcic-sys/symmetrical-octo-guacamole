@@ -1,6 +1,6 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Zap, Sparkles } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import { Zap, Sparkles, CircleHelp, Shield, Skull, Star, Gem, Coins, TreePine, Mountain, Pickaxe, BatteryCharging } from 'lucide-react-native';
 import { useGameStore } from '../store/gameStore';
 import { useSlotStore } from '../store/slotStore';
 import { useSlotMachine } from '../hooks/useSlotMachine';
@@ -20,6 +20,9 @@ const SlotScreen = () => {
   const energija        = useGameStore((s) => s.energija);
   const luckySpinCounter = useGameStore((s) => s.luckySpinCounter);
   const winStreak       = useGameStore((s) => s.winStreak);
+  const kupiEnergijuHitno = useGameStore((s) => s.kupiEnergijuHitno);
+  const spinBoostPreostalo = useGameStore((s) => s.spinBoostPreostalo);
+  const [prikazLegend, setPrikazLegend] = useState(false);
 
   const vrti            = useSlotStore((s) => s.vrti);
   const ulog            = useSlotStore((s) => s.ulog);
@@ -46,7 +49,16 @@ const SlotScreen = () => {
         <Sparkles size={16} color={BOJE.slotVatra} style={{ marginRight: 8 }} />
         <Text style={styles.messageText} numberOfLines={1}>{poruka}</Text>
         <Sparkles size={16} color={BOJE.slotVatra} style={{ marginLeft: 8 }} />
+        <TouchableOpacity onPress={() => setPrikazLegend(true)} style={styles.legendBtn}>
+          <CircleHelp size={16} color={BOJE.textMain} />
+        </TouchableOpacity>
       </View>
+
+      {spinBoostPreostalo > 0 && (
+        <View style={styles.boostBadge}>
+          <Text style={styles.boostTxt}>⚡ BOOST x2 · još {spinBoostPreostalo} spinova</Text>
+        </View>
+      )}
 
       {/* Automat */}
       <View style={styles.slotMachineOuter}>
@@ -138,12 +150,36 @@ const SlotScreen = () => {
               </View>
             )}
           </TouchableOpacity>
+          {!jeFreeSpin && energija < ulog && !vrti && (
+            <TouchableOpacity style={styles.quickEnergyBtn} activeOpacity={0.8} onPress={kupiEnergijuHitno}>
+              <Text style={styles.quickEnergyTxt}>⚡ KUPI +100 ENERGIJE ZA 100 🪙</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
       <RaidModal
         vidljiv={raidAktivan}
         onZatvori={() => setRaidAktivan(false)}
       />
+      <Modal visible={prikazLegend} transparent animationType="fade" onRequestClose={() => setPrikazLegend(false)}>
+        <View style={styles.legendOverlay}>
+          <View style={styles.legendCard}>
+            <Text style={styles.legendTitle}>SIMBOLI AUTOMATA</Text>
+            <View style={styles.legendItem}><Skull size={16} color={BOJE.slotVatra} /><Text style={styles.legendTxt}>Lubanja: raid i šteta</Text></View>
+            <View style={styles.legendItem}><Star size={16} color="#FFF" /><Text style={styles.legendTxt}>Wild: joker simbol</Text></View>
+            <View style={styles.legendItem}><Shield size={16} color={BOJE.stit} /><Text style={styles.legendTxt}>Štit: obrana baze</Text></View>
+            <View style={styles.legendItem}><Gem size={16} color={BOJE.dijamant} /><Text style={styles.legendTxt}>Dijamant: premium valuta</Text></View>
+            <View style={styles.legendItem}><Coins size={16} color={BOJE.zlato} /><Text style={styles.legendTxt}>Zlato: glavna valuta</Text></View>
+            <View style={styles.legendItem}><TreePine size={16} color={BOJE.drvo} /><Text style={styles.legendTxt}>Drvo resurs</Text></View>
+            <View style={styles.legendItem}><Mountain size={16} color={BOJE.kamen} /><Text style={styles.legendTxt}>Kamen resurs</Text></View>
+            <View style={styles.legendItem}><Pickaxe size={16} color={BOJE.zeljezo} /><Text style={styles.legendTxt}>Željezo resurs</Text></View>
+            <View style={styles.legendItem}><BatteryCharging size={16} color={BOJE.energija} /><Text style={styles.legendTxt}>Energija za spin</Text></View>
+            <TouchableOpacity style={styles.legendCloseBtn} onPress={() => setPrikazLegend(false)}>
+              <Text style={styles.legendCloseTxt}>ZATVORI</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -168,6 +204,9 @@ const styles = StyleSheet.create({
     elevation: 7,
   },
   messageText: { color: BOJE.slotVatra, fontSize: Math.round(13 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 1 },
+  legendBtn: { marginLeft: 8, padding: 2 },
+  boostBadge: { alignSelf: 'stretch', backgroundColor: BOJE.energija + '22', borderWidth: 1, borderColor: BOJE.energija + '66', borderRadius: 12, paddingVertical: 6, marginBottom: 10 },
+  boostTxt: { color: BOJE.energija, textAlign: 'center', fontFamily: FONT_FAMILY, fontWeight: '900', fontSize: 12 },
 
   slotMachineOuter: {
     backgroundColor: '#080A12', padding: 10, borderRadius: 28, borderWidth: 2, borderColor: 'rgba(255,255,255,0.10)',
@@ -220,6 +259,15 @@ const styles = StyleSheet.create({
   turboBtn:       { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: BOJE.bgCard, borderWidth: 1, borderColor: BOJE.border },
   turboBtnActive: { backgroundColor: BOJE.energija, borderColor: BOJE.energija },
   turboTxt:       { fontSize: 11, fontWeight: '900', fontFamily: FONT_FAMILY, color: BOJE.textMuted, letterSpacing: 0.5 },
+  quickEnergyBtn: { marginTop: 10, backgroundColor: BOJE.zlato + '20', borderWidth: 1, borderColor: BOJE.zlato + '60', borderRadius: 12, paddingVertical: 10 },
+  quickEnergyTxt: { textAlign: 'center', color: BOJE.zlato, fontFamily: FONT_FAMILY, fontWeight: '900', fontSize: 12 },
+  legendOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  legendCard: { width: '100%', backgroundColor: BOJE.bgCard, borderWidth: 1, borderColor: BOJE.border, borderRadius: 18, padding: 18 },
+  legendTitle: { color: BOJE.textMain, fontFamily: FONT_FAMILY, fontWeight: '900', marginBottom: 12, textAlign: 'center' },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 7 },
+  legendTxt: { color: BOJE.textMuted, fontFamily: FONT_FAMILY, fontSize: 12 },
+  legendCloseBtn: { marginTop: 10, backgroundColor: BOJE.energija, borderRadius: 10, paddingVertical: 10 },
+  legendCloseTxt: { textAlign: 'center', color: '#000', fontFamily: FONT_FAMILY, fontWeight: '900' },
 });
 
 export default SlotScreen;

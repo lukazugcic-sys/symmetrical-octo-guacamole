@@ -15,6 +15,8 @@ import {
 } from '../utils/economy';
 import { delay, randomChance, randomFloat, randomInt } from '../utils/helpers';
 
+let spinGuard = false;
+
 // Izgradi težinski pool simbola na osnovu sezonalnog modificatora
 const izgradiPool = (dogadaj) => {
   if (!dogadaj?.modifikatorBlaga) return SVO_BLAGO;
@@ -135,8 +137,13 @@ export const useSlotMachine = () => {
 
   // ─── Glavna logika vrtnje ───────────────────────────────────────────────────
   const zavrtiMasinu = async () => {
+    if (spinGuard) return;
+    spinGuard = true;
     const ss = useSlotStore.getState();
-    if (ss.dobitakNaCekanju) return;
+    if (ss.dobitakNaCekanju) {
+      spinGuard = false;
+      return;
+    }
 
     const gs          = useGameStore.getState();
     const { ulog, turboRezim } = ss;
@@ -144,6 +151,7 @@ export const useSlotMachine = () => {
 
     if (ss.vrti || (!jeFreeSpin && gs.energija < ulog)) {
       if (!ss.vrti) useGameStore.setState({ poruka: 'NEDOVOLJNO ENERGIJE' });
+      spinGuard = false;
       return;
     }
 
@@ -206,6 +214,8 @@ export const useSlotMachine = () => {
       const winStreakMultiplier = 1 + (Math.min(gs2.winStreak, MAX_WIN_STREAK) * STREAK_BONUS_PER_WIN);
       const eventMnozitelj = aktivniDogadaj?.bonusMnozitelj ?? 1.0;
       const maxStitova = izracunajMaxStitova(gs2.razine.oklop || 0);
+      const imaBoost = useGameStore.getState().iskoristiBoostSpin();
+      const boostMnozitelj = imaBoost ? 2 : 1;
 
       // Težinski pool simbola prilagođen aktivnom sezonalnom događaju
       const simbolPool = izgradiPool(aktivniDogadaj);
@@ -282,11 +292,11 @@ export const useSlotMachine = () => {
           if (targetSymbol === 'shield' && !isAllWilds) {
             ukupnoStitova += (ulog >= 10 ? 2 : 1) * (consecutiveCount - 2);
           } else if (targetSymbol === 'energy' && !isAllWilds) {
-            ukupnoEnergije += Math.floor(detalji.baza * ulog * 0.5 * multiplier * prestigeMnozitelj * winStreakMultiplier * eventMnozitelj);
+             ukupnoEnergije += Math.floor(detalji.baza * ulog * 0.5 * multiplier * prestigeMnozitelj * winStreakMultiplier * eventMnozitelj * boostMnozitelj);
           } else if (targetSymbol === 'gem' || isAllWilds) {
-            ukupnoDijamanata += Math.max(1, Math.floor((isAllWilds ? 5 : detalji.baza) * (ulog * 0.1) * multiplier * jackpotBonus * prestigeMnozitelj * winStreakMultiplier * eventMnozitelj));
+             ukupnoDijamanata += Math.max(1, Math.floor((isAllWilds ? 5 : detalji.baza) * (ulog * 0.1) * multiplier * jackpotBonus * prestigeMnozitelj * winStreakMultiplier * eventMnozitelj * boostMnozitelj));
           } else {
-            const kolicina = Math.floor(detalji.baza * ulog * multiplier * jackpotBonus * (1 + (gs2.razine.pojacalo || 0) * 0.1) * prestigeMnozitelj * winStreakMultiplier * eventMnozitelj);
+             const kolicina = Math.floor(detalji.baza * ulog * multiplier * jackpotBonus * (1 + (gs2.razine.pojacalo || 0) * 0.1) * prestigeMnozitelj * winStreakMultiplier * eventMnozitelj * boostMnozitelj);
             if (targetSymbol === 'gold') ukupnoZlato += kolicina;
             else resursiDobitak[detalji.tip] += kolicina;
           }
@@ -325,7 +335,7 @@ export const useSlotMachine = () => {
           heavy();
           play('jackpot');
           useSlotStore.getState().setWinCelebration('jackpot');
-          useGameStore.setState({ poruka: `🎰 JACKPOT! 5 U NIZU! 2× BONUS${gs2.winStreak > 0 ? ` + ${Math.round((winStreakMultiplier - 1) * 100)}% NIZ` : ''}! PREUZMI ILI DUPLAJ!` });
+          useGameStore.setState({ poruka: `🎰 JACKPOT! 5 U NIZU! 2× BONUS${imaBoost ? ' + BOOST x2' : ''}${gs2.winStreak > 0 ? ` + ${Math.round((winStreakMultiplier - 1) * 100)}% NIZ` : ''}! PREUZMI ILI DUPLAJ!` });
         } else if (noviWinStreak >= 3) {
           medium();
           play('win');
@@ -335,7 +345,7 @@ export const useSlotMachine = () => {
           medium();
           play('win');
           useSlotStore.getState().setWinCelebration('win');
-          useGameStore.setState({ poruka: 'DOBITAK! PREUZMI ILI DUPLAJ!' });
+          useGameStore.setState({ poruka: `DOBITAK!${imaBoost ? ' BOOST x2 AKTIVAN!' : ''} PREUZMI ILI DUPLAJ!` });
         }
       } else if (brojLubanja >= 3) {
         useGameStore.setState({ winStreak: 0 });
@@ -364,7 +374,7 @@ export const useSlotMachine = () => {
             novaPoruka = `NAPAD! ODUZETO ${gubitakZlata} 🪙`;
           }
           // Otvori modal za uzvratni napad na pravog igrača
-          useSlotStore.getState().setRaidAktivan(true);
+           useSlotStore.getState().setRaidAktivan(true);
         } else {
           _onFlash('rgba(0, 212, 255, 0.4)');
           medium();
@@ -386,6 +396,7 @@ export const useSlotMachine = () => {
       spinLoopsRef.current.forEach((a) => a?.stop?.());
       spinLoopsRef.current = [];
       useSlotStore.getState().setVrti(false);
+      spinGuard = false;
     }
   };
 

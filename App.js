@@ -16,6 +16,7 @@ import AppNavigator     from './src/navigation/AppNavigator';
 import useAuth          from './src/hooks/useAuth';
 import useNotifications from './src/hooks/useNotifications';
 import { BOJE, DNEVNE_NAGRADE, uiScale, FONT_FAMILY } from './src/config/constants';
+import { useSeasonalEvent } from './src/hooks/useSeasonalEvent';
 
 // Aktiviraj native screen optimizacije (react-native-screens)
 enableScreens();
@@ -71,6 +72,10 @@ export default function App() {
   const ukupnoZlata      = useGameStore((s) => s.ukupnoZlata);
   const aktivniSkin      = useGameStore((s) => s.aktivniSkin);
   const klan             = useGameStore((s) => s.klan);
+  const zadnjiVideniEventId = useGameStore((s) => s.zadnjiVideniEventId);
+  const oznaciEventVidjen = useGameStore((s) => s.oznaciEventVidjen);
+  const [prikaziEventModal, setPrikaziEventModal] = useState(false);
+  const aktivniDogadaj = useSeasonalEvent();
 
   // ─── Inicijalno učitavanje ────────────────────────────────────────────────
   useEffect(() => { ucitaj(); }, [ucitaj]);
@@ -88,6 +93,12 @@ export default function App() {
     if (ucitavam) return;
     spremiDostignuca();
   }, [dostignucaDone, ukupnoVrtnji, ukupnoZlata, ucitavam]);
+
+  useEffect(() => {
+    if (!aktivniDogadaj?.id) return;
+    if (zadnjiVideniEventId === aktivniDogadaj.id) return;
+    setPrikaziEventModal(true);
+  }, [aktivniDogadaj?.id, zadnjiVideniEventId]);
 
   // ─── Tajmeri (pasivna produkcija + tržište) ───────────────────────────────
   useVillage();
@@ -152,6 +163,26 @@ export default function App() {
             </View>
           )}
 
+          {prikaziEventModal && aktivniDogadaj && (
+            <View style={styles.modalOverlay}>
+              <View style={[styles.modalCard, { borderColor: (aktivniDogadaj.boja || BOJE.zlato) + '80' }]}>
+                <Text style={styles.modalTitle}>{aktivniDogadaj.emodzi} {aktivniDogadaj.naziv.toUpperCase()}</Text>
+                <Text style={styles.modalSubtitle}>{aktivniDogadaj.opis}</Text>
+                <Text style={[styles.modalSubtitle, { color: aktivniDogadaj.boja }]}>Bonus: x{aktivniDogadaj.bonusMnozitelj}</Text>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  style={styles.modalBtn}
+                  onPress={() => {
+                    oznaciEventVidjen(aktivniDogadaj.id);
+                    setPrikaziEventModal(false);
+                  }}
+                >
+                  <Text style={styles.modalBtnTxt}>NASTAVI</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
           {/* Čestice proslave pobjede / jackpota */}
           <WinCelebration />
 
@@ -189,4 +220,3 @@ const styles = StyleSheet.create({
   modalBtn:        { backgroundColor: BOJE.zlato, width: '100%', paddingVertical: Math.round(18 * uiScale), borderRadius: 20, alignItems: 'center', shadowColor: BOJE.zlato, shadowOpacity: 0.4, shadowRadius: 12, elevation: 6 },
   modalBtnTxt:     { color: '#000', fontSize: Math.round(18 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 2 },
 });
-

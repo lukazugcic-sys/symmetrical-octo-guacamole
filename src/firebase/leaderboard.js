@@ -18,7 +18,7 @@
 
 import {
   doc, setDoc, collection, query,
-  orderBy, limit, getDocs, serverTimestamp,
+  orderBy, limit, getDocs, serverTimestamp, startAfter,
 } from 'firebase/firestore';
 import { db } from './config';
 
@@ -58,20 +58,27 @@ export const azurirajLjestvicu = async (uid, podaci) => {
  * Sortiran po prestigeRazina DESC → ukupnoZlata DESC.
  * @returns {Promise<Array<object>>} niz zapisa ljestvice
  */
-export const dohvatiTopIgraca = async () => {
+export const dohvatiTopIgraca = async (cursorDoc = null, pageSize = TOP_N) => {
   try {
-    const q = query(
+    const base = [
       collection(db, KOLEKCIJA),
       orderBy('prestigeRazina', 'desc'),
       orderBy('ukupnoZlata',    'desc'),
-      limit(TOP_N),
-    );
+      limit(pageSize),
+    ];
+    if (cursorDoc) base.splice(3, 0, startAfter(cursorDoc));
+    const q = query(...base);
     const snap    = await getDocs(q);
     const rezultat = [];
     snap.forEach((d) => rezultat.push(d.data()));
-    return rezultat;
+    const docs = snap.docs;
+    return {
+      igraci: rezultat,
+      cursor: docs.length ? docs[docs.length - 1] : null,
+      hasMore: docs.length === pageSize,
+    };
   } catch (err) {
     console.warn('[Leaderboard] dohvatiTopIgraca greška:', err.message);
-    return [];
+    return { igraci: [], cursor: null, hasMore: false };
   }
 };

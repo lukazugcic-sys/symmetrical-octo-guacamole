@@ -4,13 +4,15 @@ import { Users, Swords, CheckCircle2, Circle, Gift } from 'lucide-react-native';
 import { useGameStore }     from '../store/gameStore';
 import { BOJE, uiScale, FONT_FAMILY } from '../config/constants';
 import {
-  kreirajKlan, slušajKlan, doniraiXpKlanu,
+  kreirajKlan, slušajKlan, doniraiXpKlanu, azurirajKlanZadatak,
   preuzmiNagradu as preuzmiNagraduCloud,
   osvjeziZadatkeAkoTreba, slugKlana,
 } from '../firebase/clanMultiplayer';
 import { posaljiNotifikaciju } from '../hooks/useNotifications';
+import { ucitajCloud } from '../firebase/cloudSave';
 
 const DONACIJA_IZNOS = 200; // zlato po jednom kliku donacije
+const xpZaKlanRazinu = (razina = 1) => Math.max(1000, razina * 1000);
 
 /**
  * Ekran Klana (Ceha) — osnivanje, pregled zadataka, donacija i nagrade.
@@ -24,11 +26,10 @@ const ClanScreen = () => {
   const doniraiUKlan       = useGameStore((s) => s.doniraiUKlan);
   const preuzmiKlanNagradu = useGameStore((s) => s.preuzmiKlanNagradu);
   const refreshKlanZadatke = useGameStore((s) => s.refreshKlanZadatke);
-  const primiResurse       = useGameStore((s) => s.primiResurse);
-  const set                = useGameStore.setState;
 
   const [imeTxt,     setImeTxt]     = useState('');
   const [cloudKlan,  setCloudKlan]  = useState(null); // real-time Firestore podaci
+  const [clanMembers, setClanMembers] = useState([]);
   const unsubscribeRef = useRef(null);
 
   // ─── Real-time Firestore listener ────────────────────────────────────────────
@@ -49,6 +50,33 @@ const ClanScreen = () => {
 
   // Sinkroniziraj lokalni refreshKlanZadatke ako nema mreže
   useEffect(() => { if (klan.naziv && !cloudKlan) refreshKlanZadatke(); }, [klan.naziv]);
+
+  useEffect(() => {
+    let aktivan = true;
+    const ucitajClanMembers = async () => {
+      const membri = cloudKlan?.membri ? Object.keys(cloudKlan.membri) : [];
+      if (!membri.length) {
+        if (aktivan) setClanMembers([]);
+        return;
+      }
+      const detalji = await Promise.all(
+        membri.map(async (memberUid) => {
+          const d = await ucitajCloud(memberUid);
+          return {
+            uid: memberUid,
+            ime: d?.imeIgraca ?? memberUid.slice(0, 6),
+            razina: d?.igracRazina ?? 1,
+            prestige: d?.prestigeRazina ?? 0,
+            zlato: d?.ukupnoZlata ?? 0,
+            azurirano: d?.azurirano ?? null,
+          };
+        }),
+      );
+      if (aktivan) setClanMembers(detalji);
+    };
+    if (cloudKlan) ucitajClanMembers();
+    return () => { aktivan = false; };
+  }, [cloudKlan]);
 
   // Koristi cloud podatke ako su dostupni, inače lokalne
   const aktivniKlan = cloudKlan ?? klan;
@@ -92,11 +120,16 @@ const ClanScreen = () => {
   }
 
   // ─── Klan HQ ─────────────────────────────────────────────────────────────────
-  const xpZaRazinu = aktivniKlan.razina * 1000;
+  const xpZaRazinu = xpZaKlanRazinu(aktivniKlan.razina);
   const xpPostotak = Math.min(1, aktivniKlan.xp / xpZaRazinu);
 
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      {!cloudKlan && (
+        <View style={styles.skeletonCard}>
+          <Text style={styles.memberMeta}>Učitavanje klanskih podataka...</Text>
+        </View>
+      )}
 
       {/* Zaglavlje klana */}
       <View style={styles.headerCard}>
@@ -125,7 +158,15 @@ const ClanScreen = () => {
         <TouchableOpacity
           activeOpacity={0.7}
           style={[styles.btn, styles.donBtn, { backgroundColor: zlato >= DONACIJA_IZNOS ? BOJE.klan : BOJE.border }]}
-          onPress={() => doniraiUKlan(DONACIJA_IZNOS)}
+          onPress={() => {
+            doniraiUKlan(DONACIJA_IZNOS);
+            if (uid && aktivniKlan?.naziv) {
+              const clanId = slugKlana(aktivniKlan.naziv);
+              doniraiXpKlanu(clanId, Math.floor(DONACIJA_IZNOS / 10)).catch(() => {});
+              // Napredak "donacija" zadatka sinkroniziraj i u cloud klan dokumentu
+              azurirajKlanZadatak(clanId, 'donacija', DONACIJA_IZNOS).catch(() => {});
+            }
+          }}
         >
           <Text style={[styles.btnTxt, { color: zlato >= DONACIJA_IZNOS ? '#000' : BOJE.textMuted }]}>
             DONIRAJ
@@ -222,6 +263,19 @@ const ClanScreen = () => {
         );
       })}
 
+      <Text style={styles.sectionTitle}>ČLANOVI KLANA</Text>
+      {clanMembers.length === 0 ? (
+        <View style={styles.memberCard}>
+          <Text style={styles.memberName}>Nema učitanih članova</Text>
+        </View>
+      ) : clanMembers.map((m) => (
+        <View key={m.uid} style={styles.memberCard}>
+          <Text style={styles.memberName}>{m.ime} {m.uid === uid ? '(ti)' : ''}</Text>
+          <Text style={styles.memberMeta}>UID: {m.uid.slice(0, 10)}…</Text>
+          <Text style={styles.memberMeta}>Lv {m.razina} · ★{m.prestige} · {Math.floor(m.zlato)} 🪙</Text>
+        </View>
+      ))}
+
     </ScrollView>
   );
 };
@@ -286,6 +340,24 @@ const styles = StyleSheet.create({
   nagradeRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   nagradaTxt:    { fontSize: Math.round(13 * uiScale), fontWeight: '800', fontFamily: FONT_FAMILY, color: BOJE.textMain },
   preuzetoTxt:   { fontSize: 12, color: BOJE.klan, fontWeight: '700', fontFamily: FONT_FAMILY },
+  skeletonCard: {
+    backgroundColor: BOJE.bgCard,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: BOJE.border,
+    padding: 12,
+    marginBottom: 10,
+  },
+  memberCard: {
+    backgroundColor: BOJE.bgCard,
+    borderWidth: 1,
+    borderColor: BOJE.border,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 10,
+  },
+  memberName: { color: BOJE.textMain, fontFamily: FONT_FAMILY, fontWeight: '800', fontSize: 13, marginBottom: 2 },
+  memberMeta: { color: BOJE.textMuted, fontFamily: FONT_FAMILY, fontSize: 11 },
 });
 
 export default ClanScreen;

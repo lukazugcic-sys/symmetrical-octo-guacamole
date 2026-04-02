@@ -24,14 +24,14 @@
  */
 
 import {
-  doc, getDoc, setDoc, updateDoc,
-  onSnapshot, increment, arrayUnion, serverTimestamp,
+  doc, getDoc, setDoc, updateDoc, runTransaction,
+  onSnapshot, serverTimestamp,
 } from 'firebase/firestore';
 import { db } from './config';
 import { generirajKlanZadatke } from '../config/constants';
 
 const KOLEKCIJA = 'clans';
-const XP_PO_RAZINI = 1000;
+const xpZaKlanRazinu = (razina = 1) => Math.max(1000, razina * 1000);
 
 /** Generira konzistentni clanId iz naziva (slug). */
 export const slugKlana = (naziv) =>
@@ -104,20 +104,20 @@ export const slušajKlan = (clanId, callback) => {
 export const azurirajKlanZadatak = async (clanId, tipZadatka, napredak = 1) => {
   if (!clanId) return;
   try {
-    const ref  = doc(db, KOLEKCIJA, clanId);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) return;
-
-    const data    = snap.data();
-    const zadaci  = (data.zadaci ?? []).map((z) => {
-      if (z.tip === tipZadatka && !z.zavrseno) {
-        const novoTrenutno = Math.min(z.cilj, z.trenutno + napredak);
-        return { ...z, trenutno: novoTrenutno, zavrseno: novoTrenutno >= z.cilj };
-      }
-      return z;
+    const ref = doc(db, KOLEKCIJA, clanId);
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) return;
+      const data = snap.data();
+      const zadaci = (data.zadaci ?? []).map((z) => {
+        if (z.tip === tipZadatka && !z.zavrseno) {
+          const novoTrenutno = Math.min(z.cilj, z.trenutno + napredak);
+          return { ...z, trenutno: novoTrenutno, zavrseno: novoTrenutno >= z.cilj };
+        }
+        return z;
+      });
+      tx.update(ref, { zadaci });
     });
-
-    await updateDoc(ref, { zadaci });
   } catch (err) {
     console.warn('[Clan] azurirajKlanZadatak greška:', err.message);
   }
@@ -131,21 +131,21 @@ export const azurirajKlanZadatak = async (clanId, tipZadatka, napredak = 1) => {
 export const doniraiXpKlanu = async (clanId, xpIznos) => {
   if (!clanId || xpIznos <= 0) return;
   try {
-    const ref  = doc(db, KOLEKCIJA, clanId);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) return;
-
-    const data       = snap.data();
-    let noviXp       = (data.xp ?? 0) + xpIznos;
-    let novaRazina   = data.razina ?? 1;
-    const xpZaRazinu = novaRazina * XP_PO_RAZINI;
-
-    if (noviXp >= xpZaRazinu) {
-      noviXp -= xpZaRazinu;
-      novaRazina += 1;
-    }
-
-    await updateDoc(ref, { xp: noviXp, razina: novaRazina });
+    const ref = doc(db, KOLEKCIJA, clanId);
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) return;
+      const data = snap.data();
+      let noviXp = (data.xp ?? 0) + xpIznos;
+      let novaRazina = data.razina ?? 1;
+      let treba = xpZaKlanRazinu(novaRazina);
+      while (noviXp >= treba) {
+        noviXp -= treba;
+        novaRazina += 1;
+        treba = xpZaKlanRazinu(novaRazina);
+      }
+      tx.update(ref, { xp: noviXp, razina: novaRazina });
+    });
   } catch (err) {
     console.warn('[Clan] doniraiXpKlanu greška:', err.message);
   }
@@ -163,27 +163,26 @@ export const doniraiXpKlanu = async (clanId, xpIznos) => {
 export const preuzmiNagradu = async (clanId, zadatakId, uid) => {
   if (!clanId || !uid) return null;
   try {
-    const ref  = doc(db, KOLEKCIJA, clanId);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) return null;
-
-    const data   = snap.data();
-    const zadaci = data.zadaci ?? [];
-    const idx    = zadaci.findIndex((z) => z.id === zadatakId);
-    if (idx === -1) return null;
-
-    const zadatak = zadaci[idx];
-    if (!zadatak.zavrseno) return null;
-
-    const preuzetoOd = zadatak.preuzetoOd ?? [];
-    if (preuzetoOd.includes(uid)) return null; // već preuzeto
-
-    const noviZadaci = zadaci.map((z, i) =>
-      i === idx ? { ...z, preuzetoOd: [...preuzetoOd, uid] } : z
-    );
-
-    await updateDoc(ref, { zadaci: noviZadaci });
-    return zadatak.nagrada ?? null;
+    const ref = doc(db, KOLEKCIJA, clanId);
+    let nagrada = null;
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) return;
+      const data = snap.data();
+      const zadaci = data.zadaci ?? [];
+      const idx = zadaci.findIndex((z) => z.id === zadatakId);
+      if (idx === -1) return;
+      const zadatak = zadaci[idx];
+      if (!zadatak.zavrseno) return;
+      const preuzetoOd = zadatak.preuzetoOd ?? [];
+      if (preuzetoOd.includes(uid)) return;
+      const noviZadaci = zadaci.map((z, i) =>
+        i === idx ? { ...z, preuzetoOd: [...preuzetoOd, uid] } : z
+      );
+      tx.update(ref, { zadaci: noviZadaci });
+      nagrada = zadatak.nagrada ?? null;
+    });
+    return nagrada;
   } catch (err) {
     console.warn('[Clan] preuzmiNagradu greška:', err.message);
     return null;

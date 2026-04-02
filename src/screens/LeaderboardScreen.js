@@ -25,6 +25,9 @@ const LeaderboardScreen = () => {
   const [igraci,   setIgraci]   = useState([]);
   const [ucitava,  setUcitava]  = useState(true);
   const [greška,   setGreška]   = useState(null);
+  const [cursor, setCursor] = useState(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [ucitavaJos, setUcitavaJos] = useState(false);
 
   const mojUid = useGameStore((s) => s.uid);
 
@@ -32,14 +35,29 @@ const LeaderboardScreen = () => {
     setUcitava(true);
     setGreška(null);
     try {
-      const podaci = await dohvatiTopIgraca();
-      setIgraci(podaci);
+      const podaci = await dohvatiTopIgraca(null, 25);
+      setIgraci(podaci.igraci);
+      setCursor(podaci.cursor);
+      setHasMore(podaci.hasMore);
     } catch (err) {
       setGreška('Nije moguće učitati ljestvicu. Provjeri internet.');
     } finally {
       setUcitava(false);
     }
   }, []);
+
+  const ucitajJos = useCallback(async () => {
+    if (!hasMore || !cursor || ucitavaJos) return;
+    setUcitavaJos(true);
+    try {
+      const podaci = await dohvatiTopIgraca(cursor, 25);
+      setIgraci((prev) => [...prev, ...podaci.igraci]);
+      setCursor(podaci.cursor);
+      setHasMore(podaci.hasMore);
+    } finally {
+      setUcitavaJos(false);
+    }
+  }, [hasMore, cursor, ucitavaJos]);
 
   // Osvježi pri fokusiranju ekrana
   useFocusEffect(useCallback(() => { ucitajLjestvicu(); }, [ucitajLjestvicu]));
@@ -85,7 +103,9 @@ const LeaderboardScreen = () => {
   if (ucitava && igraci.length === 0) {
     return (
       <View style={styles.centeredContainer}>
-        <ActivityIndicator size="large" color={BOJE.zlato} />
+        <View style={styles.skeletonCard} />
+        <View style={styles.skeletonCard} />
+        <View style={styles.skeletonCard} />
         <Text style={styles.hintTxt}>Učitavanje ljestvice…</Text>
       </View>
     );
@@ -132,6 +152,9 @@ const LeaderboardScreen = () => {
         renderItem={renderIgrac}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
+        onEndReachedThreshold={0.5}
+        onEndReached={ucitajJos}
+        ListFooterComponent={ucitavaJos ? <ActivityIndicator color={BOJE.zlato} style={{ marginVertical: 14 }} /> : null}
         refreshControl={
           <RefreshControl
             refreshing={ucitava}
@@ -214,6 +237,14 @@ const styles = StyleSheet.create({
   hintTxt:     { fontSize: Math.round(13 * uiScale), color: BOJE.textMuted, fontFamily: FONT_FAMILY, textAlign: 'center' },
   refreshBtn:  { flexDirection: 'row', gap: 8, alignItems: 'center', backgroundColor: BOJE.bgCard, borderRadius: 16, paddingHorizontal: 20, paddingVertical: 12, borderWidth: 1, borderColor: BOJE.border },
   refreshTxt:  { color: BOJE.zlato, fontWeight: '800', fontFamily: FONT_FAMILY, fontSize: Math.round(14 * uiScale) },
+  skeletonCard: {
+    width: '100%',
+    height: 64,
+    borderRadius: 14,
+    backgroundColor: BOJE.bgCard,
+    borderWidth: 1,
+    borderColor: BOJE.border,
+  },
 });
 
 export default LeaderboardScreen;

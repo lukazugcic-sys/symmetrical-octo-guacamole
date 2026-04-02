@@ -19,6 +19,9 @@ const Header = () => {
   const resursi        = useGameStore((s) => s.resursi);
   const stitovi        = useGameStore((s) => s.stitovi);
   const razine         = useGameStore((s) => s.razine);
+  const stitRegenSekundi = useGameStore((s) => s.stitRegenSekundi);
+  const cloudSaveStatus = useGameStore((s) => s.cloudSaveStatus);
+  const retryCloudSave = useGameStore((s) => s.retryCloudSave);
 
   const maxStitova      = izracunajMaxStitova(razine.oklop || 0);
   const potrebanXp      = izracunajPotrebniXp(igracRazina);
@@ -26,6 +29,16 @@ const Header = () => {
 
   return (
     <View style={styles.header}>
+      {cloudSaveStatus !== 'idle' && (
+        <View style={styles.saveStatusRow}>
+          <Text style={styles.saveStatusTxt}>
+            {cloudSaveStatus === 'saving' ? '☁️ Spremam...' : cloudSaveStatus === 'saved' ? '✓ Spremljeno' : '⚠️ Spremanje nije uspjelo'}
+          </Text>
+          {cloudSaveStatus === 'error' && (
+            <Text style={styles.saveRetryTxt} onPress={retryCloudSave}>Pokušaj ponovo</Text>
+          )}
+        </View>
+      )}
       {/* Razina + XP bar */}
       <View style={styles.levelContainer}>
         <View style={styles.levelBadgeOuter}>
@@ -93,6 +106,9 @@ const Header = () => {
             </View>
           ))}
         </View>
+        <Text style={styles.shieldRegenTxt}>
+          {stitovi >= maxStitova ? 'MAX' : `+1 za ${stitRegenSekundi}s`}
+        </Text>
       </View>
     </View>
   );
@@ -111,6 +127,25 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.55,
     shadowRadius: 12,
     elevation: 8,
+  },
+  saveStatusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingHorizontal: 2,
+  },
+  saveStatusTxt: {
+    color: BOJE.textMuted,
+    fontFamily: FONT_FAMILY,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  saveRetryTxt: {
+    color: BOJE.slotVatra,
+    fontFamily: FONT_FAMILY,
+    fontSize: 11,
+    fontWeight: '900',
   },
   levelContainer: {
     flexDirection: 'row',
@@ -256,6 +291,13 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   shieldSlotsContainer: { flex: 1, flexDirection: 'row', gap: 6 },
+  shieldRegenTxt: {
+    color: BOJE.textMuted,
+    fontFamily: FONT_FAMILY,
+    fontSize: 10,
+    marginLeft: 8,
+    fontWeight: '700',
+  },
   shieldSlot: {
     flex: 1,
     height: 12,

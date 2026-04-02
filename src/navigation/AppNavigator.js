@@ -9,6 +9,7 @@ import ShopScreen        from '../screens/ShopScreen';
 import UpgradesScreen    from '../screens/UpgradesScreen';
 import ClanScreen        from '../screens/ClanScreen';
 import LeaderboardScreen from '../screens/LeaderboardScreen';
+import ErrorBoundary     from '../components/ErrorBoundary';
 import { BOJE, uiScale, FONT_FAMILY } from '../config/constants';
 
 const Tab = createBottomTabNavigator();
@@ -101,13 +102,13 @@ const AppNavigator = () => (
     screenOptions={{ headerShown: false }}
     tabBar={(props) => <CustomTabBar {...props} />}
   >
-    <Tab.Screen name="Igraj"   component={SlotScreen}       />
-    <Tab.Screen name="Baza"    component={VillageScreen}    />
-    <Tab.Screen name="Zadaci"  component={MissionsScreen}   />
-    <Tab.Screen name="Tržište" component={ShopScreen}       />
-    <Tab.Screen name="Oprema"  component={UpgradesScreen}   />
-    <Tab.Screen name="Klan"    component={ClanScreen}       />
-    <Tab.Screen name="Top"     component={LeaderboardScreen}/>
+    <Tab.Screen name="Igraj">{() => <ErrorBoundary><SlotScreen /></ErrorBoundary>}</Tab.Screen>
+    <Tab.Screen name="Baza">{() => <ErrorBoundary><VillageScreen /></ErrorBoundary>}</Tab.Screen>
+    <Tab.Screen name="Zadaci">{() => <ErrorBoundary><MissionsScreen /></ErrorBoundary>}</Tab.Screen>
+    <Tab.Screen name="Tržište">{() => <ErrorBoundary><ShopScreen /></ErrorBoundary>}</Tab.Screen>
+    <Tab.Screen name="Oprema">{() => <ErrorBoundary><UpgradesScreen /></ErrorBoundary>}</Tab.Screen>
+    <Tab.Screen name="Klan">{() => <ErrorBoundary><ClanScreen /></ErrorBoundary>}</Tab.Screen>
+    <Tab.Screen name="Top">{() => <ErrorBoundary><LeaderboardScreen /></ErrorBoundary>}</Tab.Screen>
   </Tab.Navigator>
 );
 

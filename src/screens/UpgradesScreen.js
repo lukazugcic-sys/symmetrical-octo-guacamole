@@ -28,7 +28,7 @@ const UpgradesScreen = () => {
       <Text style={styles.subTitle}>Pasivne Sposobnosti</Text>
 
       {ALATI.map((p) => {
-        const mult = Math.pow(1.6, razine[p.id] || 0);
+        const mult = Math.pow(1.4, razine[p.id] || 0);
         const zl   = Math.floor(p.cZlato   * mult);
         const ka   = Math.floor(p.cKamen   * mult);
         const ze   = Math.floor(p.cZeljezo * mult);
