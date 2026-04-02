@@ -17,8 +17,6 @@ import {
 } from '../utils/economy';
 import { delay, randomChance, randomFloat, randomInt } from '../utils/helpers';
 
-let spinGuard = false;
-
 // Izgradi težinski pool simbola na osnovu sezonalnog modificatora
 const izgradiPool = (dogadaj) => {
   if (!dogadaj?.modifikatorBlaga) return SVO_BLAGO;
@@ -54,6 +52,7 @@ export const useSlotMachine = () => {
   const winScaleAnims  = useRef([...Array(15)].map(() => new Animated.Value(1))).current;
   const spinLoopsRef   = useRef([]);
   const gambleCountRef = useRef(0);
+  const spinGuardRef   = useRef(false);
 
   // ─── Animiraj pobjednička polja ─────────────────────────────────────────────
   const animirajDobitak = (polja) => {
@@ -146,11 +145,11 @@ export const useSlotMachine = () => {
 
   // ─── Glavna logika vrtnje ───────────────────────────────────────────────────
   const zavrtiMasinu = async () => {
-    if (spinGuard) return;
-    spinGuard = true;
+    if (spinGuardRef.current) return;
+    spinGuardRef.current = true;
     const ss = useSlotStore.getState();
     if (ss.dobitakNaCekanju) {
-      spinGuard = false;
+      spinGuardRef.current = false;
       return;
     }
 
@@ -160,7 +159,7 @@ export const useSlotMachine = () => {
 
     if (ss.vrti || (!jeFreeSpin && gs.energija < ulog)) {
       if (!ss.vrti) useGameStore.setState({ poruka: 'NEDOVOLJNO ENERGIJE' });
-      spinGuard = false;
+      spinGuardRef.current = false;
       return;
     }
 
@@ -226,7 +225,8 @@ export const useSlotMachine = () => {
         + (izracunajHeroBonus(gs2.junaci, gs2.aktivniJunaci, 'luck') / 100);
       const prestigeMnozitelj = izracunajPrestigeMnozitelj(gs2.prestigeRazina);
       const winStreakMultiplier = 1 + (Math.min(gs2.winStreak, MAX_WIN_STREAK) * STREAK_BONUS_PER_WIN);
-      const eventMnozitelj = aktivniDogadaj?.bonusMnozitelj ?? 1.0;
+      const rawEventMnoz = aktivniDogadaj?.bonusMnozitelj ?? 1.0;
+      const eventMnozitelj = (Number.isFinite(rawEventMnoz) && rawEventMnoz > 0) ? rawEventMnoz : 1.0;
       const maxStitova = izracunajMaxStitova(gs2.razine.oklop || 0);
       const imaBoost = useGameStore.getState().iskoristiBoostSpin();
       const boostMnozitelj = imaBoost ? 2 : 1;
@@ -426,7 +426,7 @@ export const useSlotMachine = () => {
       spinLoopsRef.current.forEach((a) => a?.stop?.());
       spinLoopsRef.current = [];
       useSlotStore.getState().setVrti(false);
-      spinGuard = false;
+      spinGuardRef.current = false;
     }
   };
 

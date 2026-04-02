@@ -1438,7 +1438,9 @@ export const useGameStore = create((set, get) => ({
 
   primijeniOfflineNapredak: (elapsedSec) => {
     const s = get();
-    const sek = Math.max(0, Math.min(OFFLINE_MAX_SEK, Math.floor(elapsedSec || 0)));
+    // Reject non-finite or negative values (e.g. clock manipulation)
+    if (!Number.isFinite(elapsedSec) || elapsedSec <= 0) return;
+    const sek = Math.min(OFFLINE_MAX_SEK, Math.floor(elapsedSec));
     if (sek <= 0) return;
     const pasivniMnozitelj = izracunajPasivniMnozitelj(s.igracRazina, s.prestigeRazina);
     const bonus = {
