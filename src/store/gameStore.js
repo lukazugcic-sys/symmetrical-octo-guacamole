@@ -276,6 +276,7 @@ export const useGameStore = create((set, get) => ({
           ...(da.dostignucaDone ? { dostignucaDone: da.dostignucaDone } : {}),
           ...(da.ukupnoVrtnji   ? { ukupnoVrtnji: da.ukupnoVrtnji }     : {}),
           ...(da.ukupnoZlata    ? { ukupnoZlata: da.ukupnoZlata }       : {}),
+          ...(da.ukupnoRaidova  ? { ukupnoRaidova: da.ukupnoRaidova }   : {}),
         });
       }
 
@@ -378,6 +379,7 @@ export const useGameStore = create((set, get) => ({
         dostignucaDone: s.dostignucaDone,
         ukupnoVrtnji:   s.ukupnoVrtnji,
         ukupnoZlata:    s.ukupnoZlata,
+        ukupnoRaidova:  s.ukupnoRaidova,
       }));
     } catch (e) { console.error('Failed to save achievements:', e); }
   },
