@@ -73,6 +73,7 @@ export default function App() {
   const dostignucaDone   = useGameStore((s) => s.dostignucaDone);
   const ukupnoVrtnji     = useGameStore((s) => s.ukupnoVrtnji);
   const ukupnoZlata      = useGameStore((s) => s.ukupnoZlata);
+  const ukupnoRaidova    = useGameStore((s) => s.ukupnoRaidova);
   const aktivniSkin      = useGameStore((s) => s.aktivniSkin);
   const klan             = useGameStore((s) => s.klan);
   const zadnjiVideniEventId = useGameStore((s) => s.zadnjiVideniEventId);
@@ -124,7 +125,7 @@ export default function App() {
   useEffect(() => {
     if (ucitavam) return;
     spremiDostignuca();
-  }, [dostignucaDone, ukupnoVrtnji, ukupnoZlata, ucitavam]);
+  }, [dostignucaDone, ukupnoVrtnji, ukupnoZlata, ukupnoRaidova, ucitavam]);
 
   useEffect(() => {
     if (!aktivniDogadaj?.id) return;
