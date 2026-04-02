@@ -16,12 +16,16 @@ import { azurirajLjestvicu } from '../firebase/leaderboard';
 // Dozvoljeno ime klana: 2-50 znakova, Unicode slova/brojevi, razmak, "_" i "-".
 const CLAN_NAME_REGEX = /^[\p{L}\p{N}\s_-]{2,50}$/u;
 let cloudSaveTimeout = null;
+const xpZaKlanRazinu = (razina = 1) => Math.max(1000, razina * 1000);
 
 const zakaziCloudSpremanje = (uid, payload) => {
   if (!uid) return;
   if (cloudSaveTimeout) clearTimeout(cloudSaveTimeout);
+  useGameStore.setState({ cloudSaveStatus: 'saving' });
   cloudSaveTimeout = setTimeout(() => {
-    spremiCloud(uid, payload).catch(() => {});
+    spremiCloud(uid, payload)
+      .then(() => useGameStore.setState({ cloudSaveStatus: 'saved' }))
+      .catch(() => useGameStore.setState({ cloudSaveStatus: 'error' }));
   }, 3000);
 };
 
@@ -70,6 +74,7 @@ const pocetnoStanje = {
   zadnjiCloudPayload: null,
   klanPopustAktivan: false,
   prestigeMilestones: {},
+  zadnjiVideniEventId: null,
   klan:             { ...PRAZNI_KLAN }, // Klan / Ceh igrača
 };
 
@@ -141,6 +146,7 @@ export const useGameStore = create((set, get) => ({
           ...(Array.isArray(d.raidPovijest)                          ? { raidPovijest: d.raidPovijest.slice(0, 20) }            : {}),
           ...(d.klanPopustAktivan !== undefined                      ? { klanPopustAktivan: d.klanPopustAktivan }               : {}),
           ...(d.prestigeMilestones                                   ? { prestigeMilestones: d.prestigeMilestones }             : {}),
+          ...(d.zadnjiVideniEventId !== undefined                    ? { zadnjiVideniEventId: d.zadnjiVideniEventId }           : {}),
           ...(d.klan                                                 ? { klan: { ...PRAZNI_KLAN, ...d.klan } }                  : {}),
         });
       }
@@ -207,6 +213,7 @@ export const useGameStore = create((set, get) => ({
       raidPovijest: s.raidPovijest.slice(0, 20),
       klanPopustAktivan: s.klanPopustAktivan,
       prestigeMilestones: s.prestigeMilestones,
+      zadnjiVideniEventId: s.zadnjiVideniEventId,
       klan: s.klan,
     };
     set({ cloudSaveStatus: s.uid ? 'saving' : 'idle', zadnjiCloudPayload: payload });
@@ -216,7 +223,6 @@ export const useGameStore = create((set, get) => ({
     // Sinkroniziraj u Firestore (ne blokira — tiha greška ako nema mreže)
     if (s.uid) {
       zakaziCloudSpremanje(s.uid, { ...payload, imeIgraca: s.imeIgraca });
-      set({ cloudSaveStatus: 'saved' });
       azurirajLjestvicu(s.uid, {
         imeIgraca:      s.imeIgraca,
         igracRazina:    s.igracRazina,
@@ -598,9 +604,14 @@ export const useGameStore = create((set, get) => ({
       return;
     }
     const xpGain  = Math.floor(iznosZlato / 10);
-    const noviXp  = s.klan.xp + xpGain;
-    const xpZaRazinu = s.klan.razina * 1000;
-    const novaRazina = noviXp >= xpZaRazinu ? s.klan.razina + 1 : s.klan.razina;
+    let noviXp = s.klan.xp + xpGain;
+    let novaRazina = s.klan.razina;
+    let treba = xpZaKlanRazinu(novaRazina);
+    while (noviXp >= treba) {
+      noviXp -= treba;
+      novaRazina += 1;
+      treba = xpZaKlanRazinu(novaRazina);
+    }
 
     const noviZadaci = s.klan.zadaci.map((z) =>
       z.tip === 'donacija' && !z.zavrseno
@@ -612,7 +623,7 @@ export const useGameStore = create((set, get) => ({
       zlato: state.zlato - iznosZlato,
       klan: {
         ...state.klan,
-        xp:      noviXp >= xpZaRazinu ? 0 : noviXp,
+        xp:      noviXp,
         razina:  novaRazina,
         zadaci:  noviZadaci,
       },
@@ -642,9 +653,14 @@ export const useGameStore = create((set, get) => ({
     const { dijamanti = 0, zlato = 0, energija = 0, drvo = 0, kamen = 0, zeljezo = 0 } = zadatak.nagrada;
     const noviZadaci = s.klan.zadaci.map((z) => z.id === zadatakId ? { ...z, preuzeto: true } : z);
     const xpGain  = 200;
-    const noviXp  = s.klan.xp + xpGain;
-    const xpZaRazinu = s.klan.razina * 1000;
-    const novaRazina = noviXp >= xpZaRazinu ? s.klan.razina + 1 : s.klan.razina;
+    let noviXp = s.klan.xp + xpGain;
+    let novaRazina = s.klan.razina;
+    let treba = xpZaKlanRazinu(novaRazina);
+    while (noviXp >= treba) {
+      noviXp -= treba;
+      novaRazina += 1;
+      treba = xpZaKlanRazinu(novaRazina);
+    }
 
     set((state) => ({
       dijamanti: state.dijamanti + dijamanti,
@@ -657,7 +673,7 @@ export const useGameStore = create((set, get) => ({
       },
       klan: {
         ...state.klan,
-        xp:     noviXp >= xpZaRazinu ? 0 : noviXp,
+        xp:     noviXp,
         razina: novaRazina,
         zadaci: noviZadaci,
       },
@@ -714,6 +730,8 @@ export const useGameStore = create((set, get) => ({
       poruka: 'KUPLJENO +100 ENERGIJE',
     }));
   },
+
+  oznaciEventVidjen: (eventId) => set({ zadnjiVideniEventId: eventId }),
 
   // ─── Backend / Auth ────────────────────────────────────────────────────────
 

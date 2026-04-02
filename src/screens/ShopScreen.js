@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-nati
 import { TreePine, Mountain, Pickaxe, Gem, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react-native';
 import { useGameStore } from '../store/gameStore';
 import IconBadge from '../components/IconBadge';
-import { BOJE, ZGRADE_SKINOVI, uiScale, FONT_FAMILY } from '../config/constants';
+import { BOJE, ZGRADE_SKINOVI, uiScale, FONT_FAMILY, CIJENA_DVOSTRUKI_BOOST, TRAJANJE_DVOSTRUKI_BOOST } from '../config/constants';
 
 /**
  * Ekran tržnice — kupnja i prodaja resursa uz dinamičke cijene + Kozmetika (skinovi zgrada).
@@ -15,6 +15,7 @@ const ShopScreen = () => {
   const aktivniSkin = useGameStore((s) => s.aktivniSkin);
   const trgovina   = useGameStore((s) => s.trgovina);
   const kupiSkin   = useGameStore((s) => s.kupiSkin);
+  const kupiDvostrukiBoost = useGameStore((s) => s.kupiDvostrukiBoost);
 
   const resursiTrznice = [
     { id: 'drvo',    n: 'Drvo',     ik: TreePine, b: BOJE.drvo    },
@@ -122,6 +123,18 @@ const ShopScreen = () => {
           </View>
         );
       })}
+
+      <View style={[styles.headerRow, { marginTop: 20 }]}>
+        <Text style={styles.subTitle}>Pojačanja</Text>
+        <Text style={styles.updateHint}>Gold sink</Text>
+      </View>
+      <View style={styles.boostCard}>
+        <Text style={styles.boostTitle}>⚡ DVOSTRUKI SPIN BOOST</Text>
+        <Text style={styles.boostDesc}>2x dobitak za sljedećih {TRAJANJE_DVOSTRUKI_BOOST} spinova.</Text>
+        <TouchableOpacity style={styles.boostBtn} onPress={kupiDvostrukiBoost} activeOpacity={0.8}>
+          <Text style={styles.boostBtnTxt}>AKTIVIRAJ ZA {CIJENA_DVOSTRUKI_BOOST} 🪙</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 };
@@ -162,6 +175,18 @@ const styles = StyleSheet.create({
   skinCijena:  { fontSize: Math.round(13 * uiScale), fontWeight: '700', fontFamily: FONT_FAMILY, color: BOJE.dijamant, marginTop: 2 },
   skinBtn:     { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 14, borderWidth: 1 },
   skinBtnTxt:  { fontWeight: '900', fontFamily: FONT_FAMILY, fontSize: 13, letterSpacing: 0.5 },
+  boostCard: {
+    backgroundColor: BOJE.bgCard,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: BOJE.energija + '60',
+    padding: 16,
+    marginBottom: 10,
+  },
+  boostTitle: { color: BOJE.energija, fontWeight: '900', fontFamily: FONT_FAMILY, fontSize: 14, marginBottom: 6 },
+  boostDesc: { color: BOJE.textMuted, fontFamily: FONT_FAMILY, fontSize: 12, marginBottom: 10 },
+  boostBtn: { backgroundColor: BOJE.energija, borderRadius: 12, paddingVertical: 12 },
+  boostBtnTxt: { color: '#000', textAlign: 'center', fontWeight: '900', fontFamily: FONT_FAMILY, fontSize: 12 },
 });
 
 export default ShopScreen;

@@ -14,7 +14,7 @@
 
 import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
-import { Platform, Alert }       from 'react-native';
+import { Platform, Alert, AppState }       from 'react-native';
 import { useGameStore }   from '../store/gameStore';
 import { izracunajMaxEnergiju } from '../utils/economy';
 import { SEZONALNI_DOGADAJI }   from '../config/sezonalniDogadaji';
@@ -95,7 +95,10 @@ export const otkaziNotifikaciju = async (identifier) => {
 const useNotifications = () => {
   const energija     = useGameStore((s) => s.energija);
   const razine       = useGameStore((s) => s.razine);
+  const raidPovijest = useGameStore((s) => s.raidPovijest);
   const energijaNtfRef = useRef(null);
+  const idleNtfRef = useRef(null);
+  const zadnjiRaidIdRef = useRef(null);
 
   // Inicijalno — zatraži dopuštenje i zakaži sezonalne evente
   useEffect(() => {
@@ -132,6 +135,37 @@ const useNotifications = () => {
       vrijemePunjenja,
     ).then((id) => { energijaNtfRef.current = id; });
   }, [Math.floor(energija), razine.baterija]);
+
+  // Raid upozorenje kad stigne novi incoming raid zapis
+  useEffect(() => {
+    const incoming = (raidPovijest ?? []).find((r) => r.tip === 'incoming');
+    if (!incoming?.id) return;
+    if (incoming.id === zadnjiRaidIdRef.current) return;
+    zadnjiRaidIdRef.current = incoming.id;
+    posaljiNotifikaciju(
+      '🛡️ Napad na tvoju bazu!',
+      `${incoming.napadacIme ?? 'Napadač'} ti je ukrao resurse. Provjeri Raid log.`,
+      { tip: 'raid', id: incoming.id },
+    );
+  }, [raidPovijest]);
+
+  // Offline idle podsjetnik nakon 2h u pozadini
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (stanje) => {
+      if (stanje === 'background') {
+        otkaziNotifikaciju(idleNtfRef.current);
+        zakaziNotifikaciju(
+          '🏘️ Selo te čeka',
+          'Prošlo je više od 2 sata — vrati se po pasivnu proizvodnju!',
+          new Date(Date.now() + (2 * 60 * 60 * 1000)),
+        ).then((id) => { idleNtfRef.current = id; });
+      } else if (stanje === 'active') {
+        otkaziNotifikaciju(idleNtfRef.current);
+        idleNtfRef.current = null;
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   return null;
 };

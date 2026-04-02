@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "players",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "stitovi", "order": "ASCENDING" },
+        { "fieldPath": "igracRazina", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "leaderboard",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "prestigeRazina", "order": "DESCENDING" },
+        { "fieldPath": "ukupnoZlata", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
