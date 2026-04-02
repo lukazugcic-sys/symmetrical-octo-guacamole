@@ -37,6 +37,8 @@ const RaidModal = ({ vidljiv, onZatvori }) => {
   const uid      = useGameStore((s) => s.uid);
   const primiResurse = useGameStore((s) => s.primiResurse);
   const raidPovijest = useGameStore((s) => s.raidPovijest);
+  const revengeTarget = useGameStore((s) => s.revengeTarget);
+  const postaviRevengeTarget = useGameStore((s) => s.postaviRevengeTarget);
 
   const ucitajMete = useCallback(async () => {
     if (!uid) return;
@@ -55,7 +57,7 @@ const RaidModal = ({ vidljiv, onZatvori }) => {
   }, [uid]);
 
   useEffect(() => {
-    const kandidat = (raidPovijest ?? []).find((r) =>
+    const kandidat = revengeTarget || (raidPovijest ?? []).find((r) =>
       r.tip === 'incoming'
       && r.napadacUid
       && r.mozeProtunapadDo
@@ -89,9 +91,13 @@ const RaidModal = ({ vidljiv, onZatvori }) => {
     if (!uid || napadaUid) return;
     setNapadaUid(metaUid);
     const metaObj = mete.find((m) => m.uid === metaUid) || retaliationMeta || { uid: metaUid, imeIgraca: 'Meta' };
-    const ukradeno = await izvrsiNapad(uid, metaUid);
+    const jeRetaliationNapad = mode === 'retaliation';
+    const ukradeno = await izvrsiNapad(uid, metaUid, { retaliation: jeRetaliationNapad });
     if (ukradeno) {
       primiResurse(ukradeno, { uid: metaUid, imeIgraca: ukradeno.metaImeIgraca ?? metaObj.imeIgraca });
+      useGameStore.getState().dodajSezonaXp('raid');
+      useGameStore.getState().evidentirajClanRatBodove('raid', 1);
+      if (jeRetaliationNapad) postaviRevengeTarget(null);
       setRezultat(ukradeno);
     } else {
       setRezultat('blokirano');
@@ -177,7 +183,7 @@ const RaidModal = ({ vidljiv, onZatvori }) => {
                 </>
               ) : (
                 <Text style={styles.rezultatTxt}>
-                  ✅ Ukradeno: {Math.floor(rezultat.drvo)} 🌲 · {Math.floor(rezultat.kamen)} ⛰️ · {Math.floor(rezultat.zeljezo)} ⛏️
+                  ✅ Ukradeno: {Math.floor(rezultat.drvo)} 🌲 · {Math.floor(rezultat.kamen)} ⛰️ · {Math.floor(rezultat.zeljezo)} ⛏️{mode === 'retaliation' ? ' (OSVETA +25%)' : ''}
                 </Text>
               )}
             </View>

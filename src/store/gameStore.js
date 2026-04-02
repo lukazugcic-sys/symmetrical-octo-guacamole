@@ -5,19 +5,60 @@ import {
   BAZA_TECAJ, ZGRADE, LUCKY_SPIN_INTERVAL, DNEVNE_NAGRADE,
   generirajMisiju, generirajUnikatneMisije, DOSTIGNUCA, generirajKlanZadatke,
   STIT_REGEN_INTERVAL_SEK, CIJENA_DVOSTRUKI_BOOST, TRAJANJE_DVOSTRUKI_BOOST,
+  BATTLE_PASS_NAGRADE, BATTLE_PASS_MAX_RAZINA, BATTLE_PASS_TIER_XP, BATTLE_PASS_PREMIUM_CIJENA,
+  BATTLE_PASS_SEASON_THEME, OFFLINE_MAX_SEK, MAX_AD_VIEWS_DNEVNO,
 } from '../config/constants';
+import { dohvatiAktivniDogadaj } from '../config/sezonalniDogadaji';
 import {
   izracunajMaxEnergiju, izracunajMaxStitova, izracunajPasivniMnozitelj,
   izracunajPotrebniXp,
 } from '../utils/economy';
-import { randomFloat } from '../utils/helpers';
+import { randomFloat, randomInt } from '../utils/helpers';
 import { spremiCloud }      from '../firebase/cloudSave';
 import { azurirajLjestvicu } from '../firebase/leaderboard';
+import { dodajBodoveClanRatu } from '../firebase/clanMultiplayer';
 
 // Dozvoljeno ime klana: 2-50 znakova, Unicode slova/brojevi, razmak, "_" i "-".
 const CLAN_NAME_REGEX = /^[\p{L}\p{N}\s_-]{2,50}$/u;
 let cloudSaveTimeout = null;
 const xpZaKlanRazinu = (razina = 1) => Math.max(1000, razina * 1000);
+const BP_XP_DOGADAJI = {
+  misija: 50,
+  raid: 10,
+  streak: 25,
+  prestige: 500,
+  spin: 1,
+};
+const TRAJANJE_SEZONE_MS = 30 * 24 * 60 * 60 * 1000;
+const RAID_ID_UPPER_BOUND = 1000000000;
+
+const odrediThemeSezone = (datum = new Date()) => {
+  const aktivniDogadaj = dohvatiAktivniDogadaj(datum);
+  const key = aktivniDogadaj?.id ?? 'default';
+  return BATTLE_PASS_SEASON_THEME[key] ?? BATTLE_PASS_SEASON_THEME.default;
+};
+
+const pocetakSezoneMs = (datum = new Date()) =>
+  Math.floor(datum.getTime() / TRAJANJE_SEZONE_MS) * TRAJANJE_SEZONE_MS;
+
+const brojSezone = (datum = new Date()) =>
+  Math.floor(datum.getTime() / TRAJANJE_SEZONE_MS);
+
+const novaSezona = (datum = new Date()) => {
+  const startMs = pocetakSezoneMs(datum);
+  const endMs = startMs + TRAJANJE_SEZONE_MS;
+  return {
+    sezonaBroj: brojSezone(datum),
+    sezonaBP_XP: 0,
+    sezonaBP_razina: 0,
+    sezonaPremium: false,
+    sezonaStartMs: startMs,
+    sezonaEndMs: endMs,
+    sezonaTheme: odrediThemeSezone(datum),
+    bpClaimedFree: {},
+    bpClaimedPremium: {},
+  };
+};
 
 const zakaziCloudSpremanje = (uid, payload) => {
   if (!uid) return;
@@ -84,6 +125,23 @@ const pocetnoStanje = {
   prestigeMilestones: {},
   zadnjiVideniEventId: null,
   klan:             { ...PRAZNI_KLAN }, // Klan / Ceh igrača
+  sezona:           novaSezona(),
+  offlineBonus:     null,
+  zadnjiOnlineMs:   Date.now(),
+  adsPogledanoDanas: 0,
+  adsDatum:         new Date().toDateString(),
+  clanRat: {
+    aktivan: false,
+    warId: null,
+    klanA: null,
+    klanB: null,
+    bodovi: { A: 0, B: 0 },
+    pocelo: null,
+    zavrsilo: null,
+    status: 'idle',
+    nagrada: null,
+  },
+  revengeTarget: null,
 };
 
 export const useGameStore = create((set, get) => ({
@@ -128,9 +186,25 @@ export const useGameStore = create((set, get) => ({
       const migriraiAkoTreba = get()._migriraiAkoTreba;
 
       // ─── Glavno stanje igre ───────────────────────────────────────────────
-      const p = await migriraiAkoTreba('@save_game_eco_v30');
+      let p = await migriraiAkoTreba('@save_game_eco_v31');
+      let sourceKey = '@save_game_eco_v31';
+      if (!p) {
+        p = await migriraiAkoTreba('@save_game_eco_v30');
+        sourceKey = '@save_game_eco_v30';
+      }
       if (p) {
         const d = JSON.parse(p);
+        const novaSezonaBroj = brojSezone(new Date());
+        const spremljenaSezona = d.sezona || null;
+        const sezonaZaSet =
+          spremljenaSezona && spremljenaSezona.sezonaBroj === novaSezonaBroj
+            ? {
+              ...novaSezona(),
+              ...spremljenaSezona,
+              bpClaimedFree: spremljenaSezona.bpClaimedFree ?? {},
+              bpClaimedPremium: spremljenaSezona.bpClaimedPremium ?? {},
+            }
+            : novaSezona();
         set({
           ...(d.igracRazina                                          ? { igracRazina: d.igracRazina }                           : {}),
           ...(d.prestigeRazina                                       ? { prestigeRazina: d.prestigeRazina }                     : {}),
@@ -156,7 +230,25 @@ export const useGameStore = create((set, get) => ({
           ...(d.prestigeMilestones                                   ? { prestigeMilestones: d.prestigeMilestones }             : {}),
           ...(d.zadnjiVideniEventId !== undefined                    ? { zadnjiVideniEventId: d.zadnjiVideniEventId }           : {}),
           ...(d.klan                                                 ? { klan: { ...PRAZNI_KLAN, ...d.klan } }                  : {}),
+          sezona: sezonaZaSet,
+          ...(d.adsPogledanoDanas !== undefined ? { adsPogledanoDanas: d.adsPogledanoDanas } : {}),
+          ...(d.adsDatum !== undefined ? { adsDatum: d.adsDatum } : {}),
+          ...(d.zadnjiOnlineMs !== undefined ? { zadnjiOnlineMs: d.zadnjiOnlineMs } : {}),
+          ...(d.clanRat ? { clanRat: { ...get().clanRat, ...d.clanRat } } : {}),
+          ...(d.revengeTarget ? { revengeTarget: d.revengeTarget } : {}),
         });
+        if (sourceKey === '@save_game_eco_v30') {
+          const migratedPayload = {
+            ...d,
+            sezona: sezonaZaSet,
+            adsPogledanoDanas: d.adsPogledanoDanas ?? 0,
+            adsDatum: d.adsDatum ?? new Date().toDateString(),
+            zadnjiOnlineMs: d.zadnjiOnlineMs ?? Date.now(),
+            clanRat: d.clanRat ?? get().clanRat,
+            revengeTarget: d.revengeTarget ?? null,
+          };
+          await dbSet('@save_game_eco_v31', JSON.stringify(migratedPayload));
+        }
       }
 
       // ─── Dostignuća ───────────────────────────────────────────────────────
@@ -223,10 +315,16 @@ export const useGameStore = create((set, get) => ({
       prestigeMilestones: s.prestigeMilestones,
       zadnjiVideniEventId: s.zadnjiVideniEventId,
       klan: s.klan,
+      sezona: s.sezona,
+      adsPogledanoDanas: s.adsPogledanoDanas,
+      adsDatum: s.adsDatum,
+      zadnjiOnlineMs: s.zadnjiOnlineMs,
+      clanRat: s.clanRat,
+      revengeTarget: s.revengeTarget,
     };
     set({ cloudSaveStatus: s.uid ? 'saving' : 'idle', zadnjiCloudPayload: payload });
     try {
-      await dbSet('@save_game_eco_v30', JSON.stringify(payload));
+      await dbSet('@save_game_eco_v31', JSON.stringify(payload));
     } catch (e) { console.error('Failed to save game state:', e); }
     // Sinkroniziraj u Firestore (ne blokira — tiha greška ako nema mreže)
     if (s.uid) {
@@ -267,6 +365,8 @@ export const useGameStore = create((set, get) => ({
 
   // ─── Tajmeri (poziva se iz useVillage / useMarket hookova) ─────────────────
   timerTick: () => {
+    get().provjeriSezonu();
+    get().resetirajAdsAkoNoviDan();
     const s = get();
     const maxEnergija    = izracunajMaxEnergiju(s.razine.baterija || 0);
     const maxStitova     = izracunajMaxStitova(s.razine.oklop || 0);
@@ -415,6 +515,8 @@ export const useGameStore = create((set, get) => ({
       };
     });
     get().primiNagradu(nagrada);
+    get().dodajSezonaXp('misija');
+    get().evidentirajClanRatBodove('misija', 1);
     set({ poruka: 'MISIJA ZAVRŠENA! NAGRADA PREUZETA.' });
   },
 
@@ -508,6 +610,7 @@ export const useGameStore = create((set, get) => ({
       poruka:         `PRESTIGE USPJEŠAN! NOVI MNOŽITELJ x${(1 + (noviPrestige * 0.35)).toFixed(2)}${bonusPoruka}`,
     });
     get().provjeriDostignuca(undefined, undefined, undefined, noviPrestige);
+    get().dodajSezonaXp('prestige');
   },
 
   // ─── Nadogradnje (oprema) ──────────────────────────────────────────────────
@@ -774,7 +877,7 @@ export const useGameStore = create((set, get) => ({
     ukupnoRaidova: state.ukupnoRaidova + 1,
     raidPovijest: [
       {
-        id: `out-${Date.now()}-${Math.random()}`,
+        id: `out-${Date.now()}-${randomInt(RAID_ID_UPPER_BOUND)}`,
         tip: 'outgoing',
         metaUid: meta.uid ?? null,
         metaIme: meta.imeIgraca ?? 'Meta',
@@ -784,5 +887,169 @@ export const useGameStore = create((set, get) => ({
       ...(state.raidPovijest ?? []).slice(0, 19),
     ],
     poruka: `⚔️ PLJAČKA: +${Math.floor(ukradeno.drvo ?? 0)}🌲 +${Math.floor(ukradeno.kamen ?? 0)}⛰️ +${Math.floor(ukradeno.zeljezo ?? 0)}⛏️`,
+  })),
+
+  dodajSezonaXp: (tip, kolicina = 1) => {
+    const s = get();
+    const add = (BP_XP_DOGADAJI[tip] ?? 0) * Math.max(1, kolicina);
+    if (add <= 0) return;
+    const xpTotal = Math.max(0, (s.sezona?.sezonaBP_XP ?? 0) + add);
+    const razina = Math.min(BATTLE_PASS_MAX_RAZINA, Math.floor(xpTotal / BATTLE_PASS_TIER_XP));
+    set((state) => ({
+      sezona: {
+        ...state.sezona,
+        sezonaBP_XP: xpTotal,
+        sezonaBP_razina: razina,
+      },
+    }));
+  },
+
+  provjeriSezonu: () => {
+    const s = get();
+    const currentSeason = brojSezone(new Date());
+    if ((s.sezona?.sezonaBroj ?? 0) === currentSeason) return;
+    set({ sezona: novaSezona() });
+  },
+
+  aktivirajPremiumSezona: () => {
+    const s = get();
+    if (s.sezona?.sezonaPremium) return true;
+    if (s.dijamanti < BATTLE_PASS_PREMIUM_CIJENA) {
+      set({ poruka: `TREBA ${BATTLE_PASS_PREMIUM_CIJENA} 💎 ZA PREMIUM PASS` });
+      return false;
+    }
+    set((state) => ({
+      dijamanti: state.dijamanti - BATTLE_PASS_PREMIUM_CIJENA,
+      sezona: { ...state.sezona, sezonaPremium: true },
+      poruka: '🎟️ PREMIUM BATTLE PASS AKTIVIRAN!',
+    }));
+    return true;
+  },
+
+  preuzmiBattlePassNagradu: (razina, premium = false) => {
+    const s = get();
+    const tier = BATTLE_PASS_NAGRADE.find((t) => t.razina === razina);
+    if (!tier) return;
+    if ((s.sezona?.sezonaBP_razina ?? 0) < razina) return;
+    if (premium && !s.sezona?.sezonaPremium) return;
+    const key = String(razina);
+    const vecPreuzeto = premium ? s.sezona?.bpClaimedPremium?.[key] : s.sezona?.bpClaimedFree?.[key];
+    if (vecPreuzeto) return;
+    const nagrada = premium ? tier.premium : tier.free;
+    get().primiNagradu(nagrada);
+    set((state) => ({
+      aktivniSkin: nagrada.skin || state.aktivniSkin,
+      sezona: {
+        ...state.sezona,
+        bpClaimedFree: premium ? state.sezona.bpClaimedFree : { ...state.sezona.bpClaimedFree, [key]: true },
+        bpClaimedPremium: premium ? { ...state.sezona.bpClaimedPremium, [key]: true } : state.sezona.bpClaimedPremium,
+      },
+      poruka: `🎁 BP NAGRADA RAZINA ${razina} PREUZETA`,
+    }));
+  },
+
+  postaviOfflineBonus: (offlineBonus) => set({ offlineBonus }),
+  clearOfflineBonus: () => set({ offlineBonus: null }),
+
+  primijeniOfflineNapredak: (elapsedSec) => {
+    const s = get();
+    const sek = Math.max(0, Math.min(OFFLINE_MAX_SEK, Math.floor(elapsedSec || 0)));
+    if (sek <= 0) return;
+    const pasivniMnozitelj = izracunajPasivniMnozitelj(s.igracRazina, s.prestigeRazina);
+    const bonus = {
+      drvo: Math.floor((!s.ostecenja.pilana ? (s.gradevine.pilana * ZGRADE[0].bazaProizvodnja * pasivniMnozitelj * sek) : 0)),
+      kamen: Math.floor((!s.ostecenja.kamenolom ? (s.gradevine.kamenolom * ZGRADE[1].bazaProizvodnja * pasivniMnozitelj * sek) : 0)),
+      zeljezo: Math.floor((!s.ostecenja.rudnik ? (s.gradevine.rudnik * ZGRADE[2].bazaProizvodnja * pasivniMnozitelj * sek) : 0)),
+    };
+    if (bonus.drvo <= 0 && bonus.kamen <= 0 && bonus.zeljezo <= 0) return;
+    set((state) => ({
+      resursi: {
+        drvo: state.resursi.drvo + bonus.drvo,
+        kamen: state.resursi.kamen + bonus.kamen,
+        zeljezo: state.resursi.zeljezo + bonus.zeljezo,
+      },
+      offlineBonus: { ...bonus, sekunde: sek },
+      poruka: '🏠 OFFLINE PRODUKCIJA DODANA',
+    }));
+  },
+
+  resetirajAdsAkoNoviDan: () => {
+    const today = new Date().toDateString();
+    if (get().adsDatum === today) return;
+    set({ adsDatum: today, adsPogledanoDanas: 0 });
+  },
+
+  mozePogledatiOglas: () => {
+    get().resetirajAdsAkoNoviDan();
+    return get().adsPogledanoDanas < MAX_AD_VIEWS_DNEVNO;
+  },
+
+  evidentirajPogledanOglas: () => {
+    get().resetirajAdsAkoNoviDan();
+    if (get().adsPogledanoDanas >= MAX_AD_VIEWS_DNEVNO) return false;
+    set((state) => ({ adsPogledanoDanas: state.adsPogledanoDanas + 1 }));
+    return true;
+  },
+
+  primijeniAdNagradu: (tip, payload = {}) => {
+    if (!get().evidentirajPogledanOglas()) {
+      set({ poruka: `DNEVNI LIMIT OGLASA (${MAX_AD_VIEWS_DNEVNO}) ISKORIŠTEN` });
+      return false;
+    }
+    if (tip === 'energija') {
+      set((state) => ({ energija: state.energija + 30, poruka: '📺 +30 ENERGIJE' }));
+      return true;
+    }
+    if (tip === 'duplirajDobitak') {
+      const dobitak = payload.dobitakNaCekanju;
+      if (!dobitak) {
+        set({ poruka: 'NEMA DOBITKA ZA DUPLANJE' });
+        return false;
+      }
+      set((state) => ({
+        zlato: state.zlato + Math.floor(dobitak.zlato ?? 0),
+        dijamanti: state.dijamanti + Math.floor(dobitak.dijamanti ?? 0),
+        energija: state.energija + Math.floor(dobitak.energija ?? 0),
+        resursi: {
+          drvo: state.resursi.drvo + Math.floor(dobitak.drvo ?? 0),
+          kamen: state.resursi.kamen + Math.floor(dobitak.kamen ?? 0),
+          zeljezo: state.resursi.zeljezo + Math.floor(dobitak.zeljezo ?? 0),
+        },
+        poruka: '📺 DOBITAK DUPLIRAN OGLASOM',
+      }));
+      return true;
+    }
+    if (tip === 'stit') {
+      const maxStitova = izracunajMaxStitova(get().razine.oklop || 0);
+      set({ stitovi: maxStitova, stitRegenSekundi: STIT_REGEN_INTERVAL_SEK, poruka: '📺 ŠTITOVI OBNOVLJENI' });
+      return true;
+    }
+    return false;
+  },
+
+  postaviClanRat: (war) => set((state) => ({ clanRat: { ...state.clanRat, ...war } })),
+  postaviRevengeTarget: (meta) => set({ revengeTarget: meta || null }),
+  evidentirajClanRatBodove: (tip, kolicina = 1) => {
+    const s = get();
+    if (!s.clanRat?.aktivan) return;
+    const base = tip === 'raid' ? 10 : tip === 'misija' ? 25 : 1;
+    const add = Math.max(1, Math.floor(base * kolicina));
+    if (s.clanRat?.warId) {
+      dodajBodoveClanRatu(s.clanRat.warId, 'A', add).catch(() => {});
+    }
+    set((state) => ({
+      clanRat: {
+        ...state.clanRat,
+        bodovi: {
+          ...(state.clanRat?.bodovi ?? { A: 0, B: 0 }),
+          A: (state.clanRat?.bodovi?.A ?? 0) + add,
+        },
+      },
+    }));
+  },
+  zavrsiClanRat: (pobjeda = false) => set((state) => ({
+    clanRat: { ...state.clanRat, aktivan: false, status: 'ended' },
+    klan: pobjeda ? { ...state.klan, xp: state.klan.xp + 500 } : state.klan,
+    poruka: pobjeda ? '⚔️ KLAN RAT POBIJEDEN! +500 XP' : state.poruka,
   })),
 }));

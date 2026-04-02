@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
 import { Crown } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useGameStore } from '../store/gameStore';
+import { useSlotStore } from '../store/slotStore';
 import BuildingCard from '../components/BuildingCard';
 import { BOJE, ZGRADE, uiScale, FONT_FAMILY } from '../config/constants';
 import { dohvatiRaidPovijest } from '../firebase/raids';
@@ -14,6 +16,9 @@ const VillageScreen = () => {
   const izvrsiPrestige = useGameStore((s) => s.izvrsiPrestige);
   const uid = useGameStore((s) => s.uid);
   const raidPovijest = useGameStore((s) => s.raidPovijest);
+  const postaviRevengeTarget = useGameStore((s) => s.postaviRevengeTarget);
+  const setRaidAktivan = useSlotStore((s) => s.setRaidAktivan);
+  const navigation = useNavigation();
   const [ucitavaPovijest, setUcitavaPovijest] = useState(false);
 
   const spremanZaPrestige =
@@ -78,12 +83,28 @@ const VillageScreen = () => {
         ) : raidPovijest.slice(0, 6).map((r) => {
           const vrijeme = r.vrijemeNapadaMs ? new Date(r.vrijemeNapadaMs).toLocaleTimeString() : '';
           const jeOut = r.tip === 'outgoing';
+          const mozeOsveta = !jeOut && r.napadacUid && r.mozeProtunapadDo && Date.now() < r.mozeProtunapadDo;
           return (
-            <Text key={r.id} style={styles.raidLogItem}>
-              {jeOut ? '⚔️ Napao' : '🛡️ Napadnut'} {jeOut ? (r.metaIme ?? 'meta') : (r.napadacIme ?? 'napadač')} ·
-              {' '}{Math.floor(r.ukradeno?.drvo ?? 0)}🌲 {Math.floor(r.ukradeno?.kamen ?? 0)}⛰️ {Math.floor(r.ukradeno?.zeljezo ?? 0)}⛏️
-              {vrijeme ? ` · ${vrijeme}` : ''}
-            </Text>
+            <View key={r.id} style={styles.raidLogRow}>
+              <Text style={styles.raidLogItem}>
+                {jeOut ? '⚔️ Napao' : '🛡️ Napadnut'} {jeOut ? (r.metaIme ?? 'meta') : (r.napadacIme ?? 'napadač')} ·
+                {' '}{Math.floor(r.ukradeno?.drvo ?? 0)}🌲 {Math.floor(r.ukradeno?.kamen ?? 0)}⛰️ {Math.floor(r.ukradeno?.zeljezo ?? 0)}⛏️
+                {vrijeme ? ` · ${vrijeme}` : ''}
+              </Text>
+              {mozeOsveta && (
+                <TouchableOpacity
+                  style={styles.revengeBtn}
+                  onPress={() => {
+                    postaviRevengeTarget(r);
+                    useGameStore.setState({ poruka: '⚔️ OSVETA: +25% PLIJEN AKTIVAN' });
+                    setRaidAktivan(true);
+                    navigation.navigate('Igraj');
+                  }}
+                >
+                  <Text style={styles.revengeBtnTxt}>OSVETI SE</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           );
         })}
       </View>
@@ -170,6 +191,26 @@ const styles = StyleSheet.create({
     fontFamily: FONT_FAMILY,
     fontSize: 12,
     marginBottom: 6,
+  },
+  raidLogRow: {
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: BOJE.border,
+    paddingBottom: 8,
+  },
+  revengeBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: BOJE.slotVatra,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginTop: 4,
+  },
+  revengeBtnTxt: {
+    color: '#fff',
+    fontFamily: FONT_FAMILY,
+    fontWeight: '900',
+    fontSize: 11,
   },
   raidLogEmpty: {
     color: BOJE.textMuted,

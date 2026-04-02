@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { View, Text, StyleSheet, Platform, TouchableOpacity } from 'react-native';
 import { Zap, Coins, Gem, Shield, TreePine, Mountain, Pickaxe, TrendingUp, Crown } from 'lucide-react-native';
 import { useGameStore } from '../store/gameStore';
 import AnimatedStat from './AnimatedStat';
@@ -9,7 +9,7 @@ import { izracunajMaxStitova, izracunajPotrebniXp, izracunajPasivniMnozitelj } f
 /**
  * Globalno zaglavlje aplikacije — razina, XP bar, resursi, obrana.
  */
-const Header = () => {
+const Header = ({ onOpenBattlePass }) => {
   const igracRazina    = useGameStore((s) => s.igracRazina);
   const prestigeRazina = useGameStore((s) => s.prestigeRazina);
   const xp             = useGameStore((s) => s.xp);
@@ -61,6 +61,9 @@ const Header = () => {
           <TrendingUp size={12} color="#000" style={{ marginRight: 2 }} />
           <Text style={styles.multiplierTxt}>{pasivniMnozitelj.toFixed(2)}x</Text>
         </View>
+        <TouchableOpacity style={styles.bpBtn} onPress={onOpenBattlePass}>
+          <Text style={styles.bpBtnTxt}>BP</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Zlato, energija, dijamanti */}
@@ -232,6 +235,19 @@ const styles = StyleSheet.create({
     fontSize: Math.round(11 * uiScale),
     fontWeight: '900',
     fontFamily: FONT_FAMILY,
+  },
+  bpBtn: {
+    marginLeft: 6,
+    backgroundColor: BOJE.dijamant,
+    borderRadius: 12,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+  },
+  bpBtnTxt: {
+    color: '#000',
+    fontFamily: FONT_FAMILY,
+    fontWeight: '900',
+    fontSize: 11,
   },
   headerMainStats: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   statChip: {

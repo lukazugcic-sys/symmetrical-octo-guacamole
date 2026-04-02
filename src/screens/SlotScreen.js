@@ -9,6 +9,7 @@ import SlotReel   from '../components/SlotReel';
 import EventBanner from '../components/EventBanner';
 import RaidModal  from '../components/RaidModal';
 import { BOJE, LUCKY_SPIN_INTERVAL, MAX_WIN_STREAK, STREAK_BONUS_PER_WIN, MAX_GAMBLE_ROUNDS, uiScale, FONT_FAMILY } from '../config/constants';
+import { useRewardedAds } from '../hooks/useRewardedAds';
 
 /**
  * Ekran automata — vrtnja, prikaz mreže simbola, gamble i preuzimanje dobitka.
@@ -23,6 +24,9 @@ const SlotScreen = () => {
   const kupiEnergijuHitno = useGameStore((s) => s.kupiEnergijuHitno);
   const spinBoostPreostalo = useGameStore((s) => s.spinBoostPreostalo);
   const [prikazLegend, setPrikazLegend] = useState(false);
+  const stitovi = useGameStore((s) => s.stitovi);
+  const dobitakRef = useSlotStore((s) => s.dobitakNaCekanju);
+  const { prikaziRewardedAd } = useRewardedAds();
 
   const vrti            = useSlotStore((s) => s.vrti);
   const ulog            = useSlotStore((s) => s.ulog);
@@ -91,6 +95,13 @@ const SlotScreen = () => {
               <Text style={styles.gambleBtnTxt}>CRNA (x2)</Text>
             </TouchableOpacity>
           </View>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={styles.adBtn}
+            onPress={() => prikaziRewardedAd('duplirajDobitak', { dobitakNaCekanju: dobitakRef })}
+          >
+            <Text style={styles.adBtnTxt}>📺 DUPLAJ OGLASOM</Text>
+          </TouchableOpacity>
           <TouchableOpacity activeOpacity={0.8} style={styles.collectBtn} onPress={preuzmiDobitak}>
             <Text style={styles.collectBtnTxt}>PREUZMI DOBITAK</Text>
           </TouchableOpacity>
@@ -151,8 +162,18 @@ const SlotScreen = () => {
             )}
           </TouchableOpacity>
           {!jeFreeSpin && energija < ulog && !vrti && (
-            <TouchableOpacity style={styles.quickEnergyBtn} activeOpacity={0.8} onPress={kupiEnergijuHitno}>
-              <Text style={styles.quickEnergyTxt}>⚡ KUPI +100 ENERGIJE ZA 100 🪙</Text>
+            <View style={{ gap: 8, marginTop: 10 }}>
+              <TouchableOpacity style={styles.quickEnergyBtn} activeOpacity={0.8} onPress={kupiEnergijuHitno}>
+                <Text style={styles.quickEnergyTxt}>⚡ KUPI +100 ENERGIJE ZA 100 🪙</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.adEnergyBtn} activeOpacity={0.8} onPress={() => prikaziRewardedAd('energija')}>
+                <Text style={styles.adEnergyTxt}>📺 GLEDAJ OGLAS ZA +30 ENERGIJE</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          {stitovi <= 0 && !vrti && (
+            <TouchableOpacity style={styles.adShieldBtn} activeOpacity={0.8} onPress={() => prikaziRewardedAd('stit')}>
+              <Text style={styles.adShieldTxt}>📺 OBNOVI ŠTITOVE OGLASOM</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -247,6 +268,8 @@ const styles = StyleSheet.create({
   gambleBtnTxt:     { color: '#FFF', fontSize: Math.round(15 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 1 },
   collectBtn:       { backgroundColor: BOJE.energija, width: '100%', paddingVertical: Math.round(18 * uiScale), borderRadius: 18, alignItems: 'center', shadowColor: BOJE.energija, shadowOpacity: 0.35, shadowRadius: 10, elevation: 5 },
   collectBtnTxt:    { color: '#000', fontSize: Math.round(16 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 1 },
+  adBtn: { width: '100%', marginBottom: 10, borderRadius: 14, backgroundColor: BOJE.dijamant, paddingVertical: 12 },
+  adBtnTxt: { textAlign: 'center', color: '#000', fontWeight: '900', fontFamily: FONT_FAMILY, fontSize: 12 },
 
   luckySpinRow:  { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 10 },
   luckySpinMeter:{ flex: 1, height: 8, backgroundColor: 'rgba(0,255,170,0.1)', borderRadius: 4, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(0,255,170,0.2)' },
@@ -259,8 +282,12 @@ const styles = StyleSheet.create({
   turboBtn:       { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: BOJE.bgCard, borderWidth: 1, borderColor: BOJE.border },
   turboBtnActive: { backgroundColor: BOJE.energija, borderColor: BOJE.energija },
   turboTxt:       { fontSize: 11, fontWeight: '900', fontFamily: FONT_FAMILY, color: BOJE.textMuted, letterSpacing: 0.5 },
-  quickEnergyBtn: { marginTop: 10, backgroundColor: BOJE.zlato + '20', borderWidth: 1, borderColor: BOJE.zlato + '60', borderRadius: 12, paddingVertical: 10 },
+  quickEnergyBtn: { backgroundColor: BOJE.zlato + '20', borderWidth: 1, borderColor: BOJE.zlato + '60', borderRadius: 12, paddingVertical: 10 },
   quickEnergyTxt: { textAlign: 'center', color: BOJE.zlato, fontFamily: FONT_FAMILY, fontWeight: '900', fontSize: 12 },
+  adEnergyBtn: { backgroundColor: BOJE.energija + '20', borderWidth: 1, borderColor: BOJE.energija + '60', borderRadius: 12, paddingVertical: 10 },
+  adEnergyTxt: { textAlign: 'center', color: BOJE.energija, fontFamily: FONT_FAMILY, fontWeight: '900', fontSize: 12 },
+  adShieldBtn: { marginTop: 8, backgroundColor: BOJE.stit + '20', borderWidth: 1, borderColor: BOJE.stit + '60', borderRadius: 12, paddingVertical: 9 },
+  adShieldTxt: { textAlign: 'center', color: BOJE.stit, fontFamily: FONT_FAMILY, fontWeight: '900', fontSize: 12 },
   legendOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   legendCard: { width: '100%', backgroundColor: BOJE.bgCard, borderWidth: 1, borderColor: BOJE.border, borderRadius: 18, padding: 18 },
   legendTitle: { color: BOJE.textMain, fontFamily: FONT_FAMILY, fontWeight: '900', marginBottom: 12, textAlign: 'center' },
