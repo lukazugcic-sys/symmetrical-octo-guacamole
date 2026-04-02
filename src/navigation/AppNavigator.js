@@ -1,7 +1,7 @@
 import React, { useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, PanResponder, StyleSheet, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Zap, Building2, Trophy, ShoppingCart, Sliders, Users, Crown } from 'lucide-react-native';
+import { Zap, Building2, Trophy, ShoppingCart, Sliders, Users, Crown, Sword } from 'lucide-react-native';
 import SlotScreen        from '../screens/SlotScreen';
 import VillageScreen     from '../screens/VillageScreen';
 import MissionsScreen    from '../screens/MissionsScreen';
@@ -9,6 +9,7 @@ import ShopScreen        from '../screens/ShopScreen';
 import UpgradesScreen    from '../screens/UpgradesScreen';
 import ClanScreen        from '../screens/ClanScreen';
 import LeaderboardScreen from '../screens/LeaderboardScreen';
+import HeroesScreen      from '../screens/HeroesScreen';
 import ErrorBoundary     from '../components/ErrorBoundary';
 import { BOJE, uiScale, FONT_FAMILY } from '../config/constants';
 
@@ -26,6 +27,7 @@ const TAB_KONFIGURACIJA = [
   { routeName: 'Oprema',  ikona: Sliders,      boja: BOJE.nadogradnje },
   { routeName: 'Klan',    ikona: Users,        boja: BOJE.klan        },
   { routeName: 'Top',     ikona: Crown,        boja: BOJE.ljestvica   },
+  { routeName: 'Junaci',  ikona: Sword,        boja: BOJE.nadogradnje },
 ];
 
 // ─── Prilagođena navigacijska traka ──────────────────────────────────────────
@@ -109,6 +111,7 @@ const AppNavigator = () => (
     <Tab.Screen name="Oprema">{() => <ErrorBoundary><UpgradesScreen /></ErrorBoundary>}</Tab.Screen>
     <Tab.Screen name="Klan">{() => <ErrorBoundary><ClanScreen /></ErrorBoundary>}</Tab.Screen>
     <Tab.Screen name="Top">{() => <ErrorBoundary><LeaderboardScreen /></ErrorBoundary>}</Tab.Screen>
+    <Tab.Screen name="Junaci">{() => <ErrorBoundary><HeroesScreen /></ErrorBoundary>}</Tab.Screen>
   </Tab.Navigator>
 );
 

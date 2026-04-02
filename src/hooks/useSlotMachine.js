@@ -9,10 +9,11 @@ import { useSeasonalEvent } from './useSeasonalEvent';
 import {
   SVO_BLAGO, BLAGO, LUCKY_SPIN_INTERVAL, MAX_WIN_STREAK,
   STREAK_BONUS_PER_WIN, WILD_BOOST_CHANCE_PER_LEVEL, ZGRADE,
-  SHIELD_GRANT_MIN_BET, MAX_GAMBLE_ROUNDS,
+  SHIELD_GRANT_MIN_BET, MAX_GAMBLE_ROUNDS, HERO_DROP_SANSA,
 } from '../config/constants';
 import {
   izracunajMaxStitova, izracunajPrestigeMnozitelj, izracunajSansuZaDobitak,
+  izracunajHeroBonus,
 } from '../utils/economy';
 import { delay, randomChance, randomFloat, randomInt } from '../utils/helpers';
 
@@ -220,13 +221,16 @@ export const useSlotMachine = () => {
       const gs2          = useGameStore.getState();
       const wildBoostLevel  = gs2.razine.wildBoost || 0;
       const wildBoostChance = wildBoostLevel * WILD_BOOST_CHANCE_PER_LEVEL;
-      const sansaZaDobitak  = izracunajSansuZaDobitak(gs2.razine.sreca || 0);
+      const sansaZaDobitak  = izracunajSansuZaDobitak(gs2.razine.sreca || 0)
+        + (izracunajHeroBonus(gs2.junaci, gs2.aktivniJunaci, 'luck') / 100);
       const prestigeMnozitelj = izracunajPrestigeMnozitelj(gs2.prestigeRazina);
       const winStreakMultiplier = 1 + (Math.min(gs2.winStreak, MAX_WIN_STREAK) * STREAK_BONUS_PER_WIN);
       const eventMnozitelj = aktivniDogadaj?.bonusMnozitelj ?? 1.0;
       const maxStitova = izracunajMaxStitova(gs2.razine.oklop || 0);
       const imaBoost = useGameStore.getState().iskoristiBoostSpin();
       const boostMnozitelj = imaBoost ? 2 : 1;
+      const heroZlatoMnozitelj = 1 + (izracunajHeroBonus(gs2.junaci, gs2.aktivniJunaci, 'zlato') / 100);
+      const heroXpMnozitelj    = 1 + (izracunajHeroBonus(gs2.junaci, gs2.aktivniJunaci, 'xp')   / 100);
 
       // Težinski pool simbola prilagođen aktivnom sezonalnom događaju
       const simbolPool = izgradiPool(aktivniDogadaj);
@@ -307,7 +311,7 @@ export const useSlotMachine = () => {
           } else if (targetSymbol === 'gem' || isAllWilds) {
              ukupnoDijamanata += Math.max(1, Math.floor((isAllWilds ? 5 : detalji.baza) * (ulog * 0.1) * multiplier * jackpotBonus * prestigeMnozitelj * winStreakMultiplier * eventMnozitelj * boostMnozitelj));
           } else {
-             const kolicina = Math.floor(detalji.baza * ulog * multiplier * jackpotBonus * (1 + (gs2.razine.pojacalo || 0) * 0.1) * prestigeMnozitelj * winStreakMultiplier * eventMnozitelj * boostMnozitelj);
+             const kolicina = Math.floor(detalji.baza * ulog * multiplier * jackpotBonus * (1 + (gs2.razine.pojacalo || 0) * 0.1) * prestigeMnozitelj * winStreakMultiplier * eventMnozitelj * boostMnozitelj * heroZlatoMnozitelj);
             if (targetSymbol === 'gold') ukupnoZlato += kolicina;
             else resursiDobitak[detalji.tip] += kolicina;
           }
@@ -316,7 +320,14 @@ export const useSlotMachine = () => {
         }
       });
 
-      useGameStore.getState().dodajXp(dobijeniXp);
+      useGameStore.getState().dodajXp(Math.floor(dobijeniXp * heroXpMnozitelj));
+
+      // ─── Hero fragment drop ─────────────────────────────────────────────
+      const fragBonus = jackpotLinija ? randomInt(3) + 2 : 0; // 2-4 bonus on jackpot
+      if (fragBonus > 0 || randomChance(HERO_DROP_SANSA)) {
+        const kolicina = (randomInt(2) + 1) + fragBonus; // 1-2 base + jackpot bonus
+        useGameStore.getState().dodijeliHeroFragmente(null, kolicina);
+      }
 
       const brojLubanja = noviSimboli.filter((s) => s === 'skull').length;
 
