@@ -1,4 +1,5 @@
 // Ekonomske formule — izvedene vrijednosti koje ovise o razinama igrača.
+import { JUNACI } from '../config/constants';
 // Izvučene ovdje kako bi bile lako testabilne i višekratno upotrebljive.
 
 /**
@@ -51,3 +52,22 @@ export const izracunajPrestigeMnozitelj = (prestige) =>
  */
 export const izracunajPasivniMnozitelj = (igracRazina, prestigeRazina) =>
   (1 + (igracRazina * 0.05)) * izracunajPrestigeMnozitelj(prestigeRazina);
+
+/**
+ * Zbroji bonus za određeni tip od svih aktivnih junaka.
+ * @param {Object} junaci       - mapa heroId → { razina }
+ * @param {string[]} aktivni    - niz aktivnih hero ID-ova
+ * @param {string} tip          - 'zlato' | 'energija' | 'pasivno' | 'stit' | 'luck' | 'xp'
+ * @returns {number}             - ukupna vrijednost bonusa (postotak ili flat)
+ */
+export const izracunajHeroBonus = (junaci = {}, aktivni = [], tip) => {
+  let ukupno = 0;
+  aktivni.forEach((heroId) => {
+    const stanje = junaci[heroId];
+    if (!stanje || stanje.razina <= 0) return;
+    const def = JUNACI.find((h) => h.id === heroId);
+    if (!def || def.tipBonusa !== tip) return;
+    ukupno += def.bonusPoRazini * stanje.razina;
+  });
+  return ukupno;
+};

@@ -167,7 +167,7 @@ export const SHIELD_GRANT_MIN_BET        = 10; // Min bet for bonus shield grant
 export const MAX_GAMBLE_ROUNDS           = 5;  // Max consecutive gamble attempts per win
 
 // ─── Redoslijed ekrana (za navigaciju swipeom) ────────────────────────────────
-export const POREDAK_EKRANA = ['automat', 'selo', 'misije', 'trgovina', 'nadogradnje', 'klan', 'ljestvica'];
+export const POREDAK_EKRANA = ['automat', 'selo', 'misije', 'trgovina', 'nadogradnje', 'klan', 'ljestvica', 'junaci'];
 
 // ─── Kozmetika — skinovi zgrada ───────────────────────────────────────────────
 export const ZGRADE_SKINOVI = [
@@ -204,6 +204,64 @@ export const generirajKlanZadatke = () =>
     zavrseno: false,
     preuzeto: false,
   }));
+
+// ─── Junaci (Hero Collection System) ─────────────────────────────────────────
+export const RARITET_BOJE = {
+  obican:     '#64748B',
+  rijetki:    '#22C55E',
+  epski:      '#A855F7',
+  legendarni: '#F59E0B',
+};
+
+export const RARITET_NAZIVI = {
+  obican:     'Obični',
+  rijetki:    'Rijetki',
+  epski:      'Epski',
+  legendarni: 'Legendarni',
+};
+
+export const HERO_FRAGMENTI_ZA_OTKLJ = 10;   // fragments needed to unlock (razina 0 → 1)
+export const HERO_FRAGMENTI_ZA_RAZINU = 20;   // fragments per subsequent level-up
+export const HERO_MAX_RAZINA          = 5;
+export const HERO_SUMMON_KOST         = 20;   // diamonds per summon
+export const HERO_DROP_SANSA          = 0.06; // 6% chance per spin to drop hero fragments
+export const HERO_MAX_AKTIVNIH        = 2;    // max simultaneously active heroes
+
+// Rarity weights for random drops (higher = more common)
+export const HERO_DROP_TEZINE = {
+  obican:     55,
+  rijetki:    30,
+  epski:      12,
+  legendarni: 3,
+};
+
+/**
+ * tipBonusa values and their effects:
+ *  zlato    — bonus % on gold wins
+ *  energija — flat bonus energy per timer tick
+ *  pasivno  — bonus % on passive resource production
+ *  stit     — bonus max shield slots
+ *  luck     — bonus % win chance on slot
+ *  xp       — bonus % XP from spins
+ */
+export const JUNACI = [
+  // ─── Obični ──────────────────────────────────────────────────────────────
+  { id: 'zlatko',   naziv: 'Zlatko',   emodzi: '🪙', raritet: 'obican',     tipBonusa: 'zlato',    opisBonusa: '+3% zlatnih dobitaka po razini',      bonusPoRazini: 3    },
+  { id: 'iskra',    naziv: 'Iskra',    emodzi: '⚡', raritet: 'obican',     tipBonusa: 'energija', opisBonusa: '+0.2 energije/tik po razini',          bonusPoRazini: 0.2  },
+  { id: 'drvar',    naziv: 'Drvar',    emodzi: '🌲', raritet: 'obican',     tipBonusa: 'pasivno',  opisBonusa: '+2% pasivne produkcije po razini',     bonusPoRazini: 2    },
+  { id: 'ucenjak',  naziv: 'Učenjak',  emodzi: '📖', raritet: 'obican',     tipBonusa: 'xp',       opisBonusa: '+5% XP iz vrtnji po razini',           bonusPoRazini: 5    },
+  // ─── Rijetki ─────────────────────────────────────────────────────────────
+  { id: 'strazar',  naziv: 'Stražar',  emodzi: '🛡️', raritet: 'rijetki',   tipBonusa: 'stit',     opisBonusa: '+1 max štit po razini',                bonusPoRazini: 1    },
+  { id: 'kockar',   naziv: 'Kockar',   emodzi: '🍀', raritet: 'rijetki',   tipBonusa: 'luck',     opisBonusa: '+1.5% šanse za dobitak po razini',     bonusPoRazini: 1.5  },
+  { id: 'trgovic',  naziv: 'Trgovac',  emodzi: '💰', raritet: 'rijetki',   tipBonusa: 'zlato',    opisBonusa: '+6% zlatnih dobitaka po razini',       bonusPoRazini: 6    },
+  // ─── Epski ───────────────────────────────────────────────────────────────
+  { id: 'ratnik',   naziv: 'Ratnik',   emodzi: '⚔️', raritet: 'epski',     tipBonusa: 'zlato',    opisBonusa: '+10% zlatnih dobitaka po razini',      bonusPoRazini: 10   },
+  { id: 'carobnjak',naziv: 'Čarobnjak',emodzi: '🧙', raritet: 'epski',     tipBonusa: 'luck',     opisBonusa: '+3% šanse za dobitak po razini',       bonusPoRazini: 3    },
+  { id: 'arhitekt', naziv: 'Arhitekt', emodzi: '🏛️', raritet: 'epski',     tipBonusa: 'pasivno',  opisBonusa: '+8% pasivne produkcije po razini',     bonusPoRazini: 8    },
+  // ─── Legendarni ──────────────────────────────────────────────────────────
+  { id: 'kralj',    naziv: 'Kralj',    emodzi: '👑', raritet: 'legendarni', tipBonusa: 'zlato',    opisBonusa: '+20% zlatnih dobitaka po razini',      bonusPoRazini: 20   },
+  { id: 'boginja',  naziv: 'Boginja',  emodzi: '⭐', raritet: 'legendarni', tipBonusa: 'luck',     opisBonusa: '+6% šanse za dobitak po razini',       bonusPoRazini: 6    },
+];
 
 export const BATTLE_PASS_SEASON_THEME = {
   halloween: { naziv: 'Noć Vještica', emodzi: '🎃', skin: 'medieval' },

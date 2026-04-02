@@ -79,6 +79,8 @@ export default function App() {
   const oznaciEventVidjen = useGameStore((s) => s.oznaciEventVidjen);
   const zadnjiOnlineMs = useGameStore((s) => s.zadnjiOnlineMs);
   const primijeniOfflineNapredak = useGameStore((s) => s.primijeniOfflineNapredak);
+  const junaci           = useGameStore((s) => s.junaci);
+  const aktivniJunaci    = useGameStore((s) => s.aktivniJunaci);
   const [prikaziEventModal, setPrikaziEventModal] = useState(false);
   const aktivniDogadaj = useSeasonalEvent();
 
@@ -116,7 +118,7 @@ export default function App() {
     spremi();
   }, [spremi, igracRazina, prestigeRazina, xp, energija, zlato, dijamanti, resursi,
       gradevine, ostecenja, razine, stitovi, misije, luckySpinCounter, winStreak,
-      aktivniSkin, klan, ucitavam]);
+      aktivniSkin, klan, junaci, aktivniJunaci, ucitavam]);
 
   // ─── Auto-save dostignuća ─────────────────────────────────────────────────
   useEffect(() => {

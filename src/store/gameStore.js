@@ -7,11 +7,13 @@ import {
   STIT_REGEN_INTERVAL_SEK, CIJENA_DVOSTRUKI_BOOST, TRAJANJE_DVOSTRUKI_BOOST,
   BATTLE_PASS_NAGRADE, BATTLE_PASS_MAX_RAZINA, BATTLE_PASS_TIER_XP, BATTLE_PASS_PREMIUM_CIJENA,
   BATTLE_PASS_SEASON_THEME, OFFLINE_MAX_SEK, MAX_AD_VIEWS_DNEVNO,
+  JUNACI, HERO_DROP_TEZINE, HERO_FRAGMENTI_ZA_OTKLJ, HERO_FRAGMENTI_ZA_RAZINU,
+  HERO_MAX_RAZINA, HERO_SUMMON_KOST, HERO_MAX_AKTIVNIH,
 } from '../config/constants';
 import { dohvatiAktivniDogadaj } from '../config/sezonalniDogadaji';
 import {
   izracunajMaxEnergiju, izracunajMaxStitova, izracunajPasivniMnozitelj,
-  izracunajPotrebniXp,
+  izracunajPotrebniXp, izracunajHeroBonus,
 } from '../utils/economy';
 import { randomFloat, randomInt } from '../utils/helpers';
 import { spremiCloud }      from '../firebase/cloudSave';
@@ -78,6 +80,17 @@ const zakaziCloudSpremanje = (uid, payload) => {
   }, 3000);
 };
 
+// Bira nasumičnog junaka prema težinskom poolu (HERO_DROP_TEZINE)
+const selectRandomHeroByWeight = () => {
+  const pool = [];
+  JUNACI.forEach((hero) => {
+    const w = HERO_DROP_TEZINE[hero.raritet] ?? 10;
+    for (let i = 0; i < w; i++) pool.push(hero.id);
+  });
+  if (!pool.length) return null;
+  return pool[randomInt(pool.length)];
+};
+
 const PRAZNI_KLAN = {
   naziv:         null,
   razina:        0,
@@ -142,6 +155,8 @@ const pocetnoStanje = {
     nagrada: null,
   },
   revengeTarget: null,
+  junaci:        {}, // map: heroId → { fragmenti: number, razina: number }
+  aktivniJunaci: [], // max HERO_MAX_AKTIVNIH active hero IDs
 };
 
 export const useGameStore = create((set, get) => ({
@@ -236,6 +251,8 @@ export const useGameStore = create((set, get) => ({
           ...(d.zadnjiOnlineMs !== undefined ? { zadnjiOnlineMs: d.zadnjiOnlineMs } : {}),
           ...(d.clanRat ? { clanRat: { ...get().clanRat, ...d.clanRat } } : {}),
           ...(d.revengeTarget ? { revengeTarget: d.revengeTarget } : {}),
+          ...(d.junaci && typeof d.junaci === 'object' ? { junaci: d.junaci } : {}),
+          ...(Array.isArray(d.aktivniJunaci) ? { aktivniJunaci: d.aktivniJunaci } : {}),
         });
         if (sourceKey === '@save_game_eco_v30') {
           const migratedPayload = {
@@ -321,6 +338,8 @@ export const useGameStore = create((set, get) => ({
       zadnjiOnlineMs: s.zadnjiOnlineMs,
       clanRat: s.clanRat,
       revengeTarget: s.revengeTarget,
+      junaci: s.junaci,
+      aktivniJunaci: s.aktivniJunaci,
     };
     set({ cloudSaveStatus: s.uid ? 'saving' : 'idle', zadnjiCloudPayload: payload });
     try {
@@ -369,15 +388,21 @@ export const useGameStore = create((set, get) => ({
     get().resetirajAdsAkoNoviDan();
     const s = get();
     const maxEnergija    = izracunajMaxEnergiju(s.razine.baterija || 0);
-    const maxStitova     = izracunajMaxStitova(s.razine.oklop || 0);
+    const heroMaxStit    = Math.floor(izracunajHeroBonus(s.junaci, s.aktivniJunaci, 'stit'));
+    const maxStitova     = izracunajMaxStitova(s.razine.oklop || 0) + heroMaxStit;
     const pasivniMnozitelj = izracunajPasivniMnozitelj(s.igracRazina, s.prestigeRazina);
+    const heroPasivno    = 1 + (izracunajHeroBonus(s.junaci, s.aktivniJunaci, 'pasivno') / 100);
+    const heroEnergija   = izracunajHeroBonus(s.junaci, s.aktivniJunaci, 'energija');
+    const ukupniPasivni  = pasivniMnozitelj * heroPasivno;
 
     set((state) => ({
-      energija: state.energija < maxEnergija ? state.energija + 1 : state.energija,
+      energija: state.energija < maxEnergija
+        ? Math.min(maxEnergija, state.energija + 1 + heroEnergija)
+        : state.energija,
       resursi: {
-        drvo:    state.resursi.drvo    + (!state.ostecenja.pilana    ? (state.gradevine.pilana    * ZGRADE[0].bazaProizvodnja * pasivniMnozitelj) : 0),
-        kamen:   state.resursi.kamen   + (!state.ostecenja.kamenolom ? (state.gradevine.kamenolom * ZGRADE[1].bazaProizvodnja * pasivniMnozitelj) : 0),
-        zeljezo: state.resursi.zeljezo + (!state.ostecenja.rudnik    ? (state.gradevine.rudnik    * ZGRADE[2].bazaProizvodnja * pasivniMnozitelj) : 0),
+        drvo:    state.resursi.drvo    + (!state.ostecenja.pilana    ? (state.gradevine.pilana    * ZGRADE[0].bazaProizvodnja * ukupniPasivni) : 0),
+        kamen:   state.resursi.kamen   + (!state.ostecenja.kamenolom ? (state.gradevine.kamenolom * ZGRADE[1].bazaProizvodnja * ukupniPasivni) : 0),
+        zeljezo: state.resursi.zeljezo + (!state.ostecenja.rudnik    ? (state.gradevine.rudnik    * ZGRADE[2].bazaProizvodnja * ukupniPasivni) : 0),
       },
       stitovi: (state.stitovi < maxStitova && state.stitRegenSekundi <= 1)
         ? state.stitovi + 1
@@ -1052,4 +1077,88 @@ export const useGameStore = create((set, get) => ({
     klan: pobjeda ? { ...state.klan, xp: state.klan.xp + 500 } : state.klan,
     poruka: pobjeda ? '⚔️ KLAN RAT POBIJEDEN! +500 XP' : state.poruka,
   })),
+
+  // ─── Junaci (Hero Collection) ───────────────────────────────────────────────
+
+  /**
+   * Dodaj fragmente junaku. Ako heroId === null, odabere nasumičnog junaka.
+   * Automatski povećava razinu junaka kada se skupe dovoljni fragmenti.
+   */
+  dodijeliHeroFragmente: (heroId, kolicina) => {
+    const targetId = heroId || selectRandomHeroByWeight();
+    if (!targetId) return;
+
+    set((state) => {
+      const current = state.junaci[targetId] || { fragmenti: 0, razina: 0 };
+      if (current.razina >= HERO_MAX_RAZINA) return {};
+
+      let noviFragmenti = current.fragmenti + kolicina;
+      let novaRazina    = current.razina;
+      let novaOtkrica   = null;
+
+      while (novaRazina < HERO_MAX_RAZINA) {
+        const potrebno = novaRazina === 0 ? HERO_FRAGMENTI_ZA_OTKLJ : HERO_FRAGMENTI_ZA_RAZINU;
+        if (noviFragmenti >= potrebno) {
+          noviFragmenti -= potrebno;
+          novaRazina++;
+          if (novaRazina === 1) {
+            const def = JUNACI.find((h) => h.id === targetId);
+            novaOtkrica = `🦸 JUNAK OTKRIVEN: ${def?.emodzi ?? ''} ${def?.naziv ?? targetId}!`;
+          }
+        } else {
+          break;
+        }
+      }
+
+      return {
+        junaci: { ...state.junaci, [targetId]: { fragmenti: noviFragmenti, razina: novaRazina } },
+        ...(novaOtkrica ? { poruka: novaOtkrica } : {}),
+      };
+    });
+  },
+
+  /**
+   * Aktiviraj ili deaktiviraj junaka. Junaci moraju biti otkriven (razina >= 1).
+   * Maksimalno HERO_MAX_AKTIVNIH aktivnih odjednom.
+   */
+  aktivirajHeroja: (heroId) => {
+    const s = get();
+    const heroState = s.junaci[heroId];
+    if (!heroState || heroState.razina <= 0) {
+      set({ poruka: 'JUNAK NIJE OTKRIVEN' });
+      return;
+    }
+    if (s.aktivniJunaci.includes(heroId)) {
+      set({ aktivniJunaci: s.aktivniJunaci.filter((id) => id !== heroId) });
+    } else {
+      if (s.aktivniJunaci.length >= HERO_MAX_AKTIVNIH) {
+        set({ poruka: `MAKSIMALNO ${HERO_MAX_AKTIVNIH} AKTIVNA JUNAKA` });
+        return;
+      }
+      set({ aktivniJunaci: [...s.aktivniJunaci, heroId] });
+    }
+  },
+
+  /**
+   * Potroši dijamante i dobij fragmente nasumičnog junaka.
+   * Vraća true pri uspjehu, false pri neuspjehu.
+   */
+  prizivajHeroja: () => {
+    const s = get();
+    if (s.dijamanti < HERO_SUMMON_KOST) {
+      set({ poruka: `TREBA ${HERO_SUMMON_KOST} 💎 ZA PRIZIVANJE` });
+      return false;
+    }
+    const targetId  = selectRandomHeroByWeight();
+    if (!targetId) return false;
+    const fragmenti = randomInt(4) + 3; // 3–6 fragmenata
+    set({ dijamanti: s.dijamanti - HERO_SUMMON_KOST });
+    const def = JUNACI.find((h) => h.id === targetId);
+    useGameStore.getState().dodijeliHeroFragmente(targetId, fragmenti);
+    const updated = useGameStore.getState().junaci[targetId];
+    if (!updated || updated.razina === 0) {
+      set({ poruka: `✨ PRIZVAN: ${def?.emodzi ?? ''} ${fragmenti}× ${def?.naziv ?? targetId} FRAGMENTI!` });
+    }
+    return true;
+  },
 }));
