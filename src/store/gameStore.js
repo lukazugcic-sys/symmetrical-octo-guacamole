@@ -30,6 +30,7 @@ const BP_XP_DOGADAJI = {
   spin: 1,
 };
 const TRAJANJE_SEZONE_MS = 30 * 24 * 60 * 60 * 1000;
+const RAID_ID_UPPER_BOUND = 1000000000;
 
 const odrediThemeSezone = (datum = new Date()) => {
   const aktivniDogadaj = dohvatiAktivniDogadaj(datum);
@@ -186,12 +187,24 @@ export const useGameStore = create((set, get) => ({
 
       // ─── Glavno stanje igre ───────────────────────────────────────────────
       let p = await migriraiAkoTreba('@save_game_eco_v31');
-      if (!p) p = await migriraiAkoTreba('@save_game_eco_v30');
+      let sourceKey = '@save_game_eco_v31';
+      if (!p) {
+        p = await migriraiAkoTreba('@save_game_eco_v30');
+        sourceKey = '@save_game_eco_v30';
+      }
       if (p) {
         const d = JSON.parse(p);
-        const staraSezona = d.sezona ? { ...novaSezona(), ...d.sezona } : novaSezona();
         const novaSezonaBroj = brojSezone(new Date());
-        const sezonaZaSet = staraSezona.sezonaBroj === novaSezonaBroj ? staraSezona : novaSezona();
+        const spremljenaSezona = d.sezona || null;
+        const sezonaZaSet =
+          spremljenaSezona && spremljenaSezona.sezonaBroj === novaSezonaBroj
+            ? {
+              ...novaSezona(),
+              ...spremljenaSezona,
+              bpClaimedFree: spremljenaSezona.bpClaimedFree ?? {},
+              bpClaimedPremium: spremljenaSezona.bpClaimedPremium ?? {},
+            }
+            : novaSezona();
         set({
           ...(d.igracRazina                                          ? { igracRazina: d.igracRazina }                           : {}),
           ...(d.prestigeRazina                                       ? { prestigeRazina: d.prestigeRazina }                     : {}),
@@ -224,6 +237,18 @@ export const useGameStore = create((set, get) => ({
           ...(d.clanRat ? { clanRat: { ...get().clanRat, ...d.clanRat } } : {}),
           ...(d.revengeTarget ? { revengeTarget: d.revengeTarget } : {}),
         });
+        if (sourceKey === '@save_game_eco_v30') {
+          const migratedPayload = {
+            ...d,
+            sezona: sezonaZaSet,
+            adsPogledanoDanas: d.adsPogledanoDanas ?? 0,
+            adsDatum: d.adsDatum ?? new Date().toDateString(),
+            zadnjiOnlineMs: d.zadnjiOnlineMs ?? Date.now(),
+            clanRat: d.clanRat ?? get().clanRat,
+            revengeTarget: d.revengeTarget ?? null,
+          };
+          await dbSet('@save_game_eco_v31', JSON.stringify(migratedPayload));
+        }
       }
 
       // ─── Dostignuća ───────────────────────────────────────────────────────
@@ -852,7 +877,7 @@ export const useGameStore = create((set, get) => ({
     ukupnoRaidova: state.ukupnoRaidova + 1,
     raidPovijest: [
       {
-        id: `out-${Date.now()}-${randomInt(1000000000)}`,
+        id: `out-${Date.now()}-${randomInt(RAID_ID_UPPER_BOUND)}`,
         tip: 'outgoing',
         metaUid: meta.uid ?? null,
         metaIme: meta.imeIgraca ?? 'Meta',

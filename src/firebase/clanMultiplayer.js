@@ -25,14 +25,16 @@
 
 import {
   doc, getDoc, setDoc, updateDoc, runTransaction,
-  onSnapshot, serverTimestamp,
+  onSnapshot, serverTimestamp, collection, query, where, getDocs, limit,
 } from 'firebase/firestore';
 import { db } from './config';
 import { generirajKlanZadatke } from '../config/constants';
+import { randomInt } from '../utils/helpers';
 
 const KOLEKCIJA = 'clans';
 const KOLEKCIJA_WARS = 'ratKlanova';
 const xpZaKlanRazinu = (razina = 1) => Math.max(1000, razina * 1000);
+const CLAN_WAR_ID_RANDOM_MAX = 1000000;
 
 /** Generira konzistentni clanId iz naziva (slug). */
 export const slugKlana = (naziv) =>
@@ -218,7 +220,18 @@ export const osvjeziZadatkeAkoTreba = async (clanId) => {
 
 export const osigurajClanRat = async (clanId, clanNaziv, clanRazina = 1) => {
   if (!clanId || !clanNaziv) return null;
-  const warId = `${new Date().toISOString().slice(0, 10)}_${clanId}`;
+  const aktivniQ = query(
+    collection(db, KOLEKCIJA_WARS),
+    where('klanA.id', '==', clanId),
+    where('status', '==', 'active'),
+    limit(1),
+  );
+  const aktivniSnap = await getDocs(aktivniQ);
+  if (!aktivniSnap.empty) {
+    const d = aktivniSnap.docs[0];
+    return { id: d.id, ...d.data() };
+  }
+  const warId = `${clanId}_${Date.now()}_${randomInt(CLAN_WAR_ID_RANDOM_MAX)}`;
   const ref = doc(db, KOLEKCIJA_WARS, warId);
   const postojeci = await getDoc(ref);
   if (postojeci.exists()) return { id: postojeci.id, ...postojeci.data() };

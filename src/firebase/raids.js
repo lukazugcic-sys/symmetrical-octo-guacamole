@@ -31,6 +31,7 @@ const KOLEKCIJA_RAIDS   = 'raids';
 const POSTOTAK_KRADJE   = 0.15; // 15% resursa po uspješnom napadu
 const RAID_COOLDOWN_MS  = 30 * 1000;
 const RETALIATION_WINDOW_MS = 60 * 60 * 1000;
+const RAID_ID_UPPER_BOUND = 1000000000;
 
 /**
  * Dohvati do `n` mogućih meta za napad.
@@ -121,7 +122,7 @@ export const izvrsiNapad = async (napadacUid, metaUid, options = {}) => {
 
       const novaMetaPovijest = [
         {
-          id: `in-${Date.now()}-${randomInt(1000000000)}`,
+          id: `in-${Date.now()}-${randomInt(RAID_ID_UPPER_BOUND)}`,
           tip: 'incoming',
           napadacUid,
           napadacIme: napadacData.imeIgraca ?? 'Napadač',

@@ -15,6 +15,18 @@ const BattlePassModal = ({ visible, onClose }) => {
   const aktivirajPremiumSezona = useGameStore((s) => s.aktivirajPremiumSezona);
   const preuzmiBattlePassNagradu = useGameStore((s) => s.preuzmiBattlePassNagradu);
 
+  const formatRewardString = (nagrada = {}) => {
+    const dijelovi = [];
+    if ((nagrada.zlato || 0) > 0) dijelovi.push(`${nagrada.zlato}🪙`);
+    if ((nagrada.dijamanti || 0) > 0) dijelovi.push(`${nagrada.dijamanti}💎`);
+    if ((nagrada.energija || 0) > 0) dijelovi.push(`${nagrada.energija}⚡`);
+    if ((nagrada.drvo || 0) > 0) dijelovi.push(`${nagrada.drvo}🌲`);
+    if ((nagrada.kamen || 0) > 0) dijelovi.push(`${nagrada.kamen}⛰️`);
+    if ((nagrada.zeljezo || 0) > 0) dijelovi.push(`${nagrada.zeljezo}⛏️`);
+    if (nagrada.skin) dijelovi.push(`Skin:${nagrada.skin}`);
+    return dijelovi.join(' · ') || '-';
+  };
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
@@ -47,8 +59,8 @@ const BattlePassModal = ({ visible, onClose }) => {
                 <View key={tier.razina} style={[styles.row, !unlocked && styles.rowLocked]}>
                   <Text style={styles.tier}>Lv {tier.razina}</Text>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.reward}>Free: {tier.free.zlato || 0}🪙 {tier.free.dijamanti || 0}💎</Text>
-                    <Text style={styles.reward}>Premium: {tier.premium.zlato || 0}🪙 {tier.premium.dijamanti || 0}💎 {tier.premium.skin ? `· Skin ${tier.premium.skin}` : ''}</Text>
+                    <Text style={styles.reward}>Free: {formatRewardString(tier.free)}</Text>
+                    <Text style={styles.reward}>Premium: {formatRewardString(tier.premium)}</Text>
                   </View>
                   <View style={styles.btnCol}>
                     <TouchableOpacity

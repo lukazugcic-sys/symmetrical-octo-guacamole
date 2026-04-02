@@ -34,7 +34,6 @@ const ClanScreen = () => {
   const [cloudWar, setCloudWar] = useState(null);
   const unsubscribeRef = useRef(null);
   const warUnsubscribeRef = useRef(null);
-  const warSyncTimerRef = useRef(null);
 
   // ─── Real-time Firestore listener ────────────────────────────────────────────
   useEffect(() => {
@@ -114,13 +113,10 @@ const ClanScreen = () => {
           nagrada: d.nagrada,
         });
       });
-      if (warSyncTimerRef.current) clearInterval(warSyncTimerRef.current);
-      warSyncTimerRef.current = setInterval(() => setCloudWar((prev) => (prev ? { ...prev } : prev)), 30000);
     }).catch(() => {});
     return () => {
       aktivan = false;
       if (warUnsubscribeRef.current) { warUnsubscribeRef.current(); warUnsubscribeRef.current = null; }
-      if (warSyncTimerRef.current) { clearInterval(warSyncTimerRef.current); warSyncTimerRef.current = null; }
     };
   }, [klan.naziv, klan.razina]);
 
@@ -168,6 +164,8 @@ const ClanScreen = () => {
   // ─── Klan HQ ─────────────────────────────────────────────────────────────────
   const xpZaRazinu = xpZaKlanRazinu(aktivniKlan.razina);
   const xpPostotak = Math.min(1, aktivniKlan.xp / xpZaRazinu);
+  const warMinutesRemaining = cloudWar?.zavrsilo ? Math.floor((cloudWar.zavrsilo - Date.now()) / 60000) : null;
+  const warFinished = warMinutesRemaining !== null && warMinutesRemaining <= 0;
 
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
@@ -338,7 +336,7 @@ const ClanScreen = () => {
           <Text style={styles.warScore}>BODOVI: {(cloudWar?.bodovi?.A ?? 0)} : {(cloudWar?.bodovi?.B ?? 0)}</Text>
           <Text style={styles.warLine}>
             Status: {cloudWar?.status ?? 'active'} ·
-            {cloudWar?.zavrsilo ? ` ${Math.max(0, Math.floor((cloudWar.zavrsilo - Date.now()) / 60000))} min` : ' 24h'}
+            {cloudWar?.zavrsilo ? (warFinished ? ' završeno' : ` ${warMinutesRemaining} min`) : ' 24h'}
           </Text>
           <TouchableOpacity
             style={styles.btn}

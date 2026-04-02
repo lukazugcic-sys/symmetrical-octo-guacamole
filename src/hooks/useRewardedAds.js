@@ -3,7 +3,8 @@ import { Alert } from 'react-native';
 import { RewardedAd, RewardedAdEventType, TestIds } from 'react-native-google-mobile-ads';
 import { useGameStore } from '../store/gameStore';
 
-const adUnitId = __DEV__ ? TestIds.REWARDED : 'ca-app-pub-3940256099942544/5224354917';
+const envAdUnitId = process.env.EXPO_PUBLIC_ADMOB_REWARDED_ID;
+const adUnitId = __DEV__ ? TestIds.REWARDED : (envAdUnitId || TestIds.REWARDED);
 
 export const useRewardedAds = () => {
   const mozePogledatiOglas = useGameStore((s) => s.mozePogledatiOglas);
