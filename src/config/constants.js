@@ -108,7 +108,7 @@ export const generirajMisiju = (excludeTipovi = []) => {
   const dostupne = BAZA_MISIJA.filter((m) => !excludeTipovi.includes(m.tip));
   const pool = dostupne.length ? dostupne : BAZA_MISIJA;
   const sablon = pool[randomInt(pool.length)];
-  return { id: `${Date.now()}-${randomInt(1e9)}`, ...sablon, trenutno: 0, zavrseno: false };
+  return { id: `${Date.now()}-${randomInt(1000000000)}`, ...sablon, trenutno: 0, zavrseno: false };
 };
 
 export const generirajUnikatneMisije = (broj = 3) => {

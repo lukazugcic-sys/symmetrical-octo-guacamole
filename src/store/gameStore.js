@@ -324,7 +324,9 @@ export const useGameStore = create((set, get) => ({
         igracRazina: currentRazina,
         dijamanti:   s.dijamanti + (5 * levelsGained),
         energija:    maxEnergija,
-        poruka:      `LEVEL UP! RAZINA ${currentRazina}`,
+        poruka:      levelsGained > 1
+          ? `LEVEL UP! +${levelsGained} RAZINA → ${currentRazina}`
+          : `LEVEL UP! RAZINA ${currentRazina}`,
         levelUpData: { razina: currentRazina },
       });
       get().provjeriDostignuca(undefined, undefined, undefined, undefined);
