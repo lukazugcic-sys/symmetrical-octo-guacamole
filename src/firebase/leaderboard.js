@@ -60,14 +60,13 @@ export const azurirajLjestvicu = async (uid, podaci) => {
  */
 export const dohvatiTopIgraca = async (cursorDoc = null, pageSize = TOP_N) => {
   try {
-    const base = [
-      collection(db, KOLEKCIJA),
+    const constraints = [
       orderBy('prestigeRazina', 'desc'),
       orderBy('ukupnoZlata',    'desc'),
-      limit(pageSize),
     ];
-    if (cursorDoc) base.splice(3, 0, startAfter(cursorDoc));
-    const q = query(...base);
+    if (cursorDoc) constraints.push(startAfter(cursorDoc));
+    constraints.push(limit(pageSize));
+    const q = query(collection(db, KOLEKCIJA), ...constraints);
     const snap    = await getDocs(q);
     const rezultat = [];
     snap.forEach((d) => rezultat.push(d.data()));

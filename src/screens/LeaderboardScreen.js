@@ -151,6 +151,9 @@ const LeaderboardScreen = () => {
         keyExtractor={(item) => item.uid}
         renderItem={renderIgrac}
         showsVerticalScrollIndicator={false}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={15}
+        windowSize={10}
         contentContainerStyle={styles.listContent}
         onEndReachedThreshold={0.5}
         onEndReached={ucitajJos}

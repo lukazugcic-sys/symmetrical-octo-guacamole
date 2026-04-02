@@ -30,14 +30,20 @@ import { db } from './config';
 
 const KOLEKCIJA = 'players';
 
-const validanCloudPayload = (data) =>
-  !!data
-  && typeof data === 'object'
-  && !Array.isArray(data)
-  && (!data.resursi || typeof data.resursi === 'object')
-  && (!data.gradevine || typeof data.gradevine === 'object')
-  && (!data.ostecenja || typeof data.ostecenja === 'object')
-  && (!data.razine || typeof data.razine === 'object');
+const validanCloudPayload = (data) => {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
+  // Validate nested objects have expected shape
+  if (data.resursi && typeof data.resursi !== 'object') return false;
+  if (data.gradevine && typeof data.gradevine !== 'object') return false;
+  if (data.ostecenja && typeof data.ostecenja !== 'object') return false;
+  if (data.razine && typeof data.razine !== 'object') return false;
+  // Validate numeric fields are actually numbers
+  if (data.zlato !== undefined && typeof data.zlato !== 'number') return false;
+  if (data.energija !== undefined && typeof data.energija !== 'number') return false;
+  if (data.dijamanti !== undefined && typeof data.dijamanti !== 'number') return false;
+  if (data.igracRazina !== undefined && typeof data.igracRazina !== 'number') return false;
+  return true;
+};
 
 /**
  * Spremi stanje igrača u Firestore.

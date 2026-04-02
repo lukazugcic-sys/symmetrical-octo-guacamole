@@ -2,6 +2,7 @@ import { Dimensions, Platform } from 'react-native';
 import {
   Zap, Shield, Gem, TreePine, Mountain, Pickaxe, Skull, Coins, Star,
 } from 'lucide-react-native';
+import { randomInt } from '../utils/helpers';
 
 // ─── Blago (simboli automata) ─────────────────────────────────────────────────
 export const BLAGO = {
@@ -106,8 +107,8 @@ export const BAZA_MISIJA = [
 export const generirajMisiju = (excludeTipovi = []) => {
   const dostupne = BAZA_MISIJA.filter((m) => !excludeTipovi.includes(m.tip));
   const pool = dostupne.length ? dostupne : BAZA_MISIJA;
-  const sablon = pool[Math.floor(Math.random() * pool.length)];
-  return { id: Date.now() + Math.random(), ...sablon, trenutno: 0, zavrseno: false };
+  const sablon = pool[randomInt(pool.length)];
+  return { id: `${Date.now()}-${randomInt(1000000000)}`, ...sablon, trenutno: 0, zavrseno: false };
 };
 
 export const generirajUnikatneMisije = (broj = 3) => {
@@ -162,6 +163,8 @@ export const LUCKY_SPIN_INTERVAL         = 25;
 export const MAX_WIN_STREAK              = 5;
 export const STREAK_BONUS_PER_WIN        = 0.15;
 export const WILD_BOOST_CHANCE_PER_LEVEL = 0.04;
+export const SHIELD_GRANT_MIN_BET        = 10; // Min bet for bonus shield grants
+export const MAX_GAMBLE_ROUNDS           = 5;  // Max consecutive gamble attempts per win
 
 // ─── Redoslijed ekrana (za navigaciju swipeom) ────────────────────────────────
 export const POREDAK_EKRANA = ['automat', 'selo', 'misije', 'trgovina', 'nadogradnje', 'klan', 'ljestvica'];

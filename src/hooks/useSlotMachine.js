@@ -9,6 +9,7 @@ import { useSeasonalEvent } from './useSeasonalEvent';
 import {
   SVO_BLAGO, BLAGO, LUCKY_SPIN_INTERVAL, MAX_WIN_STREAK,
   STREAK_BONUS_PER_WIN, WILD_BOOST_CHANCE_PER_LEVEL, ZGRADE,
+  SHIELD_GRANT_MIN_BET, MAX_GAMBLE_ROUNDS,
 } from '../config/constants';
 import {
   izracunajMaxStitova, izracunajPrestigeMnozitelj, izracunajSansuZaDobitak,
@@ -51,6 +52,7 @@ export const useSlotMachine = () => {
   const stupciBlurs    = useRef([...Array(5)].map(() => new Animated.Value(1))).current;
   const winScaleAnims  = useRef([...Array(15)].map(() => new Animated.Value(1))).current;
   const spinLoopsRef   = useRef([]);
+  const gambleCountRef = useRef(0);
 
   // ─── Animiraj pobjednička polja ─────────────────────────────────────────────
   const animirajDobitak = (polja) => {
@@ -70,6 +72,7 @@ export const useSlotMachine = () => {
 
     success();
     play('collect');
+    gambleCountRef.current = 0;
 
     const gs = useGameStore.getState();
     const maxStitova = izracunajMaxStitova(gs.razine.oklop || 0);
@@ -104,6 +107,11 @@ export const useSlotMachine = () => {
   const igrajGamble = (odabranaBoja) => {
     const trenutniDobitak = useSlotStore.getState().dobitakNaCekanju;
     if (!trenutniDobitak) return;
+    if (gambleCountRef.current >= MAX_GAMBLE_ROUNDS) {
+      useGameStore.setState({ poruka: `MAKSIMALNO ${MAX_GAMBLE_ROUNDS} DUPLANJA! PREUZMI DOBITAK.` });
+      return;
+    }
+    gambleCountRef.current += 1;
     const izvucenaKarta = randomChance(0.5) ? 'red' : 'black';
     const flashBoja = izvucenaKarta === 'red'
       ? 'rgba(255, 42, 85, 0.5)'
@@ -176,6 +184,7 @@ export const useSlotMachine = () => {
 
     useSlotStore.getState().setVrti(true);
     useSlotStore.getState().setDobitnaPolja([]);
+    gambleCountRef.current = 0;
     if (!jeFreeSpin) useGameStore.setState({ poruka: 'VRTNJA...' });
 
     // Haptika + zvuk pri početku vrtnje
@@ -290,7 +299,7 @@ export const useSlotMachine = () => {
           dobijeniXp += (consecutiveCount * ulog * 3);
 
           if (targetSymbol === 'shield' && !isAllWilds) {
-            ukupnoStitova += (ulog >= 10 ? 2 : 1) * (consecutiveCount - 2);
+            ukupnoStitova += (ulog >= SHIELD_GRANT_MIN_BET ? 2 : 1) * (consecutiveCount - 2);
           } else if (targetSymbol === 'energy' && !isAllWilds) {
              ukupnoEnergije += Math.floor(detalji.baza * ulog * 0.5 * multiplier * prestigeMnozitelj * winStreakMultiplier * eventMnozitelj * boostMnozitelj);
           } else if (targetSymbol === 'gem' || isAllWilds) {
