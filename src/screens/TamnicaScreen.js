@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { Shield } from 'lucide-react-native';
 import { useGameStore } from '../store/gameStore';
-import { BOJE, uiScale, FONT_FAMILY, TAMNICA_NEPRIJATELJI, TAMNICA_BOSSOVI, TAMNICA_SHOP, TAMNICA_KOST_ENERGIJE } from '../config/constants';
+import { BOJE, uiScale, FONT_FAMILY, TAMNICA_NEPRIJATELJI, TAMNICA_BOSSOVI, TAMNICA_SHOP, TAMNICA_KOST_ENERGIJE, TAMNICA_NAPAD_BAZA, TAMNICA_RANDOM_RASPON } from '../config/constants';
 
 // ─── Pomoćne komponente ───────────────────────────────────────────────────────
 
@@ -48,7 +48,7 @@ const NadogradnjaKartica = ({ def, razina, tokenovi, onKupi }) => {
           onPress={() => mozeKupiti && onKupi(def.id)}
         >
           <Text style={[styles.shopBtnTxt, mozeKupiti && { color: BOJE.tamnica }]}>
-            {mozeKupiti ? `🪙 ${kost} TOKENA — KUPI` : `🔒 TREBA ${kost} 🪙`}
+            {mozeKupiti ? `🔑 ${kost} TOKENA — KUPI` : `🔒 TREBA ${kost} 🔑`}
           </Text>
         </TouchableOpacity>
       ) : (
@@ -93,7 +93,7 @@ const TamnicaScreen = () => {
   const ishodTekst = (() => {
     if (!zadnjiIshod) return null;
     if (zadnjiIshod.tip === 'borba')   return `⚔️ Napad: -${zadnjiIshod.igracSteta} HP neprijatelju  |  Primio: -${zadnjiIshod.neprijSteta} HP`;
-    if (zadnjiIshod.tip === 'pobjeda') return `✅ Pobjeda! +${zadnjiIshod.nagradeZlato} 🪙  +${zadnjiIshod.nagradeTokenovi} 🪙 tokena`;
+    if (zadnjiIshod.tip === 'pobjeda') return `✅ Pobjeda! +${zadnjiIshod.nagradeZlato} 🪙  +${zadnjiIshod.nagradeTokenovi} 🔑`;
     if (zadnjiIshod.tip === 'smrt')    return `💀 Poginuo na spratu ${zadnjiIshod.dostigniSprat}`;
     if (zadnjiIshod.tip === 'bijeg')   return `🏃 Pobjegao sa sprata ${zadnjiIshod.dostigniSprat}`;
     return null;
@@ -116,7 +116,7 @@ const TamnicaScreen = () => {
           </View>
           <View style={styles.statChip}>
             <Text style={styles.statLabel}>TOKENOVI</Text>
-            <Text style={[styles.statVrijednost, { color: BOJE.zlato }]}>🪙 {tokenovi}</Text>
+            <Text style={[styles.statVrijednost, { color: BOJE.zlato }]}>🔑 {tokenovi}</Text>
           </View>
           <View style={styles.statChip}>
             <Text style={styles.statLabel}>ENERGIJA</Text>
@@ -246,9 +246,9 @@ const TamnicaScreen = () => {
           <View style={styles.infoKartica}>
             <Text style={styles.infoNaslov}>📊 TVOJE STATISTIKE</Text>
             {[
-              { l: 'Baza napada',   v: `${20 + snagaRazina * 15} + 0-15` },
+              { l: 'Baza napada',   v: `${TAMNICA_NAPAD_BAZA + snagaRazina * TAMNICA_SHOP[0].bonusPoRazini} + 0-${TAMNICA_RANDOM_RASPON - 1}` },
               { l: 'Max HP',        v: `${t.igracMaxHp}` },
-              { l: 'Lifesteal',     v: `${vampirRazina * 8}%` },
+              { l: 'Lifesteal',     v: `${vampirRazina * TAMNICA_SHOP[2].bonusPoRazini}%` },
             ].map((r, i) => (
               <View key={i} style={styles.statDetailRow}>
                 <Text style={styles.statDetailLabel}>{r.l}</Text>

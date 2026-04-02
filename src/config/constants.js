@@ -465,3 +465,6 @@ export const TAMNICA_SHOP = [
   { id: 'obrana',  naziv: 'Tamnički Oklop',  emodzi: '🛡️', opis: '+25 max HP po razini',  kost: 6,  maxRazina: 5, bonusPoRazini: 25 },
   { id: 'vampir',  naziv: 'Vampirski Čin',   emodzi: '🩸', opis: '+8% lifesteala po razini', kost: 12, maxRazina: 3, bonusPoRazini: 8  },
 ];
+
+export const TAMNICA_NAPAD_BAZA    = 20;  // bazični napad igrača u tamnici
+export const TAMNICA_RANDOM_RASPON = 16;  // randomInt(N) → 0 … N-1 dodano na napad

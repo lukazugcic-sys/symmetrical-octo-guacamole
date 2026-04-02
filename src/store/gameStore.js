@@ -11,6 +11,7 @@ import {
   HERO_MAX_RAZINA, HERO_SUMMON_KOST, HERO_MAX_AKTIVNIH,
   RECEPTI, TURNIR_RAZINE, SANDUK_TIPOVI,
   TAMNICA_NEPRIJATELJI, TAMNICA_BOSSOVI, TAMNICA_KOST_ENERGIJE, TAMNICA_IGRAC_MAX_HP, TAMNICA_SHOP,
+  TAMNICA_NAPAD_BAZA, TAMNICA_RANDOM_RASPON,
 } from '../config/constants';
 import { dohvatiAktivniDogadaj } from '../config/sezonalniDogadaji';
 import {
@@ -722,8 +723,8 @@ export const useGameStore = create((set, get) => ({
     const scaleMult = 1 + (t.sprat - 1) * 0.15;
 
     // Napad igrača
-    const bazaNapad = 20 + (t.snagaRazina * TAMNICA_SHOP[0].bonusPoRazini);
-    const igracSteta = bazaNapad + randomInt(16);
+    const bazaNapad = TAMNICA_NAPAD_BAZA + (t.snagaRazina * TAMNICA_SHOP[0].bonusPoRazini);
+    const igracSteta = bazaNapad + randomInt(TAMNICA_RANDOM_RASPON);
 
     // Napad neprijatelja
     let neprijMin = Math.ceil(nep.napadMin * scaleMult);
@@ -861,7 +862,7 @@ export const useGameStore = create((set, get) => ({
     }
     const kost = def.kost * (trenutnaRazina + 1);
     if ((s.tamnica?.tokenovi ?? 0) < kost) {
-      set({ poruka: `TREBA ${kost} 🪙 TOKENA ZA NADOGRADNJU` });
+      set({ poruka: `TREBA ${kost} 🔑 TOKENA ZA NADOGRADNJU` });
       return;
     }
     set((state) => ({
