@@ -83,14 +83,20 @@ export const useGameStore = create((set, get) => ({
       const migriraiAkoTreba = get()._migriraiAkoTreba;
 
       let p = await migriraiAkoTreba(SAVE_KEYS.game);
-      let sourceKey = SAVE_KEYS.game;
-      if (!p) { p = await migriraiAkoTreba(SAVE_KEYS.legacyV31); sourceKey = SAVE_KEYS.legacyV31; }
-      if (!p) { p = await migriraiAkoTreba(SAVE_KEYS.legacyV30); sourceKey = SAVE_KEYS.legacyV30; }
+      let loadedFromLegacy = false;
+      if (!p) {
+        p = await migriraiAkoTreba(SAVE_KEYS.legacyV31);
+        loadedFromLegacy = !!p;
+      }
+      if (!p) {
+        p = await migriraiAkoTreba(SAVE_KEYS.legacyV30);
+        loadedFromLegacy = !!p;
+      }
 
       if (p) {
         const loaded = deserializeGameSave(p);
         const d = loaded.data || {};
-        set({
+        const nextState = {
           ...(d.igracRazina                                           ? { igracRazina: d.igracRazina }                           : {}),
           ...(d.prestigeRazina                                        ? { prestigeRazina: d.prestigeRazina }                    : {}),
           ...(d.xp                                                    ? { xp: d.xp }                                            : {}),
@@ -114,7 +120,13 @@ export const useGameStore = create((set, get) => ({
           ...(d.adsPogledanoDanas !== undefined                       ? { adsPogledanoDanas: d.adsPogledanoDanas }             : {}),
           ...(d.adsDatum !== undefined                                ? { adsDatum: d.adsDatum }                               : {}),
           ...(d.zadnjiOnlineMs !== undefined                          ? { zadnjiOnlineMs: d.zadnjiOnlineMs }                   : {}),
-        });
+        };
+        set(nextState);
+
+        if (loadedFromLegacy) {
+          const migratedSnapshot = createRuntimeSaveSnapshot({ ...get(), ...nextState });
+          await dbSet(SAVE_KEYS.game, serializeGameSave(migratedSnapshot));
+        }
       }
 
       // Dostignuća

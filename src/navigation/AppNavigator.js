@@ -85,12 +85,18 @@ const TabButton = React.memo(({ tab, aktivan, onPress }) => {
 });
 
 const CustomTabBar = ({ state, navigation }) => {
+  const currentIndexRef = useRef(state.index);
+
+  useEffect(() => {
+    currentIndexRef.current = state.index;
+  }, [state.index]);
+
   const swipeRef = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, g) =>
         Math.abs(g.dx) > SWIPE_MIN_DX && Math.abs(g.dx) > Math.abs(g.dy) * SWIPE_DIR_RATIO,
       onPanResponderRelease: (_, g) => {
-        const idx = state.index;
+        const idx = currentIndexRef.current;
         if (g.dx < -60 && idx < TAB_KONFIGURACIJA.length - 1) {
           navigation.navigate(TAB_KONFIGURACIJA[idx + 1].routeName);
         } else if (g.dx > 60 && idx > 0) {

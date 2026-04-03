@@ -25,7 +25,7 @@ let spinGuard = false;
  *  - igrajGamble — duplanje dobitka (crvena/crna)
  *
  * Flash i shake efekti čitaju se iz UIContext.
- * Symbol pool se prilagođuje aktivnom sezonalnom događaju.
+ * Symbol pool je statičan i definiran u constants.js.
  */
 export const useSlotMachine = () => {
   const { onFlash: _onFlash, onShake: _onShake } = useUI();
