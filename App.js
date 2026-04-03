@@ -80,7 +80,6 @@ export default function App() {
   const klan             = useGameStore((s) => s.klan);
   const zadnjiVideniEventId = useGameStore((s) => s.zadnjiVideniEventId);
   const oznaciEventVidjen = useGameStore((s) => s.oznaciEventVidjen);
-  const zadnjiOnlineMs = useGameStore((s) => s.zadnjiOnlineMs);
   const primijeniOfflineNapredak = useGameStore((s) => s.primijeniOfflineNapredak);
   const junaci           = useGameStore((s) => s.junaci);
   const aktivniJunaci    = useGameStore((s) => s.aktivniJunaci);
@@ -93,11 +92,12 @@ export default function App() {
   useEffect(() => {
     if (ucitavam) return;
     const now = Date.now();
-    if (zadnjiOnlineMs && now > zadnjiOnlineMs) {
-      primijeniOfflineNapredak(Math.floor((now - zadnjiOnlineMs) / 1000));
+    const last = useGameStore.getState().zadnjiOnlineMs;
+    if (last && now > last) {
+      primijeniOfflineNapredak(Math.floor((now - last) / 1000));
     }
     useGameStore.setState({ zadnjiOnlineMs: now });
-  }, [ucitavam, zadnjiOnlineMs, primijeniOfflineNapredak]);
+  }, [ucitavam, primijeniOfflineNapredak]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
