@@ -45,7 +45,7 @@ const VillageScreen = () => {
             <View style={{ flex: 1, paddingLeft: 16 }}>
               <Text style={styles.prestigeTitle}>KRUNIDBA (PRESTIGE)</Text>
               <Text style={styles.prestigeDesc}>
-                Resetiraj bazu i vrati se na Level 1, ali dobij trajni x1.5 množitelj na SVE nagrade i proizvodnju u igri!
+                Resetiraj bazu i vrati se na Level 1, ali dobij trajni +35% množitelj na SVE nagrade i proizvodnju u igri po razini prestige!
               </Text>
             </View>
           </View>

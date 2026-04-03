@@ -182,6 +182,57 @@ export const STIT_REGEN_INTERVAL_SEK = 90;
 export const OFFLINE_MAX_SEK = 8 * 60 * 60;
 export const MAX_AD_VIEWS_DNEVNO = 5;
 
+// ─── Junaci ───────────────────────────────────────────────────────────────────
+// 4 rarity tiers: obican / rijetki / epski / legendarni
+// tipBonusa: 'zlato' | 'luck' | 'xp' (slot bonuses)
+//            'energija' | 'pasivno' | 'stit' (timerTick bonuses)
+export const JUNACI = [
+  { id: 'warrior',      naziv: 'Ratnik',          tipBonusa: 'zlato',    bonusPoRazini: 0.05, raritet: 'obican'     },
+  { id: 'scout',        naziv: 'Izviđač',          tipBonusa: 'luck',     bonusPoRazini: 0.02, raritet: 'obican'     },
+  { id: 'mage',         naziv: 'Čarobnjak',        tipBonusa: 'xp',       bonusPoRazini: 0.08, raritet: 'rijetki'    },
+  { id: 'knight',       naziv: 'Vitez',            tipBonusa: 'stit',     bonusPoRazini: 0.10, raritet: 'rijetki'    },
+  { id: 'archer',       naziv: 'Strijelac',        tipBonusa: 'zlato',    bonusPoRazini: 0.08, raritet: 'rijetki'    },
+  { id: 'healer',       naziv: 'Iscjelitelj',      tipBonusa: 'energija', bonusPoRazini: 0.05, raritet: 'rijetki'    },
+  { id: 'paladin',      naziv: 'Paladin',          tipBonusa: 'stit',     bonusPoRazini: 0.15, raritet: 'epski'      },
+  { id: 'druid',        naziv: 'Druid',            tipBonusa: 'pasivno',  bonusPoRazini: 0.10, raritet: 'epski'      },
+  { id: 'sorcerer',     naziv: 'Vještac',          tipBonusa: 'xp',       bonusPoRazini: 0.12, raritet: 'epski'      },
+  { id: 'berserker',    naziv: 'Berserker',        tipBonusa: 'zlato',    bonusPoRazini: 0.15, raritet: 'epski'      },
+  { id: 'archmage',     naziv: 'Arhimag',          tipBonusa: 'energija', bonusPoRazini: 0.12, raritet: 'legendarni' },
+  { id: 'dragon_knight',naziv: 'Zmajski Vitez',    tipBonusa: 'pasivno',  bonusPoRazini: 0.20, raritet: 'legendarni' },
+];
+
+// ─── Tamnica (Dungeon) ────────────────────────────────────────────────────────
+export const TAMNICA_IGRAC_MAX_HP = 100;
+
+export const TAMNICA_NEPRIJATELJI = [
+  { id: 'goblin',  naziv: 'Goblin',  bazaHp: 30,  napad: 5,  ikona: '👺' },
+  { id: 'orc',     naziv: 'Ork',     bazaHp: 60,  napad: 10, ikona: '👹' },
+  { id: 'troll',   naziv: 'Trol',    bazaHp: 120, napad: 18, ikona: '🧌' },
+  { id: 'dragon',  naziv: 'Zmaj',    bazaHp: 250, napad: 35, ikona: '🐉' },
+];
+
+export const TAMNICA_BOSSOVI = [
+  { sprat: 5,  naziv: 'Goblin Kralj',  hpMnozac: 2.5, napadMnozac: 1.5, bonus: { zlato: 200,  dijamanti: 3,  tokenovi: 1 } },
+  { sprat: 10, naziv: 'Ork Vojevoda',  hpMnozac: 3.0, napadMnozac: 2.0, bonus: { zlato: 500,  dijamanti: 7,  tokenovi: 2 } },
+  { sprat: 15, naziv: 'Drevni Zmaj',   hpMnozac: 4.0, napadMnozac: 2.5, bonus: { zlato: 1200, dijamanti: 15, tokenovi: 3 } },
+];
+
+// index 0 = napad upgrade, index 1 = obrana upgrade (bonusPoRazini = HP gained per level)
+export const TAMNICA_SHOP = [
+  { id: 'snaga',  naziv: 'Snaga napada', cijena: 50, bonusPoRazini: 5  },
+  { id: 'obrana', naziv: 'Obrana',       cijena: 50, bonusPoRazini: 10 },
+  { id: 'lijek',  naziv: 'Lijek',        cijena: 30, bonusPoRazini: 0, jednokratno: true },
+];
+
+// ─── Turnir (Tournament) ──────────────────────────────────────────────────────
+export const TURNIR_RAZINE = [
+  { id: 'bronca',   naziv: 'Bronca',   minBodova: 0,    nagrada: { zlato: 200 } },
+  { id: 'srebro',   naziv: 'Srebro',   minBodova: 100,  nagrada: { zlato: 500,  dijamanti: 3  } },
+  { id: 'zlato',    naziv: 'Zlato',    minBodova: 300,  nagrada: { zlato: 1000, dijamanti: 8  } },
+  { id: 'platina',  naziv: 'Platina',  minBodova: 600,  nagrada: { zlato: 2000, dijamanti: 20 } },
+  { id: 'dijamant', naziv: 'Dijamant', minBodova: 1000, nagrada: { zlato: 5000, dijamanti: 50 } },
+];
+
 const _contentValidation = validateGameContent({
   BAZA_MISIJA,
   DOSTIGNUCA,
