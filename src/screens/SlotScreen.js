@@ -9,11 +9,7 @@ import { Zap, Sparkles, CircleHelp, Shield, Skull, Star, Gem, Coins, TreePine, M
 import { useGameStore } from '../store/gameStore';
 import { useSlotStore } from '../store/slotStore';
 import { useSlotMachine } from '../hooks/useSlotMachine';
-import { useSeasonalEvent } from '../hooks/useSeasonalEvent';
 import SlotReel    from '../components/SlotReel';
-import EventBanner from '../components/EventBanner';
-import RaidModal   from '../components/RaidModal';
-import SandukModal from '../components/SandukModal';
 import { BOJE, LUCKY_SPIN_INTERVAL, MAX_WIN_STREAK, STREAK_BONUS_PER_WIN, MAX_GAMBLE_ROUNDS, uiScale, FONT_FAMILY } from '../config/constants';
 import { useRewardedAds } from '../hooks/useRewardedAds';
 
@@ -23,16 +19,13 @@ import { useRewardedAds } from '../hooks/useRewardedAds';
  */
 const SlotScreen = () => {
   const poruka          = useGameStore((s) => s.poruka);
-  const aktivniDogadaj  = useSeasonalEvent();
   const energija        = useGameStore((s) => s.energija);
   const luckySpinCounter = useGameStore((s) => s.luckySpinCounter);
   const winStreak       = useGameStore((s) => s.winStreak);
   const kupiEnergijuHitno = useGameStore((s) => s.kupiEnergijuHitno);
   const spinBoostPreostalo = useGameStore((s) => s.spinBoostPreostalo);
   const [prikazLegend, setPrikazLegend] = useState(false);
-  const [prikazSanduk, setPrikazSanduk] = useState(false);
   const stitovi = useGameStore((s) => s.stitovi);
-  const sandukDatum = useGameStore((s) => s.sandukDatum);
   const dobitakRef = useSlotStore((s) => s.dobitakNaCekanju);
   const { prikaziRewardedAd } = useRewardedAds();
 
@@ -40,19 +33,14 @@ const SlotScreen = () => {
   const ulog            = useSlotStore((s) => s.ulog);
   const dobitakNaCekanju = useSlotStore((s) => s.dobitakNaCekanju);
   const turboRezim      = useSlotStore((s) => s.turboRezim);
-  const raidAktivan     = useSlotStore((s) => s.raidAktivan);
   const setUlog         = useSlotStore((s) => s.setUlog);
   const setTurboRezim   = useSlotStore((s) => s.setTurboRezim);
-  const setRaidAktivan  = useSlotStore((s) => s.setRaidAktivan);
 
   const { stupciAnims, stupciBlurs, winScaleAnims, zavrtiMasinu, preuzmiDobitak, igrajGamble } =
     useSlotMachine();
 
   const jeFreeSpin = luckySpinCounter === 1;
   const streakMultiplier = 1 + (Math.min(winStreak, MAX_WIN_STREAK) * STREAK_BONUS_PER_WIN);
-
-  const danas = new Date().toDateString();
-  const besplatniOtvoren = sandukDatum === danas;
 
   // Animacija spin gumba
   const spinBtnScale = useSharedValue(1);
@@ -64,10 +52,7 @@ const SlotScreen = () => {
 
   return (
     <View style={styles.gameContainer}>
-      {/* Sezonalni događaj */}
-      <EventBanner dogadaj={aktivniDogadaj} />
-
-      {/* Poruka + sanduk gumb */}
+      {/* Poruka */}
       <View style={styles.topRow}>
         <View style={[styles.messageBubble, { flex: 1 }]}>
           <Sparkles size={16} color={BOJE.slotVatra} style={{ marginRight: 8 }} />
@@ -77,14 +62,6 @@ const SlotScreen = () => {
             <CircleHelp size={16} color={BOJE.textMain} />
           </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={[styles.sandukBtn, besplatniOtvoren && styles.sandukBtnOtvoren]}
-          onPress={() => setPrikazSanduk(true)}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.sandukEmodzi}>📦</Text>
-          {!besplatniOtvoren && <View style={styles.sandukDot} />}
-        </TouchableOpacity>
       </View>
 
       {spinBoostPreostalo > 0 && (
@@ -211,14 +188,6 @@ const SlotScreen = () => {
           )}
         </View>
       )}
-      <RaidModal
-        vidljiv={raidAktivan}
-        onZatvori={() => setRaidAktivan(false)}
-      />
-      <SandukModal
-        vidljiv={prikazSanduk}
-        onZatvori={() => setPrikazSanduk(false)}
-      />
       <Modal visible={prikazLegend} transparent animationType="fade" onRequestClose={() => setPrikazLegend(false)}>
         <View style={styles.legendOverlay}>
           <View style={styles.legendCard}>
@@ -251,29 +220,6 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 20,
     alignSelf: 'stretch',
-  },
-  sandukBtn: {
-    width: 50,
-    height: 50,
-    borderRadius: 16,
-    backgroundColor: 'rgba(20, 22, 35, 0.98)',
-    borderWidth: 1,
-    borderColor: '#FBBF2459',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sandukBtnOtvoren: { borderColor: BOJE.border, opacity: 0.6 },
-  sandukEmodzi: { fontSize: 22 },
-  sandukDot: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#22C55E',
-    borderWidth: 1.5,
-    borderColor: '#06060F',
   },
 
   messageBubble: {
@@ -348,20 +294,22 @@ const styles = StyleSheet.create({
   streakTxt:      { color: '#FF8C00', fontSize: 12, fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 0.5 },
   turboBtn:       { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: BOJE.bgCard, borderWidth: 1, borderColor: BOJE.border },
   turboBtnActive: { backgroundColor: BOJE.energija, borderColor: BOJE.energija },
-  turboTxt:       { fontSize: 11, fontWeight: '900', fontFamily: FONT_FAMILY, color: BOJE.textMuted, letterSpacing: 0.5 },
-  quickEnergyBtn: { backgroundColor: BOJE.zlato + '20', borderWidth: 1, borderColor: BOJE.zlato + '60', borderRadius: 12, paddingVertical: 10 },
-  quickEnergyTxt: { textAlign: 'center', color: BOJE.zlato, fontFamily: FONT_FAMILY, fontWeight: '900', fontSize: 12 },
-  adEnergyBtn: { backgroundColor: BOJE.energija + '20', borderWidth: 1, borderColor: BOJE.energija + '60', borderRadius: 12, paddingVertical: 10 },
-  adEnergyTxt: { textAlign: 'center', color: BOJE.energija, fontFamily: FONT_FAMILY, fontWeight: '900', fontSize: 12 },
-  adShieldBtn: { marginTop: 8, backgroundColor: BOJE.stit + '20', borderWidth: 1, borderColor: BOJE.stit + '60', borderRadius: 12, paddingVertical: 9 },
-  adShieldTxt: { textAlign: 'center', color: BOJE.stit, fontFamily: FONT_FAMILY, fontWeight: '900', fontSize: 12 },
-  legendOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  legendCard: { width: '100%', backgroundColor: BOJE.bgCard, borderWidth: 1, borderColor: BOJE.border, borderRadius: 18, padding: 18 },
-  legendTitle: { color: BOJE.textMain, fontFamily: FONT_FAMILY, fontWeight: '900', marginBottom: 12, textAlign: 'center' },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 7 },
-  legendTxt: { color: BOJE.textMuted, fontFamily: FONT_FAMILY, fontSize: 12 },
-  legendCloseBtn: { marginTop: 10, backgroundColor: BOJE.energija, borderRadius: 10, paddingVertical: 10 },
-  legendCloseTxt: { textAlign: 'center', color: '#000', fontFamily: FONT_FAMILY, fontWeight: '900' },
+  turboTxt:       { color: BOJE.textMuted, fontSize: 12, fontWeight: '900', fontFamily: FONT_FAMILY },
+
+  quickEnergyBtn: { backgroundColor: BOJE.bgCard, borderRadius: 14, paddingVertical: 12, borderWidth: 1, borderColor: BOJE.energija + '66' },
+  quickEnergyTxt: { textAlign: 'center', color: BOJE.energija, fontWeight: '900', fontFamily: FONT_FAMILY, fontSize: 12 },
+  adEnergyBtn:    { backgroundColor: BOJE.bgCard, borderRadius: 14, paddingVertical: 12, borderWidth: 1, borderColor: BOJE.dijamant + '66' },
+  adEnergyTxt:    { textAlign: 'center', color: BOJE.dijamant, fontWeight: '900', fontFamily: FONT_FAMILY, fontSize: 12 },
+  adShieldBtn:    { marginTop: 10, backgroundColor: BOJE.bgCard, borderRadius: 14, paddingVertical: 12, borderWidth: 1, borderColor: BOJE.stit + '66' },
+  adShieldTxt:    { textAlign: 'center', color: BOJE.stit, fontWeight: '900', fontFamily: FONT_FAMILY, fontSize: 12 },
+
+  legendOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  legendCard:    { backgroundColor: '#0C0E1C', borderRadius: 28, padding: 24, width: '100%', borderWidth: 1, borderColor: BOJE.border },
+  legendTitle:   { color: BOJE.textMain, fontSize: Math.round(16 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 1.5, marginBottom: 16, textAlign: 'center' },
+  legendItem:    { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
+  legendTxt:     { color: BOJE.textMuted, fontSize: 13, fontFamily: FONT_FAMILY, fontWeight: '600' },
+  legendCloseBtn:{ marginTop: 16, backgroundColor: BOJE.slotVatra, borderRadius: 14, paddingVertical: 12, alignItems: 'center' },
+  legendCloseTxt:{ color: '#FFF', fontWeight: '900', fontFamily: FONT_FAMILY, fontSize: 14 },
 });
 
 export default SlotScreen;

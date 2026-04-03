@@ -1,12 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
 import { Crown } from 'lucide-react-native';
-import { useNavigation } from '@react-navigation/native';
 import { useGameStore } from '../store/gameStore';
-import { useSlotStore } from '../store/slotStore';
 import BuildingCard from '../components/BuildingCard';
 import { BOJE, ZGRADE, uiScale, FONT_FAMILY } from '../config/constants';
-import { dohvatiRaidPovijest } from '../firebase/raids';
 
 /**
  * Ekran sela — prikaz zgrada, mogućnost nadogradnje/popravka, prestige gumb.
@@ -14,28 +11,11 @@ import { dohvatiRaidPovijest } from '../firebase/raids';
 const VillageScreen = () => {
   const gradevine     = useGameStore((s) => s.gradevine);
   const izvrsiPrestige = useGameStore((s) => s.izvrsiPrestige);
-  const uid = useGameStore((s) => s.uid);
-  const raidPovijest = useGameStore((s) => s.raidPovijest);
-  const postaviRevengeTarget = useGameStore((s) => s.postaviRevengeTarget);
-  const setRaidAktivan = useSlotStore((s) => s.setRaidAktivan);
-  const navigation = useNavigation();
-  const [ucitavaPovijest, setUcitavaPovijest] = useState(false);
 
   const spremanZaPrestige =
     gradevine.pilana    === ZGRADE[0].maxLv &&
     gradevine.kamenolom === ZGRADE[1].maxLv &&
     gradevine.rudnik    === ZGRADE[2].maxLv;
-
-  useEffect(() => {
-    let aktivan = true;
-    if (!uid) return undefined;
-    setUcitavaPovijest(true);
-    dohvatiRaidPovijest(uid).then((povijest) => {
-      if (!aktivan || !Array.isArray(povijest)) return;
-      useGameStore.setState({ raidPovijest: povijest.slice(0, 20) });
-    }).finally(() => { if (aktivan) setUcitavaPovijest(false); });
-    return () => { aktivan = false; };
-  }, [uid]);
 
   const potvrdiPrestige = () => {
     Alert.alert(
@@ -74,40 +54,6 @@ const VillageScreen = () => {
           </TouchableOpacity>
         </View>
       )}
-      <View style={styles.raidLogCard}>
-        <Text style={styles.raidLogTitle}>NEDAVNI RAIDOVI</Text>
-        {ucitavaPovijest ? (
-          <Text style={styles.raidLogEmpty}>Učitavanje...</Text>
-        ) : raidPovijest.length === 0 ? (
-          <Text style={styles.raidLogEmpty}>Nema nedavnih napada.</Text>
-        ) : raidPovijest.slice(0, 6).map((r) => {
-          const vrijeme = r.vrijemeNapadaMs ? new Date(r.vrijemeNapadaMs).toLocaleTimeString() : '';
-          const jeOut = r.tip === 'outgoing';
-          const mozeOsveta = !jeOut && r.napadacUid && r.mozeProtunapadDo && Date.now() < r.mozeProtunapadDo;
-          return (
-            <View key={r.id} style={styles.raidLogRow}>
-              <Text style={styles.raidLogItem}>
-                {jeOut ? '⚔️ Napao' : '🛡️ Napadnut'} {jeOut ? (r.metaIme ?? 'meta') : (r.napadacIme ?? 'napadač')} ·
-                {' '}{Math.floor(r.ukradeno?.drvo ?? 0)}🌲 {Math.floor(r.ukradeno?.kamen ?? 0)}⛰️ {Math.floor(r.ukradeno?.zeljezo ?? 0)}⛏️
-                {vrijeme ? ` · ${vrijeme}` : ''}
-              </Text>
-              {mozeOsveta && (
-                <TouchableOpacity
-                  style={styles.revengeBtn}
-                  onPress={() => {
-                    postaviRevengeTarget(r);
-                    useGameStore.setState({ poruka: '⚔️ OSVETA: +25% PLIJEN AKTIVAN' });
-                    setRaidAktivan(true);
-                    navigation.navigate('Igraj');
-                  }}
-                >
-                  <Text style={styles.revengeBtnTxt}>OSVETI SE</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          );
-        })}
-      </View>
     </ScrollView>
   );
 };
@@ -169,53 +115,6 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     fontFamily: FONT_FAMILY,
     fontSize: 15,
-  },
-  raidLogCard: {
-    marginTop: 8,
-    backgroundColor: BOJE.bgCard,
-    borderWidth: 1,
-    borderColor: BOJE.border,
-    borderRadius: 18,
-    padding: 14,
-  },
-  raidLogTitle: {
-    color: BOJE.textMain,
-    fontFamily: FONT_FAMILY,
-    fontWeight: '900',
-    marginBottom: 8,
-    fontSize: 13,
-    letterSpacing: 1,
-  },
-  raidLogItem: {
-    color: BOJE.textMuted,
-    fontFamily: FONT_FAMILY,
-    fontSize: 12,
-    marginBottom: 6,
-  },
-  raidLogRow: {
-    marginBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: BOJE.border,
-    paddingBottom: 8,
-  },
-  revengeBtn: {
-    alignSelf: 'flex-start',
-    backgroundColor: BOJE.slotVatra,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    marginTop: 4,
-  },
-  revengeBtnTxt: {
-    color: '#fff',
-    fontFamily: FONT_FAMILY,
-    fontWeight: '900',
-    fontSize: 11,
-  },
-  raidLogEmpty: {
-    color: BOJE.textMuted,
-    fontFamily: FONT_FAMILY,
-    fontSize: 12,
   },
 });
 
