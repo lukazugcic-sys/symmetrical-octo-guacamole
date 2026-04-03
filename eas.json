@@ -1,7 +1,6 @@
 {
   "cli": {
-    "version": ">= 5.9.1",
-    "appVersionSource": "local"
+    "version": ">= 5.9.1"
   },
   "build": {
     "development": {
@@ -24,7 +23,7 @@
   "submit": {
     "production": {
       "android": {
-        "serviceAccountKeyPath": "./google-services-account.json",
+        "serviceAccountKeyPath": "REPLACE_WITH_PATH_OR_USE_EAS_SECRETS",
         "track": "internal"
       }
     }
