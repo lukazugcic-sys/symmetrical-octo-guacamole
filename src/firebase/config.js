@@ -48,13 +48,14 @@ const FIREBASE_ENV_MAP = {
   measurementId: 'EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID',
 };
 
-const firebaseConfig = Object.fromEntries(
-  Object.entries(FIREBASE_ENV_MAP).map(([configKey, envKey]) => [configKey, process.env[envKey] ?? '']),
-);
+const firebaseConfig = {};
+const missingConfigKeys = [];
 
-const missingConfigKeys = Object.entries(FIREBASE_ENV_MAP)
-  .filter(([, envKey]) => (process.env[envKey] ?? '') === '')
-  .map(([, envKey]) => envKey);
+Object.entries(FIREBASE_ENV_MAP).forEach(([configKey, envKey]) => {
+  const value = process.env[envKey] ?? '';
+  firebaseConfig[configKey] = value;
+  if (value === '') missingConfigKeys.push(envKey);
+});
 
 if (missingConfigKeys.length > 0) {
   const poruka = `[Firebase] Missing required environment variables: ${missingConfigKeys.join(', ')}`;
