@@ -58,8 +58,8 @@ export const deserializeGameSave = (serialized) => {
 };
 
 export const mergeByRecency = ({ localSavedAt, cloudSavedAt, localData, cloudData }) => {
-  const l = Number.isFinite(localSavedAt) ? localSavedAt : 0;
-  const c = Number.isFinite(cloudSavedAt) ? cloudSavedAt : 0;
-  if (c > l) return { source: 'cloud', data: cloudData };
+  const localTimestamp = Number.isFinite(localSavedAt) ? localSavedAt : 0;
+  const cloudTimestamp = Number.isFinite(cloudSavedAt) ? cloudSavedAt : 0;
+  if (cloudTimestamp > localTimestamp) return { source: 'cloud', data: cloudData };
   return { source: 'local', data: localData };
 };

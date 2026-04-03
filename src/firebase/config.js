@@ -38,7 +38,7 @@ import { getAuth }      from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 // ─── Firebase konfiguracija ───────────────────────────────────────────────────
-const readConfig = (key, fallback = '') => process.env[key] || fallback;
+const readConfig = (key, fallback = '') => process.env[key] ?? fallback;
 const firebaseConfig = {
   apiKey:            readConfig('EXPO_PUBLIC_FIREBASE_API_KEY'),
   authDomain:        readConfig('EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN'),
@@ -48,8 +48,12 @@ const firebaseConfig = {
   appId:             readConfig('EXPO_PUBLIC_FIREBASE_APP_ID'),
   measurementId:     readConfig('EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID'),
 };
-if (!firebaseConfig.projectId) {
-  console.warn('[Firebase] Missing EXPO_PUBLIC_FIREBASE_* environment variables.');
+const missingConfigKeys = Object.entries(firebaseConfig)
+  .filter(([, value]) => value === '')
+  .map(([key]) => key);
+
+if (missingConfigKeys.length > 0) {
+  console.warn(`[Firebase] Missing EXPO_PUBLIC_FIREBASE_* values for: ${missingConfigKeys.join(', ')}`);
 }
 
 // Singleton — izbjegava višestruku inicijalizaciju pri hot-reloadu

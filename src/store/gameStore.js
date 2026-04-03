@@ -258,12 +258,22 @@ export const useGameStore = create((set, get) => ({
         let d = loaded.data || {};
         if (loaded.corrupted) {
           try {
-            const cloudState = get().uid ? await ucitajCloud(get().uid) : null;
+            let cloudState = null;
+            if (get().uid) {
+              try {
+                cloudState = await ucitajCloud(get().uid);
+              } catch {
+                cloudState = null;
+              }
+            }
+            const cloudData = (cloudState && typeof cloudState === 'object' && !Array.isArray(cloudState))
+              ? cloudState
+              : null;
             const merge = mergeByRecency({
               localSavedAt: loaded.savedAt,
-              cloudSavedAt: Number.isFinite(cloudState?.savedAt) ? cloudState.savedAt : 0,
+              cloudSavedAt: Number.isFinite(cloudData?.savedAt) ? cloudData.savedAt : 0,
               localData: d,
-              cloudData: cloudState?.data || cloudState || d,
+              cloudData: cloudData ?? d,
             });
             d = merge.data || d;
           } catch {
