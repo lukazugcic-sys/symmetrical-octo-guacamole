@@ -84,7 +84,7 @@ export const dohvatiMete = async (napadacUid, n = 5) => {
  * @returns {Promise<{drvo, kamen, zeljezo}|null>} ukradeni resursi ili null ako napad nije uspio
  */
 export const izvrsiNapad = async (napadacUid, metaUid, options = {}) => {
-  if (!napadacUid || !metaUid) return null;
+  if (!napadacUid || !metaUid || napadacUid === metaUid) return null;
   try {
     const napadacRef = doc(db, KOLEKCIJA_PLAYERS, napadacUid);
     const metaRef = doc(db, KOLEKCIJA_PLAYERS, metaUid);

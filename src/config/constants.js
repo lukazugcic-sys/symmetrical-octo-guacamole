@@ -3,6 +3,7 @@ import {
   Zap, Shield, Gem, TreePine, Mountain, Pickaxe, Skull, Coins, Star,
 } from 'lucide-react-native';
 import { randomInt } from '../utils/helpers';
+import { validateGameContent } from '../domain/content/validateContent';
 
 // ─── Blago (simboli automata) ─────────────────────────────────────────────────
 export const BLAGO = {
@@ -468,3 +469,18 @@ export const TAMNICA_SHOP = [
 
 export const TAMNICA_NAPAD_BAZA    = 20;  // bazični napad igrača u tamnici
 export const TAMNICA_RANDOM_RASPON = 16;  // randomInt(N) → 0 … N-1 dodano na napad
+
+const _contentValidation = validateGameContent({
+  BAZA_MISIJA,
+  DOSTIGNUCA,
+  JUNACI,
+  RECEPTI,
+  TURNIR_RAZINE,
+  SANDUK_TIPOVI,
+  TAMNICA_NEPRIJATELJI,
+  TAMNICA_BOSSOVI,
+});
+
+if (!_contentValidation.ok) {
+  console.warn('[ContentValidation] Invalid content tables:', _contentValidation.errors.join(', '));
+}

@@ -10,6 +10,7 @@ import {
 } from '../firebase/clanMultiplayer';
 import { posaljiNotifikaciju } from '../hooks/useNotifications';
 import { ucitajCloud } from '../firebase/cloudSave';
+import { sanitizeClanName } from '../domain/validation/input';
 
 const DONACIJA_IZNOS = 200; // zlato po jednom kliku donacije
 const xpZaKlanRazinu = (razina = 1) => Math.max(1000, razina * 1000);
@@ -126,8 +127,8 @@ const ClanScreen = () => {
   // ─── Osnivanje klana ─────────────────────────────────────────────────────────
 
   const handleOsnuji = async () => {
-    const naziv = imeTxt.trim();
-    if (naziv.length < 2) return;
+    const naziv = sanitizeClanName(imeTxt);
+    if (!naziv) return;
     // Lokalno (gameStore)
     osnujiKlan(naziv);
     // Cloud (Firestore) — ne blokira

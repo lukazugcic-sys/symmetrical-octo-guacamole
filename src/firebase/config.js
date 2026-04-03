@@ -27,7 +27,7 @@
  *       match /clans/{clanId} {
  *         allow read: if request.auth != null;
  *         allow write: if request.auth != null
- *                      && resource.data.members[request.auth.uid] == true;
+ *                      && resource.data.membri[request.auth.uid] == true;
  *       }
  *     }
  *   }
@@ -37,17 +37,20 @@ import { initializeApp, getApps } from 'firebase/app';
 import { getAuth }      from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-// ─── Firebase konfiguracija (projekt: abcd-83adf) ────────────────────────────
+// ─── Firebase konfiguracija ───────────────────────────────────────────────────
+const readConfig = (key, fallback = '') => process.env[key] || fallback;
 const firebaseConfig = {
-  apiKey:            'AIzaSyCm-WdZ5QHOi3Q0c1P1S50cG42bjOjlJyo',
-  authDomain:        'abcd-83adf.firebaseapp.com',
-  projectId:         'abcd-83adf',
-  storageBucket:     'abcd-83adf.firebasestorage.app',
-  messagingSenderId: '406906984995',
-  appId:             '1:406906984995:web:0e42aceaa0b6ed03c42f96',
-  measurementId:     'G-HEWRQ52M96',
+  apiKey:            readConfig('EXPO_PUBLIC_FIREBASE_API_KEY'),
+  authDomain:        readConfig('EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN'),
+  projectId:         readConfig('EXPO_PUBLIC_FIREBASE_PROJECT_ID'),
+  storageBucket:     readConfig('EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET'),
+  messagingSenderId: readConfig('EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID'),
+  appId:             readConfig('EXPO_PUBLIC_FIREBASE_APP_ID'),
+  measurementId:     readConfig('EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID'),
 };
-// ─────────────────────────────────────────────────────────────────────────────
+if (!firebaseConfig.projectId) {
+  console.warn('[Firebase] Missing EXPO_PUBLIC_FIREBASE_* environment variables.');
+}
 
 // Singleton — izbjegava višestruku inicijalizaciju pri hot-reloadu
 const app  = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
