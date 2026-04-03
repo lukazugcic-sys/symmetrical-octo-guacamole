@@ -14,17 +14,26 @@ import {
   TAMNICA_NAPAD_BAZA, TAMNICA_RANDOM_RASPON,
 } from '../config/constants';
 import { dohvatiAktivniDogadaj } from '../config/sezonalniDogadaji';
+import { setupDungeonFloor } from '../domain/game/dungeon';
+import { canClaimTournamentReward } from '../domain/game/tournament';
+import { sanitizeClanName, sanitizePlayerName } from '../domain/validation/input';
+import { SAVE_KEYS } from '../domain/persistence/schema';
+import {
+  createRuntimeSaveSnapshot,
+  deserializeGameSave,
+  mergeByRecency,
+  RAID_HISTORY_LIMIT,
+  serializeGameSave,
+} from '../domain/persistence/savePayload';
 import {
   izracunajMaxEnergiju, izracunajMaxStitova, izracunajPasivniMnozitelj,
   izracunajPotrebniXp, izracunajHeroBonus,
 } from '../utils/economy';
 import { randomFloat, randomInt } from '../utils/helpers';
-import { spremiCloud }      from '../firebase/cloudSave';
+import { spremiCloud, ucitajCloud }      from '../firebase/cloudSave';
 import { azurirajLjestvicu } from '../firebase/leaderboard';
 import { dodajBodoveClanRatu } from '../firebase/clanMultiplayer';
 
-// Dozvoljeno ime klana: 2-50 znakova, Unicode slova/brojevi, razmak, "_" i "-".
-const CLAN_NAME_REGEX = /^[\p{L}\p{N}\s_-]{2,50}$/u;
 let cloudSaveTimeout = null;
 const xpZaKlanRazinu = (razina = 1) => Math.max(1000, razina * 1000);
 const BP_XP_DOGADAJI = {
@@ -46,33 +55,6 @@ const noviTurnir = (datum = new Date()) => ({
   bodovi: 0,
   nagradePreuzete: {},
 });
-
-// ─── Tamnica — pomoćna funkcija za postavljanje sprata ────────────────────────
-const setupTamnicaSprat = (sprat, snagaRazina = 0, obranaRazina = 0) => {
-  const tierIndex = Math.min(Math.floor((sprat - 1) / 3), TAMNICA_NEPRIJATELJI.length - 1);
-  const nep = TAMNICA_NEPRIJATELJI[tierIndex];
-  const isBoss = sprat % 5 === 0;
-  const scaleMult = 1 + (sprat - 1) * 0.25;
-  let hp = Math.ceil(nep.bazaHp * scaleMult);
-  let bossData = null;
-  if (isBoss) {
-    const defined = TAMNICA_BOSSOVI.find((b) => b.sprat === sprat);
-    const last = TAMNICA_BOSSOVI[TAMNICA_BOSSOVI.length - 1];
-    bossData = defined ?? {
-      ...last,
-      hpMnozac: last.hpMnozac + (sprat - last.sprat) * 0.1,
-      napadMnozac: last.napadMnozac + (sprat - last.sprat) * 0.05,
-      bonus: {
-        zlato: Math.floor(last.bonus.zlato * (1 + (sprat - last.sprat) * 0.15)),
-        dijamanti: Math.floor(last.bonus.dijamanti * (1 + (sprat - last.sprat) * 0.1)),
-        tokenovi: Math.floor(last.bonus.tokenovi * (1 + (sprat - last.sprat) * 0.1)),
-      },
-    };
-    hp = Math.ceil(hp * bossData.hpMnozac);
-  }
-  const igracMaxHp = TAMNICA_IGRAC_MAX_HP + obranaRazina * TAMNICA_SHOP[1].bonusPoRazini;
-  return { hp, nep, bossData, isBoss, tierIndex, igracMaxHp };
-};
 
 const pocetnoTamnicaStanje = {
   aktivna:      false,
@@ -136,6 +118,9 @@ const zakaziCloudSpremanje = (uid, payload) => {
       .catch(() => useGameStore.setState({ cloudSaveStatus: 'error' }));
   }, 3000);
 };
+
+const isValidCloudState = (state) =>
+  !!(state && typeof state === 'object' && !Array.isArray(state));
 
 // Bira nasumičnog junaka prema težinskom poolu (HERO_DROP_TEZINE)
 const selectRandomHeroByWeight = () => {
@@ -262,14 +247,46 @@ export const useGameStore = create((set, get) => ({
       const migriraiAkoTreba = get()._migriraiAkoTreba;
 
       // ─── Glavno stanje igre ───────────────────────────────────────────────
-      let p = await migriraiAkoTreba('@save_game_eco_v31');
-      let sourceKey = '@save_game_eco_v31';
+      let p = await migriraiAkoTreba(SAVE_KEYS.game);
+      let sourceKey = SAVE_KEYS.game;
       if (!p) {
-        p = await migriraiAkoTreba('@save_game_eco_v30');
-        sourceKey = '@save_game_eco_v30';
+        p = await migriraiAkoTreba(SAVE_KEYS.legacyV31);
+        sourceKey = SAVE_KEYS.legacyV31;
+      }
+      if (!p) {
+        p = await migriraiAkoTreba(SAVE_KEYS.legacyV30);
+        sourceKey = SAVE_KEYS.legacyV30;
       }
       if (p) {
-        const d = JSON.parse(p);
+        const loaded = deserializeGameSave(p);
+        let d = loaded.data || {};
+        if (loaded.corrupted) {
+          try {
+            let cloudState = null;
+            if (get().uid) {
+              try {
+                cloudState = await ucitajCloud(get().uid);
+              } catch {
+                cloudState = null;
+              }
+            }
+            const cloudData = isValidCloudState(cloudState) ? cloudState : null;
+            const cloudSavedAt = Number.isFinite(cloudData?.savedAt)
+              ? cloudData.savedAt
+              : Number.isFinite(cloudData?.azurirano?.toMillis?.())
+                ? cloudData.azurirano.toMillis()
+                : 0;
+            const merge = mergeByRecency({
+              localSavedAt: loaded.savedAt,
+              cloudSavedAt,
+              localData: d,
+              cloudData: cloudData?.data ?? cloudData ?? d,
+            });
+            d = merge.data || d;
+          } catch {
+            // fallback na lokalno/sigurno zadano
+          }
+        }
         const novaSezonaBroj = brojSezone(new Date());
         const spremljenaSezona = d.sezona || null;
         const sezonaZaSet =
@@ -301,7 +318,7 @@ export const useGameStore = create((set, get) => ({
           ...(d.aktivniSkin                                          ? { aktivniSkin: d.aktivniSkin }                           : {}),
           ...(d.spinBoostPreostalo !== undefined                     ? { spinBoostPreostalo: d.spinBoostPreostalo }             : {}),
           ...(d.stitRegenSekundi !== undefined                       ? { stitRegenSekundi: d.stitRegenSekundi }                 : {}),
-          ...(Array.isArray(d.raidPovijest)                          ? { raidPovijest: d.raidPovijest.slice(0, 20) }            : {}),
+          ...(Array.isArray(d.raidPovijest)                          ? { raidPovijest: d.raidPovijest.slice(0, RAID_HISTORY_LIMIT) }            : {}),
           ...(d.klanPopustAktivan !== undefined                      ? { klanPopustAktivan: d.klanPopustAktivan }               : {}),
           ...(d.prestigeMilestones                                   ? { prestigeMilestones: d.prestigeMilestones }             : {}),
           ...(d.zadnjiVideniEventId !== undefined                    ? { zadnjiVideniEventId: d.zadnjiVideniEventId }           : {}),
@@ -329,7 +346,7 @@ export const useGameStore = create((set, get) => ({
             },
           } : {}),
         });
-        if (sourceKey === '@save_game_eco_v30') {
+        if (sourceKey === SAVE_KEYS.legacyV30 || sourceKey === SAVE_KEYS.legacyV31) {
           const migratedPayload = {
             ...d,
             sezona: sezonaZaSet,
@@ -339,7 +356,9 @@ export const useGameStore = create((set, get) => ({
             clanRat: d.clanRat ?? get().clanRat,
             revengeTarget: d.revengeTarget ?? null,
           };
-          await dbSet('@save_game_eco_v31', JSON.stringify(migratedPayload));
+          await dbSet(SAVE_KEYS.game, serializeGameSave(migratedPayload));
+        } else if (sourceKey === SAVE_KEYS.game && loaded.corrupted) {
+          set({ poruka: 'OTKRIVENA OŠTEĆENA POHRANA — UČITANI SU SIGURNOSNI PODACI' });
         }
       }
 
@@ -393,37 +412,10 @@ export const useGameStore = create((set, get) => ({
 
   spremi: async () => {
     const s = get();
-    const payload = {
-      igracRazina: s.igracRazina, prestigeRazina: s.prestigeRazina, xp: s.xp,
-      energija: s.energija, zlato: s.zlato, dijamanti: s.dijamanti,
-      resursi: s.resursi, gradevine: s.gradevine, ostecenja: s.ostecenja,
-      razine: s.razine, stitovi: s.stitovi, misije: s.misije,
-      tecaj: s.tecaj, trend: s.trend,
-      luckySpinCounter: s.luckySpinCounter, winStreak: s.winStreak,
-      aktivniSkin: s.aktivniSkin,
-      spinBoostPreostalo: s.spinBoostPreostalo,
-      stitRegenSekundi: s.stitRegenSekundi,
-      raidPovijest: s.raidPovijest.slice(0, 20),
-      klanPopustAktivan: s.klanPopustAktivan,
-      prestigeMilestones: s.prestigeMilestones,
-      zadnjiVideniEventId: s.zadnjiVideniEventId,
-      klan: s.klan,
-      sezona: s.sezona,
-      adsPogledanoDanas: s.adsPogledanoDanas,
-      adsDatum: s.adsDatum,
-      zadnjiOnlineMs: s.zadnjiOnlineMs,
-      clanRat: s.clanRat,
-      revengeTarget: s.revengeTarget,
-      junaci: s.junaci,
-      aktivniJunaci: s.aktivniJunaci,
-      kovanice: s.kovanice,
-      turnir: s.turnir,
-      sandukDatum: s.sandukDatum,
-      tamnica: s.tamnica,
-    };
+    const payload = createRuntimeSaveSnapshot(s);
     set({ cloudSaveStatus: s.uid ? 'saving' : 'idle', zadnjiCloudPayload: payload });
     try {
-      await dbSet('@save_game_eco_v31', JSON.stringify(payload));
+      await dbSet(SAVE_KEYS.game, serializeGameSave(payload));
     } catch (e) { console.error('Failed to save game state:', e); }
     // Sinkroniziraj u Firestore (ne blokira — tiha greška ako nema mreže)
     if (s.uid) {
@@ -657,23 +649,20 @@ export const useGameStore = create((set, get) => ({
 
   preuzimiTurnirNagradu: (razina) => {
     const s = get();
-    const def = TURNIR_RAZINE.find((r) => r.id === razina);
-    if (!def) return;
-    if ((s.turnir?.bodovi ?? 0) < def.minBodova) {
-      set({ poruka: 'NEMAŠ DOVOLJNO TURNIRSKIH BODOVA' });
+    const result = canClaimTournamentReward(s.turnir, razina);
+    if (!result.ok) {
+      if (result.reason === 'insufficient_points') set({ poruka: 'NEMAŠ DOVOLJNO TURNIRSKIH BODOVA' });
+      else if (result.reason === 'already_claimed') set({ poruka: 'NAGRADA VEĆ PREUZETA ZA OVAJ TJEDAN' });
+      else if (result.reason === 'missing_rank') set({ poruka: 'NEPOZNATA TURNIRSKA NAGRADA' });
       return;
     }
-    if (s.turnir?.nagradePreuzete?.[razina]) {
-      set({ poruka: 'NAGRADA VEĆ PREUZETA ZA OVAJ TJEDAN' });
-      return;
-    }
-    get().primiNagradu(def.nagrada);
+    get().primiNagradu(result.reward);
     set((state) => ({
       turnir: {
         ...state.turnir,
         nagradePreuzete: { ...(state.turnir?.nagradePreuzete ?? {}), [razina]: true },
       },
-      poruka: `${def.emodzi} TURNIRSKA NAGRADA PREUZETA: ${def.naziv.toUpperCase()}!`,
+      poruka: `${result.rank.emodzi} TURNIRSKA NAGRADA PREUZETA: ${result.rank.naziv.toUpperCase()}!`,
     }));
   },
 
@@ -691,7 +680,7 @@ export const useGameStore = create((set, get) => ({
     }
     const t = s.tamnica ?? pocetnoTamnicaStanje;
     const sprat = 1;
-    const { hp, nep, bossData, isBoss, igracMaxHp } = setupTamnicaSprat(sprat, t.snagaRazina, t.obranaRazina);
+    const { hp, nep, bossData, isBoss, igracMaxHp } = setupDungeonFloor(sprat, t.snagaRazina, t.obranaRazina);
     set((state) => ({
       energija: state.energija - TAMNICA_KOST_ENERGIJE,
       tamnica: {
@@ -772,7 +761,7 @@ export const useGameStore = create((set, get) => ({
       const noviSprat  = t.sprat + 1;
       const noviMaxSprat = Math.max(t.maxSprat, t.sprat);
       const { hp: sljedeciHp, nep: sljedeciNep, isBoss: sljedeciBoss } =
-        setupTamnicaSprat(noviSprat, t.snagaRazina, t.obranaRazina);
+        setupDungeonFloor(noviSprat, t.snagaRazina, t.obranaRazina);
 
       set((state) => ({
         zlato:     state.zlato     + nagradeZlato + (bossBonus?.zlato ?? 0),
@@ -1180,8 +1169,8 @@ export const useGameStore = create((set, get) => ({
   // ─── Klan — osnivanje i upravljanje ─────────────────────────────────────────
   osnujiKlan: (naziv) => {
     if (!naziv) return;
-    const cistiNaziv = naziv.trim();
-    if (!CLAN_NAME_REGEX.test(cistiNaziv)) {
+    const cistiNaziv = sanitizeClanName(naziv);
+    if (!cistiNaziv) {
       set({ poruka: 'NEISPRAVNO IME KLANA (2-50 ZNAKOVA)' });
       return;
     }
@@ -1347,7 +1336,11 @@ export const useGameStore = create((set, get) => ({
   postaviUid: (uid) => set({ uid }),
 
   /** Postavi prikazno ime igrača (za ljestvicu). */
-  postaviIme: (imeIgraca) => set({ imeIgraca }),
+  postaviIme: (imeIgraca) => {
+    const clean = sanitizePlayerName(imeIgraca);
+    if (!clean) return;
+    set({ imeIgraca: clean });
+  },
 
   /**
    * Dodaj resurse ukradene u raidu.
