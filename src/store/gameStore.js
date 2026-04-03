@@ -353,7 +353,7 @@ export const useGameStore = create((set, get) => ({
           };
           await dbSet(SAVE_KEYS.game, serializeGameSave(migratedPayload));
         } else if (sourceKey === SAVE_KEYS.game && loaded.corrupted) {
-          set({ poruka: 'GREŠKA SPREMANJA — VRAĆENI ZADANI PODACI' });
+          set({ poruka: 'OTKRIVENA OŠTEĆENA POHRANA — UČITANI SU SIGURNOSNI PODACI' });
         }
       }
 

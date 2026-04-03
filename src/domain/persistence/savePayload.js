@@ -22,7 +22,9 @@ export const createRuntimeSaveSnapshot = (s) => ({
   aktivniSkin: s.aktivniSkin,
   spinBoostPreostalo: s.spinBoostPreostalo,
   stitRegenSekundi: s.stitRegenSekundi,
-  raidPovijest: (s.raidPovijest ?? []).slice(0, RAID_HISTORY_LIMIT),
+  raidPovijest: Array.isArray(s.raidPovijest)
+    ? s.raidPovijest.slice(0, RAID_HISTORY_LIMIT)
+    : [],
   klanPopustAktivan: s.klanPopustAktivan,
   prestigeMilestones: s.prestigeMilestones,
   zadnjiVideniEventId: s.zadnjiVideniEventId,
