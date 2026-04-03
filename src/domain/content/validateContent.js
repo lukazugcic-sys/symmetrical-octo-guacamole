@@ -21,10 +21,10 @@ export const validateGameContent = ({
   if (!isArray(TAMNICA_NEPRIJATELJI) || TAMNICA_NEPRIJATELJI.length === 0) errors.push('TAMNICA_NEPRIJATELJI invalid');
   if (!isArray(TAMNICA_BOSSOVI) || TAMNICA_BOSSOVI.length === 0) errors.push('TAMNICA_BOSSOVI invalid');
 
-  const duplicateMissionTips = isArray(BAZA_MISIJA)
+  const missionTips = isArray(BAZA_MISIJA)
     ? BAZA_MISIJA.map((m) => m?.tip).filter(Boolean)
     : [];
-  if (duplicateMissionTips.length === 0) errors.push('BAZA_MISIJA has no valid tip values');
+  if (missionTips.length === 0) errors.push('BAZA_MISIJA has no valid tip values');
 
   return { ok: errors.length === 0, errors };
 };

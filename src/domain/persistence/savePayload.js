@@ -39,8 +39,8 @@ export const createRuntimeSaveSnapshot = (s) => ({
   tamnica: s.tamnica,
 });
 
-export const serializeGameSave = (runtimeState) =>
-  JSON.stringify(createSaveEnvelope(createRuntimeSaveSnapshot(runtimeState)));
+export const serializeGameSave = (snapshot) =>
+  JSON.stringify(createSaveEnvelope(snapshot));
 
 export const deserializeGameSave = (serialized) => {
   try {

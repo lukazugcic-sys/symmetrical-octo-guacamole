@@ -5,7 +5,7 @@ export const STABLE_BEHAVIOR_BASELINE = {
   },
   rewards: {
     claimPendingWinOnce: true,
-    missionsAndachievementsUpdatedOnClaim: true,
+    missionsAndAchievementsUpdatedOnClaim: true,
   },
   progression: {
     missionReplaceOnClaim: true,
