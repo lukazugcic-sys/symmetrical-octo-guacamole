@@ -9,7 +9,7 @@ import { izracunajMaxStitova, izracunajPotrebniXp, izracunajPasivniMnozitelj } f
 /**
  * Globalno zaglavlje aplikacije — razina, XP bar, resursi, obrana.
  */
-const Header = ({ onOpenBattlePass }) => {
+const Header = () => {
   const igracRazina    = useGameStore((s) => s.igracRazina);
   const prestigeRazina = useGameStore((s) => s.prestigeRazina);
   const xp             = useGameStore((s) => s.xp);
@@ -20,8 +20,6 @@ const Header = ({ onOpenBattlePass }) => {
   const stitovi        = useGameStore((s) => s.stitovi);
   const razine         = useGameStore((s) => s.razine);
   const stitRegenSekundi = useGameStore((s) => s.stitRegenSekundi);
-  const cloudSaveStatus = useGameStore((s) => s.cloudSaveStatus);
-  const retryCloudSave = useGameStore((s) => s.retryCloudSave);
 
   const maxStitova      = izracunajMaxStitova(razine.oklop || 0);
   const potrebanXp      = izracunajPotrebniXp(igracRazina);
@@ -49,16 +47,6 @@ const Header = ({ onOpenBattlePass }) => {
 
   return (
     <View style={styles.header}>
-      {cloudSaveStatus !== 'idle' && (
-        <View style={styles.saveStatusRow}>
-          <Text style={styles.saveStatusTxt}>
-            {cloudSaveStatus === 'saving' ? '☁️ Spremam...' : cloudSaveStatus === 'saved' ? '✓ Spremljeno' : '⚠️ Spremanje nije uspjelo'}
-          </Text>
-          {cloudSaveStatus === 'error' && (
-            <Text style={styles.saveRetryTxt} onPress={retryCloudSave}>Pokušaj ponovo</Text>
-          )}
-        </View>
-      )}
       {/* Razina + XP bar */}
       <View style={styles.levelContainer}>
         <View style={styles.levelBadgeOuter}>
@@ -81,9 +69,6 @@ const Header = ({ onOpenBattlePass }) => {
           <TrendingUp size={12} color="#000" style={{ marginRight: 2 }} />
           <Text style={styles.multiplierTxt}>{pasivniMnozitelj.toFixed(2)}x</Text>
         </View>
-        <TouchableOpacity style={styles.bpBtn} onPress={onOpenBattlePass}>
-          <Text style={styles.bpBtnTxt}>BP</Text>
-        </TouchableOpacity>
       </View>
 
       {/* Zlato, energija, dijamanti */}
