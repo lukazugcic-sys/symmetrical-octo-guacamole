@@ -37,14 +37,15 @@ import { initializeApp, getApps } from 'firebase/app';
 import { getAuth }      from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-// ─── Zamijenite s vašom Firebase konfiguracijom ───────────────────────────────
+// ─── Firebase konfiguracija (projekt: abcd-83adf) ────────────────────────────
 const firebaseConfig = {
-  apiKey:            'YOUR_API_KEY',
-  authDomain:        'YOUR_PROJECT_ID.firebaseapp.com',
-  projectId:         'YOUR_PROJECT_ID',
-  storageBucket:     'YOUR_PROJECT_ID.appspot.com',
-  messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-  appId:             'YOUR_APP_ID',
+  apiKey:            'AIzaSyCm-WdZ5QHOi3Q0c1P1S50cG42bjOjlJyo',
+  authDomain:        'abcd-83adf.firebaseapp.com',
+  projectId:         'abcd-83adf',
+  storageBucket:     'abcd-83adf.firebasestorage.app',
+  messagingSenderId: '406906984995',
+  appId:             '1:406906984995:web:0e42aceaa0b6ed03c42f96',
+  measurementId:     'G-HEWRQ52M96',
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
