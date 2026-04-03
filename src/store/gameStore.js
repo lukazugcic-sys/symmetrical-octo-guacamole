@@ -124,6 +124,7 @@ export const useGameStore = create((set, get) => ({
         set(nextState);
 
         if (loadedFromLegacy) {
+          // Persist the fully-applied migrated store immediately under the current save key.
           const migratedSnapshot = createRuntimeSaveSnapshot(get());
           await dbSet(SAVE_KEYS.game, serializeGameSave(migratedSnapshot));
         }
