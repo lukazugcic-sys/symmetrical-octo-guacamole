@@ -742,7 +742,7 @@ export const useGameStore = create((set, get) => ({
 
       const noviSprat  = t.sprat + 1;
       const noviMaxSprat = Math.max(t.maxSprat, t.sprat);
-        const { hp: sljedeciHp, nep: sljedeciNep, isBoss: sljedeciBoss } =
+      const { hp: sljedeciHp, nep: sljedeciNep, isBoss: sljedeciBoss } =
         setupDungeonFloor(noviSprat, t.snagaRazina, t.obranaRazina);
 
       set((state) => ({
