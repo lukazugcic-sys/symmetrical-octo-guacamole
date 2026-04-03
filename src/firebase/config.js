@@ -38,22 +38,28 @@ import { getAuth }      from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 // ─── Firebase konfiguracija ───────────────────────────────────────────────────
-const readConfig = (key, fallback = '') => process.env[key] ?? fallback;
-const firebaseConfig = {
-  apiKey:            readConfig('EXPO_PUBLIC_FIREBASE_API_KEY'),
-  authDomain:        readConfig('EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN'),
-  projectId:         readConfig('EXPO_PUBLIC_FIREBASE_PROJECT_ID'),
-  storageBucket:     readConfig('EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET'),
-  messagingSenderId: readConfig('EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID'),
-  appId:             readConfig('EXPO_PUBLIC_FIREBASE_APP_ID'),
-  measurementId:     readConfig('EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID'),
+const FIREBASE_ENV_MAP = {
+  apiKey: 'EXPO_PUBLIC_FIREBASE_API_KEY',
+  authDomain: 'EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN',
+  projectId: 'EXPO_PUBLIC_FIREBASE_PROJECT_ID',
+  storageBucket: 'EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET',
+  messagingSenderId: 'EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
+  appId: 'EXPO_PUBLIC_FIREBASE_APP_ID',
+  measurementId: 'EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID',
 };
-const missingConfigKeys = Object.entries(firebaseConfig)
-  .filter(([, value]) => value === '')
-  .map(([key]) => key);
+
+const firebaseConfig = Object.fromEntries(
+  Object.entries(FIREBASE_ENV_MAP).map(([configKey, envKey]) => [configKey, process.env[envKey] ?? '']),
+);
+
+const missingConfigKeys = Object.entries(FIREBASE_ENV_MAP)
+  .filter(([, envKey]) => (process.env[envKey] ?? '') === '')
+  .map(([, envKey]) => envKey);
 
 if (missingConfigKeys.length > 0) {
-  console.warn(`[Firebase] Missing EXPO_PUBLIC_FIREBASE_* values for: ${missingConfigKeys.join(', ')}`);
+  const poruka = `[Firebase] Missing required environment variables: ${missingConfigKeys.join(', ')}`;
+  if (__DEV__) throw new Error(poruka);
+  console.warn(poruka);
 }
 
 // Singleton — izbjegava višestruku inicijalizaciju pri hot-reloadu

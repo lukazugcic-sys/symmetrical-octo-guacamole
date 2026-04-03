@@ -271,11 +271,16 @@ export const useGameStore = create((set, get) => ({
               }
             }
             const cloudData = isValidCloudState(cloudState) ? cloudState : null;
+            const cloudSavedAt = Number.isFinite(cloudData?.savedAt)
+              ? cloudData.savedAt
+              : Number.isFinite(cloudData?.azurirano?.toMillis?.())
+                ? cloudData.azurirano.toMillis()
+                : 0;
             const merge = mergeByRecency({
               localSavedAt: loaded.savedAt,
-              cloudSavedAt: Number.isFinite(cloudData?.savedAt) ? cloudData.savedAt : 0,
+              cloudSavedAt,
               localData: d,
-              cloudData: cloudData ?? d,
+              cloudData: cloudData?.data ?? cloudData ?? d,
             });
             d = merge.data || d;
           } catch {
@@ -648,6 +653,7 @@ export const useGameStore = create((set, get) => ({
     if (!result.ok) {
       if (result.reason === 'insufficient_points') set({ poruka: 'NEMAŠ DOVOLJNO TURNIRSKIH BODOVA' });
       else if (result.reason === 'already_claimed') set({ poruka: 'NAGRADA VEĆ PREUZETA ZA OVAJ TJEDAN' });
+      else if (result.reason === 'missing_rank') set({ poruka: 'NEPOZNATA TURNIRSKA NAGRADA' });
       return;
     }
     get().primiNagradu(result.reward);

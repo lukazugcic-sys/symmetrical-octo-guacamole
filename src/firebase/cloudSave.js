@@ -53,9 +53,10 @@ const validanCloudPayload = (data) => {
 export const spremiCloud = async (uid, stanje) => {
   if (!uid) return;
   try {
+    const savedAt = Date.now();
     await setDoc(
       doc(db, KOLEKCIJA, uid),
-      { ...stanje, uid, azurirano: serverTimestamp() },
+      { ...stanje, uid, savedAt, azurirano: serverTimestamp() },
       { merge: true },
     );
   } catch (err) {

@@ -128,9 +128,9 @@ const ClanScreen = () => {
 
   const handleOsnuji = async () => {
     const naziv = sanitizeClanName(imeTxt);
-    if (!naziv) return;
     // Lokalno (gameStore)
-    osnujiKlan(naziv);
+    osnujiKlan(imeTxt);
+    if (!naziv) return;
     // Cloud (Firestore) — ne blokira
     if (uid) kreirajKlan(uid, naziv).catch(() => {});
   };
