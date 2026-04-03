@@ -59,7 +59,6 @@ Object.entries(FIREBASE_ENV_MAP).forEach(([configKey, envKey]) => {
 
 if (missingConfigKeys.length > 0) {
   const poruka = `[Firebase] Missing required environment variables: ${missingConfigKeys.join(', ')}`;
-  if (__DEV__) throw new Error(poruka);
   console.warn(poruka);
 }
 
