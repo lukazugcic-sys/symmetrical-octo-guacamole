@@ -527,13 +527,18 @@ export const useGameStore = create((set, get) => ({
   kupiEnergijuHitno: () => {
     const s = get();
     const cijena = 100;
+    const maxEnergija = izracunajMaxEnergiju(s.razine.baterija || 0);
     if (s.zlato < cijena) {
       set({ poruka: 'NEDOVOLJNO ZLATA ZA ENERGIJU' });
       return;
     }
+    if (s.energija >= maxEnergija) {
+      set({ poruka: 'ENERGIJA JE VEĆ NA MAKSIMUMU' });
+      return;
+    }
     set((state) => ({
       zlato: state.zlato - cijena,
-      energija: state.energija + 100,
+      energija: Math.min(maxEnergija, state.energija + 100),
       poruka: 'KUPLJENO +100 ENERGIJE',
     }));
   },
@@ -587,7 +592,8 @@ export const useGameStore = create((set, get) => ({
       return false;
     }
     if (tip === 'energija') {
-      set((state) => ({ energija: state.energija + 30, poruka: '📺 +30 ENERGIJE' }));
+      const maxEnergija = izracunajMaxEnergiju(get().razine.baterija || 0);
+      set((state) => ({ energija: Math.min(maxEnergija, state.energija + 30), poruka: '📺 +30 ENERGIJE' }));
       return true;
     }
     if (tip === 'duplirajDobitak') {
