@@ -22,6 +22,7 @@ import {
   createRuntimeSaveSnapshot,
   deserializeGameSave,
   mergeByRecency,
+  RAID_HISTORY_LIMIT,
   serializeGameSave,
 } from '../domain/persistence/savePayload';
 import {
@@ -117,6 +118,9 @@ const zakaziCloudSpremanje = (uid, payload) => {
       .catch(() => useGameStore.setState({ cloudSaveStatus: 'error' }));
   }, 3000);
 };
+
+const isValidCloudState = (state) =>
+  !!(state && typeof state === 'object' && !Array.isArray(state));
 
 // Bira nasumičnog junaka prema težinskom poolu (HERO_DROP_TEZINE)
 const selectRandomHeroByWeight = () => {
@@ -266,9 +270,7 @@ export const useGameStore = create((set, get) => ({
                 cloudState = null;
               }
             }
-            const cloudData = (cloudState && typeof cloudState === 'object' && !Array.isArray(cloudState))
-              ? cloudState
-              : null;
+            const cloudData = isValidCloudState(cloudState) ? cloudState : null;
             const merge = mergeByRecency({
               localSavedAt: loaded.savedAt,
               cloudSavedAt: Number.isFinite(cloudData?.savedAt) ? cloudData.savedAt : 0,
@@ -311,7 +313,7 @@ export const useGameStore = create((set, get) => ({
           ...(d.aktivniSkin                                          ? { aktivniSkin: d.aktivniSkin }                           : {}),
           ...(d.spinBoostPreostalo !== undefined                     ? { spinBoostPreostalo: d.spinBoostPreostalo }             : {}),
           ...(d.stitRegenSekundi !== undefined                       ? { stitRegenSekundi: d.stitRegenSekundi }                 : {}),
-          ...(Array.isArray(d.raidPovijest)                          ? { raidPovijest: d.raidPovijest.slice(0, 20) }            : {}),
+          ...(Array.isArray(d.raidPovijest)                          ? { raidPovijest: d.raidPovijest.slice(0, RAID_HISTORY_LIMIT) }            : {}),
           ...(d.klanPopustAktivan !== undefined                      ? { klanPopustAktivan: d.klanPopustAktivan }               : {}),
           ...(d.prestigeMilestones                                   ? { prestigeMilestones: d.prestigeMilestones }             : {}),
           ...(d.zadnjiVideniEventId !== undefined                    ? { zadnjiVideniEventId: d.zadnjiVideniEventId }           : {}),

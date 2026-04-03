@@ -1,5 +1,7 @@
 import { createSaveEnvelope, unwrapSaveEnvelope } from './schema';
 
+export const RAID_HISTORY_LIMIT = 20;
+
 export const createRuntimeSaveSnapshot = (s) => ({
   igracRazina: s.igracRazina,
   prestigeRazina: s.prestigeRazina,
@@ -20,7 +22,7 @@ export const createRuntimeSaveSnapshot = (s) => ({
   aktivniSkin: s.aktivniSkin,
   spinBoostPreostalo: s.spinBoostPreostalo,
   stitRegenSekundi: s.stitRegenSekundi,
-  raidPovijest: (s.raidPovijest ?? []).slice(0, 20),
+  raidPovijest: (s.raidPovijest ?? []).slice(0, RAID_HISTORY_LIMIT),
   klanPopustAktivan: s.klanPopustAktivan,
   prestigeMilestones: s.prestigeMilestones,
   zadnjiVideniEventId: s.zadnjiVideniEventId,
