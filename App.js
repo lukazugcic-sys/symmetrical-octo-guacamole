@@ -47,6 +47,8 @@ export default function App() {
     ]).start();
   }, [shakeAnim]);
 
+  const { ucitava: authUcitava } = useAuth();
+
   // ─── Zustand store ────────────────────────────────────────────────────────
   const ucitavam            = useGameStore((s) => s.ucitavam);
   const ucitaj              = useGameStore((s) => s.ucitaj);
@@ -56,6 +58,8 @@ export default function App() {
   const dnevnaNagrada       = useGameStore((s) => s.dnevnaNagrada);
   const dnevniStreak        = useGameStore((s) => s.dnevniStreak);
   const preuzmiDnevniBonus  = useGameStore((s) => s.preuzmiDnevniBonus);
+  const uid                 = useGameStore((s) => s.uid);
+  const imeIgraca           = useGameStore((s) => s.imeIgraca);
 
   // Praćena stanja za auto-save
   const igracRazina      = useGameStore((s) => s.igracRazina);
@@ -87,7 +91,10 @@ export default function App() {
   const aktivniDogadaj = useSeasonalEvent();
 
   // ─── Inicijalno učitavanje ────────────────────────────────────────────────
-  useEffect(() => { ucitaj(); }, [ucitaj]);
+  useEffect(() => {
+    if (authUcitava) return;
+    ucitaj();
+  }, [authUcitava, ucitaj]);
 
   useEffect(() => {
     if (ucitavam) return;
@@ -121,7 +128,7 @@ export default function App() {
     spremi();
   }, [spremi, igracRazina, prestigeRazina, xp, energija, zlato, dijamanti, resursi,
       gradevine, ostecenja, razine, stitovi, misije, luckySpinCounter, winStreak,
-      aktivniSkin, klan, junaci, aktivniJunaci, ucitavam]);
+      aktivniSkin, klan, junaci, aktivniJunaci, imeIgraca, uid, ucitavam]);
 
   // ─── Auto-save dostignuća ─────────────────────────────────────────────────
   useEffect(() => {
@@ -153,9 +160,6 @@ export default function App() {
   // ─── Tajmeri (pasivna produkcija + tržište) ───────────────────────────────
   useVillage();
   useMarket();
-
-  // ─── Autentifikacija (Firebase anonymous sign-in) ─────────────────────────
-  useAuth();
 
   // ─── Push notifikacije ────────────────────────────────────────────────────
   useNotifications();

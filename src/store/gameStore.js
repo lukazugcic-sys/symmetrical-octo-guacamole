@@ -122,6 +122,13 @@ const zakaziCloudSpremanje = (uid, payload) => {
 const isValidCloudState = (state) =>
   !!(state && typeof state === 'object' && !Array.isArray(state));
 
+const getCloudSavedAt = (state) => {
+  if (!isValidCloudState(state)) return 0;
+  if (Number.isFinite(state.savedAt)) return state.savedAt;
+  const timestampMs = state.azurirano?.toMillis?.();
+  return Number.isFinite(timestampMs) ? timestampMs : 0;
+};
+
 // Bira nasumičnog junaka prema težinskom poolu (HERO_DROP_TEZINE)
 const selectRandomHeroByWeight = () => {
   const pool = [];
@@ -257,36 +264,37 @@ export const useGameStore = create((set, get) => ({
         p = await migriraiAkoTreba(SAVE_KEYS.legacyV30);
         sourceKey = SAVE_KEYS.legacyV30;
       }
-      if (p) {
-        const loaded = deserializeGameSave(p);
-        let d = loaded.data || {};
-        if (loaded.corrupted) {
-          try {
-            let cloudState = null;
-            if (get().uid) {
-              try {
-                cloudState = await ucitajCloud(get().uid);
-              } catch {
-                cloudState = null;
-              }
+      const loaded = p
+        ? deserializeGameSave(p)
+        : { schemaVersion: 0, data: null, savedAt: 0, corrupted: false };
+      let d = loaded.data || {};
+      let odabraniIzvor = p ? 'local' : 'default';
+
+      if (get().uid) {
+        try {
+          const cloudState = await ucitajCloud(get().uid);
+          if (isValidCloudState(cloudState)) {
+            const cloudData = cloudState.data ?? cloudState;
+            if (!p) {
+              d = cloudData || d;
+              odabraniIzvor = 'cloud';
+            } else {
+              const merge = mergeByRecency({
+                localSavedAt: loaded.savedAt,
+                cloudSavedAt: getCloudSavedAt(cloudState),
+                localData: d,
+                cloudData: cloudData ?? d,
+              });
+              d = merge.data || d;
+              odabraniIzvor = merge.source;
             }
-            const cloudData = isValidCloudState(cloudState) ? cloudState : null;
-            const cloudSavedAt = Number.isFinite(cloudData?.savedAt)
-              ? cloudData.savedAt
-              : Number.isFinite(cloudData?.azurirano?.toMillis?.())
-                ? cloudData.azurirano.toMillis()
-                : 0;
-            const merge = mergeByRecency({
-              localSavedAt: loaded.savedAt,
-              cloudSavedAt,
-              localData: d,
-              cloudData: cloudData?.data ?? cloudData ?? d,
-            });
-            d = merge.data || d;
-          } catch {
-            // fallback na lokalno/sigurno zadano
           }
+        } catch {
+          // fallback na lokalno/sigurno zadano
         }
+      }
+
+      if (p || odabraniIzvor === 'cloud') {
         const novaSezonaBroj = brojSezone(new Date());
         const spremljenaSezona = d.sezona || null;
         const sezonaZaSet =
@@ -299,6 +307,7 @@ export const useGameStore = create((set, get) => ({
             }
             : novaSezona();
         set({
+          ...(d.imeIgraca ? { imeIgraca: sanitizePlayerName(d.imeIgraca) || get().imeIgraca } : {}),
           ...(d.igracRazina                                          ? { igracRazina: d.igracRazina }                           : {}),
           ...(d.prestigeRazina                                       ? { prestigeRazina: d.prestigeRazina }                     : {}),
           ...(d.xp                                                   ? { xp: d.xp }                                             : {}),
@@ -346,7 +355,11 @@ export const useGameStore = create((set, get) => ({
             },
           } : {}),
         });
-        if (sourceKey === SAVE_KEYS.legacyV30 || sourceKey === SAVE_KEYS.legacyV31) {
+        if (
+          sourceKey === SAVE_KEYS.legacyV30
+          || sourceKey === SAVE_KEYS.legacyV31
+          || odabraniIzvor === 'cloud'
+        ) {
           const migratedPayload = createRuntimeSaveSnapshot(get());
           await dbSet(SAVE_KEYS.game, serializeGameSave(migratedPayload));
         } else if (sourceKey === SAVE_KEYS.game && loaded.corrupted) {

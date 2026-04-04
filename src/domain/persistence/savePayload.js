@@ -3,6 +3,7 @@ import { createSaveEnvelope, unwrapSaveEnvelope } from './schema';
 export const RAID_HISTORY_LIMIT = 20;
 
 export const createRuntimeSaveSnapshot = (s) => ({
+  imeIgraca: s.imeIgraca,
   igracRazina: s.igracRazina,
   prestigeRazina: s.prestigeRazina,
   xp: s.xp,
