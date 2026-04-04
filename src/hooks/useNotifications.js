@@ -13,20 +13,54 @@
  */
 
 import { useEffect, useRef } from 'react';
-import * as Notifications from 'expo-notifications';
 import { Platform, Alert, AppState }       from 'react-native';
 import { useGameStore }   from '../store/gameStore';
 import { izracunajMaxEnergiju } from '../utils/economy';
 import { SEZONALNI_DOGADAJI }   from '../config/sezonalniDogadaji';
 
-// Postavi prikaz dok je aplikacija u prvom planu
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: false,
-    shouldSetBadge:  false,
-  }),
-});
+let cachedNotificationsModule;
+let hasResolvedNotificationsModule = false;
+let hasConfiguredNotificationHandler = false;
+
+const getNotificationsModule = () => {
+  if (hasResolvedNotificationsModule) {
+    return cachedNotificationsModule;
+  }
+
+  hasResolvedNotificationsModule = true;
+
+  try {
+    cachedNotificationsModule = require('expo-notifications');
+  } catch (error) {
+    cachedNotificationsModule = null;
+    console.warn('[Notifications] Module unavailable in this build.', error);
+  }
+
+  return cachedNotificationsModule;
+};
+
+const ensureNotificationHandler = () => {
+  const Notifications = getNotificationsModule();
+  if (!Notifications || hasConfiguredNotificationHandler) {
+    return Notifications;
+  }
+
+  hasConfiguredNotificationHandler = true;
+
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: false,
+        shouldSetBadge:  false,
+      }),
+    });
+  } catch (error) {
+    console.warn('[Notifications] Failed to configure notification handler.', error);
+  }
+
+  return Notifications;
+};
 
 /**
  * Zatraži dopuštenje za notifikacije.
@@ -34,10 +68,19 @@ Notifications.setNotificationHandler({
  */
 export const zatraziDopustenje = async () => {
   if (Platform.OS === 'web') return false;
-  const { status: existing } = await Notifications.getPermissionsAsync();
-  if (existing === 'granted') return true;
-  const { status } = await Notifications.requestPermissionsAsync();
-  return status === 'granted';
+
+  const Notifications = ensureNotificationHandler();
+  if (!Notifications) return false;
+
+  try {
+    const { status: existing } = await Notifications.getPermissionsAsync();
+    if (existing === 'granted') return true;
+    const { status } = await Notifications.requestPermissionsAsync();
+    return status === 'granted';
+  } catch (error) {
+    console.warn('[Notifications] Permission request failed:', error?.message || error);
+    return false;
+  }
 };
 
 /**
@@ -47,6 +90,9 @@ export const zatraziDopustenje = async () => {
  * @param {object} [podaci] — dodatni podaci
  */
 export const posaljiNotifikaciju = async (naslov, tijelo, podaci = {}) => {
+  const Notifications = ensureNotificationHandler();
+  if (!Notifications) return;
+
   try {
     await Notifications.scheduleNotificationAsync({
       content: { title: naslov, body: tijelo, data: podaci },
@@ -66,6 +112,10 @@ export const posaljiNotifikaciju = async (naslov, tijelo, podaci = {}) => {
  */
 export const zakaziNotifikaciju = async (naslov, tijelo, datum) => {
   if (datum <= new Date()) return null;
+
+  const Notifications = ensureNotificationHandler();
+  if (!Notifications) return null;
+
   try {
     return await Notifications.scheduleNotificationAsync({
       content: { title: naslov, body: tijelo },
@@ -83,6 +133,10 @@ export const zakaziNotifikaciju = async (naslov, tijelo, datum) => {
  */
 export const otkaziNotifikaciju = async (identifier) => {
   if (!identifier) return;
+
+  const Notifications = ensureNotificationHandler();
+  if (!Notifications) return;
+
   try {
     await Notifications.cancelScheduledNotificationAsync(identifier);
   } catch (e) {
@@ -102,6 +156,7 @@ const useNotifications = () => {
 
   // Inicijalno — zatraži dopuštenje i zakaži sezonalne evente
   useEffect(() => {
+    ensureNotificationHandler();
     zatraziDopustenje().then((dopusteno) => {
       if (!dopusteno) {
         Alert.alert(

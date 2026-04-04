@@ -2,6 +2,7 @@
   "expo": {
     "name": "SlotGame",
     "slug": "symmetrical-octo-guacamole",
+    "owner": "lukazugcic",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -11,8 +12,10 @@
       "resizeMode": "contain",
       "backgroundColor": "#06060F"
     },
-    "sdkVersion": "50.0.0",
-    "platforms": ["android"],
+    "platforms": [
+      "android",
+      "ios"
+    ],
     "android": {
       "package": "com.lukazugcic.slotgame",
       "adaptiveIcon": {
@@ -20,11 +23,17 @@
         "backgroundColor": "#06060F"
       }
     },
+    "ios": {
+      "bundleIdentifier": "com.lukazugcic.slotgame",
+      "supportsTablet": false
+    },
     "plugins": [
       [
         "react-native-google-mobile-ads",
         {
-          "androidAppId": "ca-app-pub-3940256099942544~3347511713"
+          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "iosAppId": "ca-app-pub-3940256099942544~1458002511",
+          "userTrackingUsageDescription": "This identifier will be used to deliver more relevant ads to you."
         }
       ],
       [
@@ -37,7 +46,7 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "d7be998d-9ef7-48b6-920a-77538a98e346"
+        "projectId": "f75122cd-785a-44bc-8a1d-b9acaef26453"
       }
     }
   }
