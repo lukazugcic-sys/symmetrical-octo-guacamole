@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View, Dimensions } from 'react-native';
 import Animated, {
+  ReduceMotion,
   useSharedValue,
   useAnimatedStyle,
   withTiming,
@@ -15,6 +16,10 @@ const { width: SW, height: SH } = Dimensions.get('window');
 
 const WIN_EMOJIS     = ['🪙', '⭐', '✨', '💫', '🌟'];
 const JACKPOT_EMOJIS = ['🪙', '💎', '👑', '🌟', '✨', '🎰', '💰', '🔥'];
+const FADE_IN = { duration: 110, reduceMotion: ReduceMotion.Never };
+const FADE_OUT = { duration: 320, reduceMotion: ReduceMotion.Never };
+const PARTICLE_MOVE = { duration: 680, easing: Easing.out(Easing.quad), reduceMotion: ReduceMotion.Never };
+const PARTICLE_POP = { damping: 12, stiffness: 220, reduceMotion: ReduceMotion.Never };
 
 // ─── Pojedinačna čestica ──────────────────────────────────────────────────────
 const Particle = React.memo(({ emoji, targetX, targetY, delay: d, size }) => {
@@ -26,14 +31,14 @@ const Particle = React.memo(({ emoji, targetX, targetY, delay: d, size }) => {
   useEffect(() => {
     // Fade-in + rast
     opacity.value = withDelay(d, withSequence(
-      withTiming(1, { duration: 130 }),
-      withDelay(460, withTiming(0, { duration: 420 }))
+      withTiming(1, FADE_IN),
+      withDelay(360, withTiming(0, FADE_OUT))
     ));
-    scale.value = withDelay(d, withSpring(1, { damping: 9, stiffness: 180 }));
+    scale.value = withDelay(d, withSpring(1, PARTICLE_POP));
 
     // Kretanje prema cilju
-    tx.value = withDelay(d, withTiming(targetX, { duration: 780, easing: Easing.out(Easing.quad) }));
-    ty.value = withDelay(d, withTiming(targetY, { duration: 780, easing: Easing.out(Easing.quad) }));
+    tx.value = withDelay(d, withTiming(targetX, PARTICLE_MOVE));
+    ty.value = withDelay(d, withTiming(targetY, PARTICLE_MOVE));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

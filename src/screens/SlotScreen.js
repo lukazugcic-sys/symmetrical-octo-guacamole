@@ -1,9 +1,13 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import React, { useState, useCallback, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, useWindowDimensions } from 'react-native';
 import Animated, {
+  Easing,
+  ReduceMotion,
+  interpolateColor,
   useSharedValue,
   useAnimatedStyle,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import { Zap, Sparkles, CircleHelp, Shield, Skull, Star, Gem, Coins, TreePine, Mountain, Pickaxe, BatteryCharging } from 'lucide-react-native';
 import { useGameStore } from '../store/gameStore';
@@ -22,6 +26,7 @@ import { useRewardedAds } from '../hooks/useRewardedAds';
  * Flash i shake efekti dolaze iz UIContext (bez prop drillinga).
  */
 const SlotScreen = () => {
+  const { width, height } = useWindowDimensions();
   const poruka          = useGameStore((s) => s.poruka);
   const aktivniDogadaj  = useSeasonalEvent();
   const energija        = useGameStore((s) => s.energija);
@@ -53,32 +58,60 @@ const SlotScreen = () => {
 
   const danas = new Date().toDateString();
   const besplatniOtvoren = sandukDatum === danas;
+  const compactUi = width < 390 || height < 760;
+  const denseUi = width < 360 || height < 700;
+  const horizontalPadding = denseUi ? 12 : compactUi ? 14 : 18;
+  const panelPadding = Math.round((denseUi ? 14 : compactUi ? 16 : 18) * uiScale);
+  const framePadding = Math.round((denseUi ? 8 : compactUi ? 9 : 10) * uiScale);
 
   // Animacija spin gumba
   const spinBtnScale = useSharedValue(1);
+  const machinePulse = useSharedValue(vrti ? 1 : 0);
   const spinBtnStyle = useAnimatedStyle(() => ({
     transform: [{ scale: spinBtnScale.value }],
   }));
-  const onSpinPressIn  = useCallback(() => { spinBtnScale.value = withSpring(0.93, { damping: 15, stiffness: 350 }); }, []);
-  const onSpinPressOut = useCallback(() => { spinBtnScale.value = withSpring(1.0,  { damping: 10, stiffness: 220 }); }, []);
+  const machineShellStyle = useAnimatedStyle(() => ({
+    borderColor: interpolateColor(
+      machinePulse.value,
+      [0, 1],
+      ['rgba(251,191,36,0.16)', `${BOJE.energija}55`],
+    ),
+    shadowOpacity: 0.18 + (machinePulse.value * 0.16),
+    transform: [{ scale: 1 + (machinePulse.value * 0.006) }],
+  }));
+
+  useEffect(() => {
+    machinePulse.value = withTiming(vrti ? 1 : 0, {
+      duration: vrti ? 160 : 220,
+      easing: Easing.out(Easing.cubic),
+      reduceMotion: ReduceMotion.Never,
+    });
+  }, [machinePulse, vrti]);
+
+  const onSpinPressIn  = useCallback(() => { spinBtnScale.value = withSpring(0.96, { damping: 18, stiffness: 420, reduceMotion: ReduceMotion.Never }); }, []);
+  const onSpinPressOut = useCallback(() => { spinBtnScale.value = withSpring(1.0,  { damping: 16, stiffness: 260, reduceMotion: ReduceMotion.Never }); }, []);
 
   return (
-    <View style={styles.gameContainer}>
+    <View style={[styles.gameContainer, { paddingHorizontal: horizontalPadding, paddingBottom: denseUi ? 18 : 26 }]}>
       {/* Sezonalni događaj */}
       <EventBanner dogadaj={aktivniDogadaj} />
 
       {/* Poruka + sanduk gumb */}
-      <View style={styles.topRow}>
-        <View style={[styles.messageBubble, { flex: 1 }]}>
-          <Sparkles size={16} color={BOJE.slotVatra} style={{ marginRight: 8 }} />
+      <View style={[styles.topRow, { marginBottom: compactUi ? 14 : 18 }]}>
+        <View style={[styles.messageBubble, { flex: 1, paddingVertical: denseUi ? 12 : Math.round(14 * uiScale) }]}>
+          <Sparkles size={denseUi ? 14 : 16} color={BOJE.zlato} style={{ marginRight: 8 }} />
           <Text style={styles.messageText} numberOfLines={2}>{poruka}</Text>
-          <Sparkles size={16} color={BOJE.slotVatra} style={{ marginLeft: 8 }} />
+          <Sparkles size={denseUi ? 14 : 16} color={BOJE.zlato} style={{ marginLeft: 8 }} />
           <TouchableOpacity onPress={() => setPrikazLegend(true)} style={styles.legendBtn}>
-            <CircleHelp size={16} color={BOJE.textMain} />
+            <CircleHelp size={16} color={BOJE.zlato} />
           </TouchableOpacity>
         </View>
         <TouchableOpacity
-          style={[styles.sandukBtn, besplatniOtvoren && styles.sandukBtnOtvoren]}
+          style={[
+            styles.sandukBtn,
+            besplatniOtvoren && styles.sandukBtnOtvoren,
+            { width: denseUi ? 46 : 50, height: denseUi ? 46 : 50 },
+          ]}
           onPress={() => setPrikazSanduk(true)}
           activeOpacity={0.8}
         >
@@ -88,25 +121,25 @@ const SlotScreen = () => {
       </View>
 
       {spinBoostPreostalo > 0 && (
-        <View style={styles.boostBadge}>
+        <View style={[styles.boostBadge, { marginBottom: compactUi ? 12 : 14 }]}>
           <Text style={styles.boostTxt}>⚡ BOOST x2 · još {spinBoostPreostalo} spinova</Text>
         </View>
       )}
 
       {/* Automat */}
-      <View style={styles.slotMachineOuter}>
-        <View style={styles.slotMachineInner}>
+      <Animated.View style={[styles.slotMachineOuter, machineShellStyle, { padding: framePadding, marginBottom: compactUi ? 20 : 24 }]}>
+        <View style={[styles.slotMachineInner, { padding: framePadding }]}>
           <SlotReel
             stupciAnims={stupciAnims}
             stupciBlurs={stupciBlurs}
             winScaleAnims={winScaleAnims}
           />
         </View>
-      </View>
+      </Animated.View>
 
       {dobitakNaCekanju ? (
         /* ── Gamble / Preuzmi ──────────────────────────────────────────────── */
-        <View style={styles.gambleContainer}>
+        <View style={[styles.gambleContainer, { padding: panelPadding }]}>
           <Text style={styles.gambleTitle}>TRENUTNI DOBITAK</Text>
           <View style={styles.gamblePrizesRow}>
             {dobitakNaCekanju.zlato     > 0 && <Text style={styles.gamblePrizeTxt}>{dobitakNaCekanju.zlato} 🪙</Text>}
@@ -137,13 +170,13 @@ const SlotScreen = () => {
         </View>
       ) : (
         /* ── Kontrole vrtnje ────────────────────────────────────────────────── */
-        <View style={{ width: '100%' }}>
+        <View style={[styles.controlDeck, { padding: panelPadding }]}>
           {/* Lucky Spin meter */}
           <View style={styles.luckySpinRow}>
             <View style={styles.luckySpinMeter}>
-              <View style={[styles.luckySpinFill, { width: `${((LUCKY_SPIN_INTERVAL - luckySpinCounter) / LUCKY_SPIN_INTERVAL) * 100}%` }]} />
+              <View style={[styles.luckySpinFill, { width: `${((LUCKY_SPIN_INTERVAL - luckySpinCounter) / LUCKY_SPIN_INTERVAL) * 100}%`, backgroundColor: jeFreeSpin ? BOJE.zlato : BOJE.xp }]} />
             </View>
-            <Text style={[styles.luckySpinTxt, jeFreeSpin && { color: BOJE.energija }]}>
+            <Text style={[styles.luckySpinTxt, jeFreeSpin && { color: BOJE.zlato }]}>
               {jeFreeSpin ? '🍀 LUCKY!' : `🍀 ${luckySpinCounter}`}
             </Text>
           </View>
@@ -178,14 +211,15 @@ const SlotScreen = () => {
                 styles.spinBtn,
                 jeFreeSpin && styles.spinBtnLucky,
                 (vrti || (!jeFreeSpin && energija < ulog)) && styles.spinBtnDisabled,
+                { paddingVertical: denseUi ? Math.round(18 * uiScale) : Math.round(22 * uiScale) },
               ]}
               onPress={zavrtiMasinu}
               onPressIn={onSpinPressIn}
               onPressOut={onSpinPressOut}
               disabled={vrti}
             >
-              <Zap size={24} color="#000" fill="#000" style={{ position: 'absolute', left: 24 }} />
-              <Text style={styles.spinBtnText}>{vrti ? 'VRTIM...' : (jeFreeSpin ? '🍀 FREE SPIN' : 'SPIN')}</Text>
+              <Zap size={denseUi ? 20 : 24} color="#000" fill="#000" style={{ position: 'absolute', left: denseUi ? 16 : 24 }} />
+              <Text style={[styles.spinBtnText, { fontSize: Math.round((denseUi ? 20 : compactUi ? 22 : 24) * uiScale) }]}>{vrti ? 'VRTIM...' : (jeFreeSpin ? '🍀 FREE SPIN' : 'SPIN')}</Text>
               {!jeFreeSpin && (
                 <View style={styles.spinCostBadge}>
                   <Text style={styles.spinCostTxt}>-{ulog}</Text>
@@ -243,24 +277,33 @@ const SlotScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  gameContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 60 },
+  gameContainer: {
+    flex: 1,
+    justifyContent: 'flex-start',
+    alignItems: 'stretch',
+    width: '100%',
+    maxWidth: 460,
+    alignSelf: 'center',
+    paddingTop: 6,
+  },
 
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 20,
+    gap: 8,
     alignSelf: 'stretch',
   },
   sandukBtn: {
-    width: 50,
-    height: 50,
     borderRadius: 16,
-    backgroundColor: 'rgba(20, 22, 35, 0.98)',
+    backgroundColor: 'rgba(10, 15, 27, 0.96)',
     borderWidth: 1,
-    borderColor: '#FBBF2459',
+    borderColor: 'rgba(251,191,36,0.24)',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 4,
   },
   sandukBtnOtvoren: { borderColor: BOJE.border, opacity: 0.6 },
   sandukEmodzi: { fontSize: 22 },
@@ -278,54 +321,76 @@ const styles = StyleSheet.create({
 
   messageBubble: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(20, 22, 35, 0.98)',
+    backgroundColor: 'rgba(10, 15, 27, 0.96)',
     paddingHorizontal: 16,
-    paddingVertical: Math.round(14 * uiScale),
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: BOJE.slotVatra + '59',
+    borderColor: 'rgba(251,191,36,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: BOJE.slotVatra,
-    shadowOpacity: 0.45,
+    shadowColor: '#000',
+    shadowOpacity: 0.24,
     shadowRadius: 14,
-    elevation: 7,
+    elevation: 5,
   },
-  messageText: { flex: 1, color: BOJE.slotVatra, fontSize: Math.round(13 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 1, textAlign: 'center' },
+  messageText: { flex: 1, color: BOJE.textMain, fontSize: Math.round(13 * uiScale), fontWeight: '800', fontFamily: FONT_FAMILY, letterSpacing: 0.4, textAlign: 'center' },
   legendBtn: { marginLeft: 8, padding: 2 },
-  boostBadge: { alignSelf: 'stretch', backgroundColor: BOJE.energija + '22', borderWidth: 1, borderColor: BOJE.energija + '66', borderRadius: 12, paddingVertical: 6, marginBottom: 10 },
-  boostTxt: { color: BOJE.energija, textAlign: 'center', fontFamily: FONT_FAMILY, fontWeight: '900', fontSize: 12 },
+  boostBadge: { alignSelf: 'stretch', backgroundColor: 'rgba(163,230,53,0.10)', borderWidth: 1, borderColor: 'rgba(163,230,53,0.28)', borderRadius: 14, paddingVertical: 8 },
+  boostTxt: { color: BOJE.energija, textAlign: 'center', fontFamily: FONT_FAMILY, fontWeight: '900', fontSize: 12, letterSpacing: 0.5 },
 
   slotMachineOuter: {
-    backgroundColor: '#080A12', padding: 10, borderRadius: 28, borderWidth: 2, borderColor: 'rgba(255,255,255,0.10)',
-    width: '100%', marginBottom: 26,
-    shadowColor: BOJE.slotVatra, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.30, shadowRadius: 40, elevation: 20,
+    backgroundColor: '#09101B',
+    borderRadius: 28,
+    borderWidth: 2,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowRadius: 28,
+    elevation: 18,
   },
   slotMachineInner: {
-    backgroundColor: BOJE.slotRolaCrna, padding: 10, borderRadius: 20, borderWidth: 2, borderColor: '#000', overflow: 'hidden',
+    backgroundColor: '#04070F',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    overflow: 'hidden',
+  },
+
+  controlDeck: {
+    width: '100%',
+    backgroundColor: 'rgba(10, 15, 27, 0.94)',
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 6,
   },
 
   betContainer: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 20 },
-  betBtn: { paddingVertical: Math.round(12 * uiScale), paddingHorizontal: Math.round(22 * uiScale), borderRadius: 22, backgroundColor: BOJE.bgCard, borderWidth: 1, borderColor: BOJE.border },
-  betBtnActive: { backgroundColor: BOJE.slotVatra, borderColor: BOJE.slotVatra, shadowColor: BOJE.slotVatra, shadowOpacity: 0.6, shadowRadius: 10, elevation: 6 },
+  betBtn: { paddingVertical: Math.round(12 * uiScale), paddingHorizontal: Math.round(20 * uiScale), borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  betBtnActive: { backgroundColor: BOJE.zlato, borderColor: BOJE.zlato, shadowColor: BOJE.zlato, shadowOpacity: 0.28, shadowRadius: 10, elevation: 5 },
   betBtnText: { fontWeight: '900', fontFamily: FONT_FAMILY, color: BOJE.textMuted, fontSize: Math.round(16 * uiScale) },
-  betBtnTextActive: { color: '#FFF' },
+  betBtnTextActive: { color: '#000' },
 
   spinBtn: {
-    backgroundColor: BOJE.energija, width: '100%', paddingVertical: Math.round(22 * uiScale), borderRadius: 26,
+    backgroundColor: BOJE.energija, width: '100%', borderRadius: 24,
     flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
-    shadowColor: BOJE.energija, shadowOpacity: 0.55, shadowRadius: 20, elevation: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.18)',
+    shadowColor: BOJE.energija, shadowOpacity: 0.32, shadowRadius: 18, elevation: 10,
   },
-  spinBtnDisabled: { opacity: 0.5, transform: [{ scale: 0.98 }], shadowOpacity: 0 },
-  spinBtnLucky:    { backgroundColor: BOJE.xp, shadowColor: BOJE.xp, shadowOpacity: 0.6, shadowRadius: 22, elevation: 14 },
-  spinBtnText:     { color: '#000', fontSize: Math.round(24 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 3 },
-  spinCostBadge:   { position: 'absolute', right: 22, backgroundColor: 'rgba(0,0,0,0.18)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, flexDirection: 'row', alignItems: 'center' },
+  spinBtnDisabled: { opacity: 0.45, shadowOpacity: 0 },
+  spinBtnLucky:    { backgroundColor: BOJE.zlato, shadowColor: BOJE.zlato, shadowOpacity: 0.32, shadowRadius: 20, elevation: 12 },
+  spinBtnText:     { color: '#000', fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 2.2 },
+  spinCostBadge:   { position: 'absolute', right: 18, backgroundColor: 'rgba(6,10,18,0.16)', borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, flexDirection: 'row', alignItems: 'center' },
   spinCostTxt:     { color: '#000', fontWeight: '900', fontFamily: FONT_FAMILY, fontSize: 12, marginRight: 2 },
 
   gambleContainer: {
-    width: '100%', backgroundColor: 'rgba(255, 215, 0, 0.09)', padding: 20, borderRadius: 28,
-    borderWidth: 1, borderColor: BOJE.zlato + '70', alignItems: 'center',
-    shadowColor: BOJE.zlato, shadowOpacity: 0.15, shadowRadius: 14, elevation: 6,
+    width: '100%', backgroundColor: 'rgba(20, 14, 5, 0.94)', borderRadius: 28,
+    borderWidth: 1, borderColor: 'rgba(251,191,36,0.34)', alignItems: 'center',
+    shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 16, elevation: 6,
   },
   gambleTitle:      { color: BOJE.textMuted, fontSize: Math.round(14 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 1.5, marginBottom: 8 },
   gamblePrizesRow:  { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10, marginBottom: 20 },
@@ -335,25 +400,25 @@ const styles = StyleSheet.create({
   gambleBtnTxt:     { color: '#FFF', fontSize: Math.round(15 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 1 },
   collectBtn:       { backgroundColor: BOJE.energija, width: '100%', paddingVertical: Math.round(18 * uiScale), borderRadius: 18, alignItems: 'center', shadowColor: BOJE.energija, shadowOpacity: 0.35, shadowRadius: 10, elevation: 5 },
   collectBtnTxt:    { color: '#000', fontSize: Math.round(16 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 1 },
-  adBtn: { width: '100%', marginBottom: 10, borderRadius: 14, backgroundColor: BOJE.dijamant, paddingVertical: 12 },
-  adBtnTxt: { textAlign: 'center', color: '#000', fontWeight: '900', fontFamily: FONT_FAMILY, fontSize: 12 },
+  adBtn: { width: '100%', marginBottom: 10, borderRadius: 14, backgroundColor: 'rgba(232,121,249,0.18)', borderWidth: 1, borderColor: 'rgba(232,121,249,0.36)', paddingVertical: 12 },
+  adBtnTxt: { textAlign: 'center', color: BOJE.dijamant, fontWeight: '900', fontFamily: FONT_FAMILY, fontSize: 12 },
 
   luckySpinRow:  { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 10 },
-  luckySpinMeter:{ flex: 1, height: 8, backgroundColor: 'rgba(0,255,170,0.1)', borderRadius: 4, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(0,255,170,0.2)' },
-  luckySpinFill: { height: '100%', backgroundColor: BOJE.xp, borderRadius: 4 },
+  luckySpinMeter:{ flex: 1, height: 10, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 5, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  luckySpinFill: { height: '100%', borderRadius: 5 },
   luckySpinTxt:  { fontSize: 12, fontWeight: '900', fontFamily: FONT_FAMILY, color: BOJE.textMuted, minWidth: 64, textAlign: 'right' },
 
   streakTurboRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 12, gap: 8 },
-  streakBadge:    { flex: 1, backgroundColor: 'rgba(255, 100, 0, 0.15)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255, 100, 0, 0.4)' },
+  streakBadge:    { flex: 1, backgroundColor: 'rgba(251,146,60,0.12)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(251,146,60,0.28)' },
   streakTxt:      { color: '#FF8C00', fontSize: 12, fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 0.5 },
-  turboBtn:       { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: BOJE.bgCard, borderWidth: 1, borderColor: BOJE.border },
+  turboBtn:       { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
   turboBtnActive: { backgroundColor: BOJE.energija, borderColor: BOJE.energija },
   turboTxt:       { fontSize: 11, fontWeight: '900', fontFamily: FONT_FAMILY, color: BOJE.textMuted, letterSpacing: 0.5 },
-  quickEnergyBtn: { backgroundColor: BOJE.zlato + '20', borderWidth: 1, borderColor: BOJE.zlato + '60', borderRadius: 12, paddingVertical: 10 },
+  quickEnergyBtn: { backgroundColor: 'rgba(251,191,36,0.10)', borderWidth: 1, borderColor: 'rgba(251,191,36,0.26)', borderRadius: 14, paddingVertical: 11 },
   quickEnergyTxt: { textAlign: 'center', color: BOJE.zlato, fontFamily: FONT_FAMILY, fontWeight: '900', fontSize: 12 },
-  adEnergyBtn: { backgroundColor: BOJE.energija + '20', borderWidth: 1, borderColor: BOJE.energija + '60', borderRadius: 12, paddingVertical: 10 },
+  adEnergyBtn: { backgroundColor: 'rgba(163,230,53,0.10)', borderWidth: 1, borderColor: 'rgba(163,230,53,0.26)', borderRadius: 14, paddingVertical: 11 },
   adEnergyTxt: { textAlign: 'center', color: BOJE.energija, fontFamily: FONT_FAMILY, fontWeight: '900', fontSize: 12 },
-  adShieldBtn: { marginTop: 8, backgroundColor: BOJE.stit + '20', borderWidth: 1, borderColor: BOJE.stit + '60', borderRadius: 12, paddingVertical: 9 },
+  adShieldBtn: { marginTop: 8, backgroundColor: 'rgba(34,211,238,0.10)', borderWidth: 1, borderColor: 'rgba(34,211,238,0.28)', borderRadius: 14, paddingVertical: 10 },
   adShieldTxt: { textAlign: 'center', color: BOJE.stit, fontFamily: FONT_FAMILY, fontWeight: '900', fontSize: 12 },
   legendOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   legendCard: { width: '100%', backgroundColor: BOJE.bgCard, borderWidth: 1, borderColor: BOJE.border, borderRadius: 18, padding: 18 },

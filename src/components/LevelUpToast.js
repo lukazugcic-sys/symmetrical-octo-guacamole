@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
+  ReduceMotion,
   useSharedValue,
   useAnimatedStyle,
   withSpring,
@@ -21,7 +22,7 @@ const LevelUpToast = () => {
   // Lokalni snapshot podataka — osigurava točan tekst i za vrijeme izlazne animacije
   const [lokalniPodaci, setLokalniPodaci] = useState(null);
 
-  const translateY = useSharedValue(-140);
+  const translateY = useSharedValue(-96);
   const opacity    = useSharedValue(0);
 
   useEffect(() => {
@@ -30,16 +31,16 @@ const LevelUpToast = () => {
     setLokalniPodaci(levelUpData);
 
     // Uklizaj u ekran
-    translateY.value = withSpring(0, { damping: 14, stiffness: 90 });
-    opacity.value    = withTiming(1, { duration: 220 });
+    translateY.value = withSpring(0, { damping: 18, stiffness: 180, reduceMotion: ReduceMotion.Never });
+    opacity.value    = withTiming(1, { duration: 180, reduceMotion: ReduceMotion.Never });
 
     // Nakon 2.5 s — izvuci van i resetiraj store
     const timer = setTimeout(() => {
-      translateY.value = withTiming(-140, { duration: 380 });
-      opacity.value    = withTiming(0, { duration: 380 }, (finished) => {
+      translateY.value = withTiming(-96, { duration: 260, reduceMotion: ReduceMotion.Never });
+      opacity.value    = withTiming(0, { duration: 260, reduceMotion: ReduceMotion.Never }, (finished) => {
         if (finished) runOnJS(clearLevelUp)();
       });
-    }, 2500);
+    }, 2200);
 
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps

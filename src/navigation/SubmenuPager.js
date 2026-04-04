@@ -1,43 +1,79 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import PagerView from 'react-native-pager-view';
 import Animated, {
+  Extrapolation,
+  ReduceMotion,
+  interpolate,
   interpolateColor,
   useAnimatedStyle,
+  useEvent,
+  useHandler,
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { BOJE, FONT_FAMILY, uiScale } from '../config/constants';
 
-const SubmenuChip = React.memo(({ accentColor, active, label, onPress }) => {
-  const progress = useSharedValue(active ? 1 : 0);
+const AnimatedPagerView = Animated.createAnimatedComponent(PagerView);
+const NAV_TIMING = { duration: 180, reduceMotion: ReduceMotion.Never };
 
-  useEffect(() => {
-    progress.value = withTiming(active ? 1 : 0, { duration: 220 });
-  }, [active, progress]);
+const usePageScrollHandler = (handlers, dependencies) => {
+  const { context, doDependenciesDiffer } = useHandler(handlers, dependencies);
 
-  const chipStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(
-      progress.value,
-      [0, 1],
-      ['rgba(255,255,255,0.04)', `${accentColor}26`]
-    ),
-    borderColor: interpolateColor(
-      progress.value,
-      [0, 1],
-      ['rgba(255,255,255,0.08)', `${accentColor}88`]
-    ),
-    transform: [{ translateY: -progress.value * 2 }],
-  }));
+  return useEvent(
+    (event) => {
+      'worklet';
+      const { onPageScroll } = handlers;
 
-  const textStyle = useAnimatedStyle(() => ({
-    color: interpolateColor(progress.value, [0, 1], [BOJE.textMuted, BOJE.textMain]),
-    opacity: 0.78 + (progress.value * 0.22),
-  }));
+      if (onPageScroll && event.eventName.endsWith('onPageScroll')) {
+        onPageScroll(event, context);
+      }
+    },
+    ['onPageScroll'],
+    doDependenciesDiffer,
+  );
+};
+
+const SubmenuChip = React.memo(({ accentColor, active, index, label, onPress, pageProgress }) => {
+  const chipStyle = useAnimatedStyle(() => {
+    const focus = 1 - Math.min(Math.abs(pageProgress.value - index), 1);
+
+    return {
+      backgroundColor: interpolateColor(
+        focus,
+        [0, 1],
+        ['rgba(255,255,255,0.04)', `${accentColor}26`],
+      ),
+      borderColor: interpolateColor(
+        focus,
+        [0, 1],
+        ['rgba(255,255,255,0.08)', `${accentColor}88`],
+      ),
+      transform: [
+        { translateY: -focus * 2 },
+        { scale: 0.985 + (focus * 0.015) },
+      ],
+    };
+  }, [accentColor, index]);
+
+  const textStyle = useAnimatedStyle(() => {
+    const focus = 1 - Math.min(Math.abs(pageProgress.value - index), 1);
+
+    return {
+      color: interpolateColor(focus, [0, 1], [BOJE.textMuted, BOJE.textMain]),
+      opacity: 0.82 + (focus * 0.18),
+    };
+  }, [index]);
 
   return (
-    <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={styles.submenuButton}>
+    <TouchableOpacity
+      accessibilityRole="tab"
+      accessibilityState={{ selected: active }}
+      activeOpacity={0.85}
+      onPress={onPress}
+      style={styles.submenuButton}
+    >
       <Animated.View style={[styles.submenuChip, chipStyle]}>
         <Animated.Text style={[styles.submenuChipText, textStyle]}>
           {label.toUpperCase()}
@@ -47,19 +83,63 @@ const SubmenuChip = React.memo(({ accentColor, active, label, onPress }) => {
   );
 });
 
+const PagerScene = React.memo(({ index, pageProgress, section }) => {
+  const ScreenComponent = section.component;
+
+  const sceneStyle = useAnimatedStyle(() => {
+    const distance = Math.abs(pageProgress.value - index);
+
+    return {
+      opacity: interpolate(distance, [0, 0.8, 1], [1, 0.98, 0.95], Extrapolation.CLAMP),
+      transform: [
+        {
+          translateX: interpolate(
+            pageProgress.value,
+            [index - 1, index, index + 1],
+            [12, 0, -12],
+            Extrapolation.CLAMP,
+          ),
+        },
+        {
+          scale: interpolate(distance, [0, 1], [1, 0.992], Extrapolation.CLAMP),
+        },
+      ],
+    };
+  }, [index]);
+
+  return (
+    <Animated.View collapsable={false} style={[styles.page, sceneStyle]}>
+      <ErrorBoundary>
+        <ScreenComponent />
+      </ErrorBoundary>
+    </Animated.View>
+  );
+});
+
 const SubmenuPager = ({ accentColor, sections }) => {
   const pagerRef = useRef(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const activeSection = sections[activeIndex];
+  const pageProgress = useSharedValue(0);
+
+  const pageScrollHandler = usePageScrollHandler({
+    onPageScroll: (event) => {
+      'worklet';
+      pageProgress.value = event.position + event.offset;
+    },
+  }, []);
 
   const idiNaSekciju = useCallback((index) => {
     setActiveIndex(index);
+    pageProgress.value = withTiming(index, NAV_TIMING);
     pagerRef.current?.setPage(index);
-  }, []);
+  }, [pageProgress]);
 
   const onPageSelected = useCallback((event) => {
-    setActiveIndex(event.nativeEvent.position);
-  }, []);
+    const nextIndex = event.nativeEvent.position;
+    pageProgress.value = nextIndex;
+    setActiveIndex(nextIndex);
+  }, [pageProgress]);
 
   return (
     <View style={styles.container}>
@@ -86,34 +166,32 @@ const SubmenuPager = ({ accentColor, sections }) => {
                 key={section.key}
                 accentColor={accentColor}
                 active={activeIndex === index}
+                index={index}
                 label={section.label}
                 onPress={() => idiNaSekciju(index)}
+                pageProgress={pageProgress}
               />
             ))}
           </ScrollView>
         </View>
       )}
 
-      <PagerView
+      <AnimatedPagerView
         ref={pagerRef}
         style={styles.pager}
         initialPage={0}
+        offscreenPageLimit={Math.min(2, sections.length)}
+        onPageScroll={pageScrollHandler}
         onPageSelected={onPageSelected}
         overdrag={false}
         scrollEnabled={sections.length > 1}
       >
-        {sections.map((section) => {
-          const ScreenComponent = section.component;
-
-          return (
-            <View key={section.key} collapsable={false} style={styles.page}>
-              <ErrorBoundary>
-                <ScreenComponent />
-              </ErrorBoundary>
-            </View>
-          );
-        })}
-      </PagerView>
+        {sections.map((section, index) => (
+          <View key={section.key} collapsable={false} style={styles.pageContainer}>
+            <PagerScene index={index} pageProgress={pageProgress} section={section} />
+          </View>
+        ))}
+      </AnimatedPagerView>
     </View>
   );
 };
@@ -175,6 +253,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   pager: {
+    flex: 1,
+  },
+  pageContainer: {
     flex: 1,
   },
   page: {

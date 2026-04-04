@@ -5,6 +5,7 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
   interpolateColor,
+  ReduceMotion,
 } from 'react-native-reanimated';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Zap, Building2, Trophy, ShoppingCart, Users } from 'lucide-react-native';
@@ -24,6 +25,7 @@ import { BOJE, uiScale, FONT_FAMILY } from '../config/constants';
 import SubmenuPager      from './SubmenuPager';
 
 const Tab = createBottomTabNavigator();
+const NAV_TIMING = { duration: 180, reduceMotion: ReduceMotion.Never };
 
 const ROOT_MENU_KONFIGURACIJA = [
   {
@@ -84,7 +86,7 @@ const TabButton = React.memo(({ tab, aktivan, onPress }) => {
   const progress = useSharedValue(aktivan ? 1 : 0);
 
   useEffect(() => {
-    progress.value = withTiming(aktivan ? 1 : 0, { duration: 220 });
+    progress.value = withTiming(aktivan ? 1 : 0, NAV_TIMING);
   }, [aktivan, progress]);
 
   const TIcon = tab.ikona;
@@ -100,8 +102,8 @@ const TabButton = React.memo(({ tab, aktivan, onPress }) => {
       ['rgba(255,255,255,0.08)', `${tab.boja}88`]
     ),
     transform: [
-      { translateY: -progress.value * 2 },
-      { scale: 0.96 + (progress.value * 0.04) },
+      { translateY: -progress.value * 1.5 },
+      { scale: 0.98 + (progress.value * 0.02) },
     ],
   }));
 
