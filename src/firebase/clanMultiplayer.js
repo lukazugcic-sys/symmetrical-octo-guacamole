@@ -47,6 +47,7 @@ export const slugKlana = (naziv) =>
  * @returns {Promise<string>} clanId
  */
 export const kreirajKlan = async (uid, naziv) => {
+  if (!db || !uid || !naziv) return null;
   const clanId = slugKlana(naziv);
   const ref    = doc(db, KOLEKCIJA, clanId);
   await setDoc(ref, {
@@ -66,7 +67,7 @@ export const kreirajKlan = async (uid, naziv) => {
  * @returns {Promise<{id, ...data}|null>}
  */
 export const ucitajKlan = async (clanId) => {
-  if (!clanId) return null;
+  if (!db || !clanId) return null;
   try {
     const snap = await getDoc(doc(db, KOLEKCIJA, clanId));
     return snap.exists() ? { id: snap.id, ...snap.data() } : null;
@@ -83,7 +84,7 @@ export const ucitajKlan = async (clanId) => {
  * @returns {() => void} unsubscribe funkcija
  */
 export const slušajKlan = (clanId, callback) => {
-  if (!clanId) return () => {};
+  if (!db || !clanId) return () => {};
   return onSnapshot(
     doc(db, KOLEKCIJA, clanId),
     (snap) => { if (snap.exists()) callback({ id: snap.id, ...snap.data() }); },
@@ -105,7 +106,7 @@ export const slušajKlan = (clanId, callback) => {
  * @param {number} napredak   — iznos za dodati
  */
 export const azurirajKlanZadatak = async (clanId, tipZadatka, napredak = 1) => {
-  if (!clanId) return;
+  if (!db || !clanId) return;
   try {
     const ref = doc(db, KOLEKCIJA, clanId);
     await runTransaction(db, async (tx) => {
@@ -132,7 +133,7 @@ export const azurirajKlanZadatak = async (clanId, tipZadatka, napredak = 1) => {
  * @param {number} xpIznos
  */
 export const doniraiXpKlanu = async (clanId, xpIznos) => {
-  if (!clanId || xpIznos <= 0) return;
+  if (!db || !clanId || xpIznos <= 0) return;
   try {
     const ref = doc(db, KOLEKCIJA, clanId);
     await runTransaction(db, async (tx) => {
@@ -164,7 +165,7 @@ export const doniraiXpKlanu = async (clanId, xpIznos) => {
  * @returns {Promise<object|null>} nagrada zadatka ili null
  */
 export const preuzmiNagradu = async (clanId, zadatakId, uid) => {
-  if (!clanId || !uid) return null;
+  if (!db || !clanId || !uid) return null;
   try {
     const ref = doc(db, KOLEKCIJA, clanId);
     let nagrada = null;
@@ -198,7 +199,7 @@ export const preuzmiNagradu = async (clanId, zadatakId, uid) => {
  * @param {string} clanId
  */
 export const osvjeziZadatkeAkoTreba = async (clanId) => {
-  if (!clanId) return;
+  if (!db || !clanId) return;
   try {
     const ref  = doc(db, KOLEKCIJA, clanId);
     const snap = await getDoc(ref);
@@ -219,7 +220,7 @@ export const osvjeziZadatkeAkoTreba = async (clanId) => {
 };
 
 export const osigurajClanRat = async (clanId, clanNaziv, clanRazina = 1) => {
-  if (!clanId || !clanNaziv) return null;
+  if (!db || !clanId || !clanNaziv) return null;
   const aktivniQ = query(
     collection(db, KOLEKCIJA_WARS),
     where('klanA.id', '==', clanId),
@@ -253,7 +254,7 @@ export const osigurajClanRat = async (clanId, clanNaziv, clanRazina = 1) => {
 };
 
 export const slusajClanRat = (warId, callback) => {
-  if (!warId) return () => {};
+  if (!db || !warId) return () => {};
   return onSnapshot(
     doc(db, KOLEKCIJA_WARS, warId),
     (snap) => { if (snap.exists()) callback({ id: snap.id, ...snap.data() }); },
@@ -262,7 +263,7 @@ export const slusajClanRat = (warId, callback) => {
 };
 
 export const dodajBodoveClanRatu = async (warId, side = 'A', points = 1) => {
-  if (!warId || points <= 0) return;
+  if (!db || !warId || points <= 0) return;
   const ref = doc(db, KOLEKCIJA_WARS, warId);
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
@@ -276,7 +277,7 @@ export const dodajBodoveClanRatu = async (warId, side = 'A', points = 1) => {
 };
 
 export const zakljuciClanRatAkoIstekao = async (warId) => {
-  if (!warId) return null;
+  if (!db || !warId) return null;
   const ref = doc(db, KOLEKCIJA_WARS, warId);
   let rezultat = null;
   await runTransaction(db, async (tx) => {

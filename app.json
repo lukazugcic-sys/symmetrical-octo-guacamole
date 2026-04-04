@@ -4,6 +4,7 @@
     "slug": "symmetrical-octo-guacamole",
     "owner": "lukazugcic",
     "version": "1.0.0",
+    "scheme": "slotgame",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",

@@ -12,6 +12,7 @@
 
 import { useState, useEffect } from 'react';
 import { prijaviAnonimno, slušajAuth } from '../firebase/auth';
+import { firebaseDisabledReason, firebaseEnabled } from '../firebase/config';
 import { useGameStore } from '../store/gameStore';
 
 const useAuth = () => {
@@ -22,6 +23,14 @@ const useAuth = () => {
   const postaviUid = useGameStore((s) => s.postaviUid);
 
   useEffect(() => {
+    if (!firebaseEnabled) {
+      postaviUid(null);
+      setUid(null);
+      setGreška(firebaseDisabledReason);
+      setUcitava(false);
+      return () => {};
+    }
+
     // Pretplati se na promjene stanja autentifikacije
     const unsubscribe = slušajAuth(async (user) => {
       if (user) {
@@ -32,8 +41,12 @@ const useAuth = () => {
         // Nema korisnika — anonimna prijava
         try {
           const noviUser = await prijaviAnonimno();
-          setUid(noviUser.uid);
-          postaviUid(noviUser.uid);
+          if (noviUser?.uid) {
+            setUid(noviUser.uid);
+            postaviUid(noviUser.uid);
+          } else {
+            setGreška(firebaseDisabledReason ?? 'Firebase auth nije dostupan.');
+          }
         } catch (err) {
           console.warn('[useAuth] Prijava nije uspjela:', err.message);
           setGreška(err.message);

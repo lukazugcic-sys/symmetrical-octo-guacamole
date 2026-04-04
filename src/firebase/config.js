@@ -48,23 +48,54 @@ const FIREBASE_ENV_MAP = {
   measurementId: 'EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID',
 };
 
+const REQUIRED_FIREBASE_CONFIG_KEYS = [
+  'apiKey',
+  'authDomain',
+  'projectId',
+  'appId',
+];
+
+const isMeaningfulFirebaseValue = (value) => {
+  if (typeof value !== 'string') return false;
+  const normalized = value.trim();
+  if (normalized === '') return false;
+  return !/^(your[-_ ]|example|changeme)/i.test(normalized);
+};
+
 const firebaseConfig = {};
-const missingConfigKeys = [];
+const invalidRequiredEnvKeys = [];
 
 Object.entries(FIREBASE_ENV_MAP).forEach(([configKey, envKey]) => {
   const value = process.env[envKey] ?? '';
   firebaseConfig[configKey] = value;
-  if (value === '') missingConfigKeys.push(envKey);
+  if (
+    REQUIRED_FIREBASE_CONFIG_KEYS.includes(configKey)
+    && !isMeaningfulFirebaseValue(value)
+  ) {
+    invalidRequiredEnvKeys.push(envKey);
+  }
 });
 
-if (missingConfigKeys.length > 0) {
-  const poruka = `[Firebase] Missing required environment variables: ${missingConfigKeys.join(', ')}`;
-  console.warn(poruka);
+let app = null;
+let auth = null;
+let db = null;
+let firebaseEnabled = false;
+let firebaseDisabledReason = null;
+
+if (invalidRequiredEnvKeys.length > 0) {
+  firebaseDisabledReason = `[Firebase] Disabled local cloud features because required env vars are missing or placeholders: ${invalidRequiredEnvKeys.join(', ')}`;
+  console.warn(firebaseDisabledReason);
+} else {
+  try {
+    // Singleton — izbjegava višestruku inicijalizaciju pri hot-reloadu
+    app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+    auth = getAuth(app);
+    db = getFirestore(app);
+    firebaseEnabled = true;
+  } catch (error) {
+    firebaseDisabledReason = `[Firebase] Disabled local cloud features after initialization failed: ${error?.message ?? 'Unknown Firebase error'}`;
+    console.warn(firebaseDisabledReason);
+  }
 }
 
-// Singleton — izbjegava višestruku inicijalizaciju pri hot-reloadu
-const app  = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-const auth = getAuth(app);
-const db   = getFirestore(app);
-
-export { app, auth, db };
+export { app, auth, db, firebaseEnabled, firebaseDisabledReason };

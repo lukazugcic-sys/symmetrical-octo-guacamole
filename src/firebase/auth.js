@@ -20,13 +20,14 @@ import {
   signOut,
   onAuthStateChanged,
 } from 'firebase/auth';
-import { auth } from './config';
+import { auth, firebaseEnabled } from './config';
 
 /**
  * Anonimna prijava — vraća Firebase User objekt.
  * Ako je korisnik već prijavljen, vraća trenutnog korisnika.
  */
 export const prijaviAnonimno = async () => {
+  if (!firebaseEnabled || !auth) return null;
   if (auth.currentUser) return auth.currentUser;
   const result = await signInAnonymously(auth);
   return result.user;
@@ -38,6 +39,7 @@ export const prijaviAnonimno = async () => {
  * @returns {Promise<User>}
  */
 export const povežiSGoogleom = async (googleCredential) => {
+  if (!firebaseEnabled || !auth?.currentUser) return null;
   const googleCred = GoogleAuthProvider.credential(googleCredential.idToken);
   const result     = await linkWithCredential(auth.currentUser, googleCred);
   return result.user;
@@ -46,7 +48,7 @@ export const povežiSGoogleom = async (googleCredential) => {
 /**
  * Odjava igrača.
  */
-export const odjavi = () => signOut(auth);
+export const odjavi = () => (auth ? signOut(auth) : Promise.resolve());
 
 /**
  * Sinhrono čitanje UID-a trenutnog korisnika (ili null).
@@ -58,4 +60,10 @@ export const dohvatiUid = () => auth.currentUser?.uid ?? null;
  * @param {(user: User|null) => void} callback
  * @returns {() => void} unsubscribe funkcija
  */
-export const slušajAuth = (callback) => onAuthStateChanged(auth, callback);
+export const slušajAuth = (callback) => {
+  if (!firebaseEnabled || !auth) {
+    callback(null);
+    return () => {};
+  }
+  return onAuthStateChanged(auth, callback);
+};

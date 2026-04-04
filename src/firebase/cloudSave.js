@@ -51,7 +51,7 @@ const validanCloudPayload = (data) => {
  * @param {object} stanje — podskup gameStore stanja koji se serializira
  */
 export const spremiCloud = async (uid, stanje) => {
-  if (!uid) return;
+  if (!db || !uid) return;
   try {
     const savedAt = Date.now();
     await setDoc(
@@ -71,7 +71,7 @@ export const spremiCloud = async (uid, stanje) => {
  * @returns {Promise<object|null>} objekt stanja ili null ako dokument ne postoji
  */
 export const ucitajCloud = async (uid) => {
-  if (!uid) return null;
+  if (!db || !uid) return null;
   try {
     const snap = await getDoc(doc(db, KOLEKCIJA, uid));
     if (snap.exists()) {
@@ -95,7 +95,7 @@ export const ucitajCloud = async (uid) => {
  * @param {string} imeIgraca
  */
 export const postaviIme = async (uid, imeIgraca) => {
-  if (!uid || !imeIgraca) return;
+  if (!db || !uid || !imeIgraca) return;
   try {
     await setDoc(
       doc(db, KOLEKCIJA, uid),

@@ -41,6 +41,7 @@ const RAID_ID_UPPER_BOUND = 1000000000;
  * @returns {Promise<Array<{uid, imeIgraca, resursi, igracRazina}>>}
  */
 export const dohvatiMete = async (napadacUid, n = 5) => {
+  if (!db) return [];
   try {
     // Dohvati igrače bez štita, sortirane po razini (slični napadaču → fer match)
     const q = query(
@@ -84,7 +85,7 @@ export const dohvatiMete = async (napadacUid, n = 5) => {
  * @returns {Promise<{drvo, kamen, zeljezo}|null>} ukradeni resursi ili null ako napad nije uspio
  */
 export const izvrsiNapad = async (napadacUid, metaUid, options = {}) => {
-  if (!napadacUid || !metaUid || napadacUid === metaUid) return null;
+  if (!db || !napadacUid || !metaUid || napadacUid === metaUid) return null;
   try {
     const napadacRef = doc(db, KOLEKCIJA_PLAYERS, napadacUid);
     const metaRef = doc(db, KOLEKCIJA_PLAYERS, metaUid);
@@ -155,7 +156,7 @@ export const izvrsiNapad = async (napadacUid, metaUid, options = {}) => {
 };
 
 export const dohvatiRaidPovijest = async (uid) => {
-  if (!uid) return [];
+  if (!db || !uid) return [];
   try {
     const snap = await getDoc(doc(db, KOLEKCIJA_PLAYERS, uid));
     if (!snap.exists()) return [];

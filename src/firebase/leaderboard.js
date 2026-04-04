@@ -32,7 +32,7 @@ const TOP_N     = 50;
  * @param {object} podaci — { imeIgraca, igracRazina, prestigeRazina, ukupnoZlata, ukupnoVrtnji, klan }
  */
 export const azurirajLjestvicu = async (uid, podaci) => {
-  if (!uid) return;
+  if (!db || !uid) return;
   try {
     await setDoc(
       doc(db, KOLEKCIJA, uid),
@@ -59,6 +59,7 @@ export const azurirajLjestvicu = async (uid, podaci) => {
  * @returns {Promise<Array<object>>} niz zapisa ljestvice
  */
 export const dohvatiTopIgraca = async (cursorDoc = null, pageSize = TOP_N) => {
+  if (!db) return { igraci: [], cursor: null, hasMore: false };
   try {
     const constraints = [
       orderBy('prestigeRazina', 'desc'),
