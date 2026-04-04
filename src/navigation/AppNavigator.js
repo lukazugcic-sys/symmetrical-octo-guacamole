@@ -1,14 +1,14 @@
-import React, { useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, PanResponder, StyleSheet, Platform } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
   withTiming,
   interpolateColor,
 } from 'react-native-reanimated';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Zap, Building2, Trophy, ShoppingCart, Sliders, Users, Crown, Sword, Hammer, Swords, Shield } from 'lucide-react-native';
+import { Zap, Building2, Trophy, ShoppingCart, Users } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SlotScreen        from '../screens/SlotScreen';
 import VillageScreen     from '../screens/VillageScreen';
 import MissionsScreen    from '../screens/MissionsScreen';
@@ -20,61 +20,93 @@ import HeroesScreen      from '../screens/HeroesScreen';
 import KovacnicaScreen   from '../screens/KovacnicaScreen';
 import TurnirScreen      from '../screens/TurnirScreen';
 import TamnicaScreen     from '../screens/TamnicaScreen';
-import ErrorBoundary     from '../components/ErrorBoundary';
 import { BOJE, uiScale, FONT_FAMILY } from '../config/constants';
+import SubmenuPager      from './SubmenuPager';
 
 const Tab = createBottomTabNavigator();
 
-const SWIPE_MIN_DX    = 15;  // minimalni pomak (px) da se gesta prepozna kao swipe
-const SWIPE_DIR_RATIO = 1.5; // dx mora biti N× veći od dy da se prepozna kao horizontalni swipe
-
-// Konfiguracija tabova (redoslijed, ikona, boja)
-const TAB_KONFIGURACIJA = [
-  { routeName: 'Igraj',   ikona: Zap,          boja: BOJE.energija    },
-  { routeName: 'Baza',    ikona: Building2,    boja: BOJE.drvo        },
-  { routeName: 'Zadaci',  ikona: Trophy,       boja: BOJE.misije      },
-  { routeName: 'Tržište', ikona: ShoppingCart, boja: BOJE.zlato       },
-  { routeName: 'Oprema',  ikona: Sliders,      boja: BOJE.nadogradnje },
-  { routeName: 'Klan',    ikona: Users,        boja: BOJE.klan        },
-  { routeName: 'Top',     ikona: Crown,        boja: BOJE.ljestvica   },
-  { routeName: 'Junaci',    ikona: Sword,        boja: BOJE.nadogradnje },
-  { routeName: 'Kovačnica', ikona: Hammer,       boja: BOJE.kovacnica   },
-  { routeName: 'Turnir',    ikona: Swords,       boja: BOJE.turnir      },
-  { routeName: 'Tamnica',   ikona: Shield,       boja: BOJE.tamnica     },
+const ROOT_MENU_KONFIGURACIJA = [
+  {
+    routeName: 'Igraj',
+    label: 'Igraj',
+    ikona: Zap,
+    boja: BOJE.energija,
+    sections: [
+      { key: 'automat', label: 'Automat', component: SlotScreen },
+      { key: 'turnir', label: 'Turnir', component: TurnirScreen },
+      { key: 'tamnica', label: 'Tamnica', component: TamnicaScreen },
+    ],
+  },
+  {
+    routeName: 'Baza',
+    label: 'Baza',
+    ikona: Building2,
+    boja: BOJE.drvo,
+    sections: [
+      { key: 'selo', label: 'Selo', component: VillageScreen },
+      { key: 'nadogradnje', label: 'Nadogradnje', component: UpgradesScreen },
+      { key: 'kovacnica', label: 'Kovačnica', component: KovacnicaScreen },
+    ],
+  },
+  {
+    routeName: 'Napredak',
+    label: 'Napredak',
+    ikona: Trophy,
+    boja: BOJE.misije,
+    sections: [
+      { key: 'zadaci', label: 'Zadaci', component: MissionsScreen },
+      { key: 'junaci', label: 'Junaci', component: HeroesScreen },
+    ],
+  },
+  {
+    routeName: 'Drustvo',
+    label: 'Društvo',
+    ikona: Users,
+    boja: BOJE.klan,
+    sections: [
+      { key: 'klan', label: 'Klan', component: ClanScreen },
+      { key: 'ljestvica', label: 'Ljestvica', component: LeaderboardScreen },
+    ],
+  },
+  {
+    routeName: 'Trgovina',
+    label: 'Trgovina',
+    ikona: ShoppingCart,
+    boja: BOJE.zlato,
+    sections: [
+      { key: 'trziste', label: 'Trgovina', component: ShopScreen },
+    ],
+  },
 ];
-
-// ─── Animirani indikator stranice (dot) ──────────────────────────────────────
-const PageDot = React.memo(({ aktivan }) => {
-  const progress = useSharedValue(aktivan ? 1 : 0);
-
-  useEffect(() => {
-    progress.value = withTiming(aktivan ? 1 : 0, { duration: 280 });
-  }, [aktivan, progress]);
-
-  const animStyle = useAnimatedStyle(() => ({
-    width:           5 + progress.value * 13,
-    opacity:         0.35 + progress.value * 0.65,
-    backgroundColor: interpolateColor(
-      progress.value,
-      [0, 1],
-      ['rgba(255,255,255,0.18)', BOJE.energija]
-    ),
-  }));
-
-  return <Animated.View style={[styles.pageIndicatorDot, animStyle]} />;
-});
 
 // ─── Animirani tab gumb ───────────────────────────────────────────────────────
 const TabButton = React.memo(({ tab, aktivan, onPress }) => {
-  const scale = useSharedValue(aktivan ? 1.0 : 0.88);
+  const progress = useSharedValue(aktivan ? 1 : 0);
 
   useEffect(() => {
-    scale.value = withSpring(aktivan ? 1.0 : 0.88, { damping: 14, stiffness: 200 });
-  }, [aktivan, scale]);
+    progress.value = withTiming(aktivan ? 1 : 0, { duration: 220 });
+  }, [aktivan, progress]);
 
-  const TIcon    = tab.ikona;
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
+  const TIcon = tab.ikona;
+  const bubbleStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(
+      progress.value,
+      [0, 1],
+      ['rgba(255,255,255,0.04)', `${tab.boja}22`]
+    ),
+    borderColor: interpolateColor(
+      progress.value,
+      [0, 1],
+      ['rgba(255,255,255,0.08)', `${tab.boja}88`]
+    ),
+    transform: [
+      { translateY: -progress.value * 2 },
+      { scale: 0.96 + (progress.value * 0.04) },
+    ],
+  }));
+
+  const labelStyle = useAnimatedStyle(() => ({
+    color: interpolateColor(progress.value, [0, 1], [BOJE.textMuted, BOJE.textMain]),
   }));
 
   return (
@@ -84,22 +116,17 @@ const TabButton = React.memo(({ tab, aktivan, onPress }) => {
       style={styles.navBtn}
     >
       <Animated.View style={[
-        styles.navTabPill,
-        aktivan
-          ? [styles.navTabPillActive, { backgroundColor: tab.boja, shadowColor: tab.boja }]
-          : styles.navTabPillInactive,
-        animStyle,
+        styles.navItem,
+        bubbleStyle,
       ]}>
         <TIcon
-          size={aktivan ? 20 : 18}
-          color={aktivan ? '#000' : BOJE.textMuted}
-          strokeWidth={aktivan ? 2.5 : 1.8}
+          size={18}
+          color={aktivan ? tab.boja : BOJE.textMuted}
+          strokeWidth={aktivan ? 2.4 : 1.9}
         />
-        {aktivan && (
-          <Text style={styles.navText}>
-            {tab.routeName.toUpperCase()}
-          </Text>
-        )}
+        <Animated.Text style={[styles.navText, labelStyle]}>
+          {tab.label.toUpperCase()}
+        </Animated.Text>
       </Animated.View>
     </TouchableOpacity>
   );
@@ -107,34 +134,12 @@ const TabButton = React.memo(({ tab, aktivan, onPress }) => {
 
 // ─── Prilagođena navigacijska traka ──────────────────────────────────────────
 const CustomTabBar = ({ state, navigation }) => {
-  // Swipe gesta između tabova
-  const swipeRef = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) =>
-        Math.abs(g.dx) > SWIPE_MIN_DX && Math.abs(g.dx) > Math.abs(g.dy) * SWIPE_DIR_RATIO,
-      onPanResponderRelease: (_, g) => {
-        const trenutniIndeks = state.index;
-        if (g.dx < -60 && trenutniIndeks < TAB_KONFIGURACIJA.length - 1) {
-          navigation.navigate(TAB_KONFIGURACIJA[trenutniIndeks + 1].routeName);
-        } else if (g.dx > 60 && trenutniIndeks > 0) {
-          navigation.navigate(TAB_KONFIGURACIJA[trenutniIndeks - 1].routeName);
-        }
-      },
-    })
-  ).current;
+  const insets = useSafeAreaInsets();
 
   return (
-    <View style={styles.navWrapper} {...swipeRef.panHandlers}>
-      {/* Animirani indikator stranica (dots) */}
-      <View style={styles.pageIndicatorRow}>
-        {TAB_KONFIGURACIJA.map((_, i) => (
-          <PageDot key={i} aktivan={state.index === i} />
-        ))}
-      </View>
-
-      {/* Floating navigacijska traka */}
-      <View style={styles.floatingNavbar}>
-        {TAB_KONFIGURACIJA.map((tab, i) => (
+    <View style={styles.navWrapper}>
+      <View style={[styles.floatingNavbar, { marginBottom: Math.max(14, insets.bottom + 8) }] }>
+        {ROOT_MENU_KONFIGURACIJA.map((tab, i) => (
           <TabButton
             key={tab.routeName}
             tab={tab}
@@ -154,17 +159,13 @@ const AppNavigator = () => (
     screenOptions={{ headerShown: false }}
     tabBar={(props) => <CustomTabBar {...props} />}
   >
-    <Tab.Screen name="Igraj">{() => <ErrorBoundary><SlotScreen /></ErrorBoundary>}</Tab.Screen>
-    <Tab.Screen name="Baza">{() => <ErrorBoundary><VillageScreen /></ErrorBoundary>}</Tab.Screen>
-    <Tab.Screen name="Zadaci">{() => <ErrorBoundary><MissionsScreen /></ErrorBoundary>}</Tab.Screen>
-    <Tab.Screen name="Tržište">{() => <ErrorBoundary><ShopScreen /></ErrorBoundary>}</Tab.Screen>
-    <Tab.Screen name="Oprema">{() => <ErrorBoundary><UpgradesScreen /></ErrorBoundary>}</Tab.Screen>
-    <Tab.Screen name="Klan">{() => <ErrorBoundary><ClanScreen /></ErrorBoundary>}</Tab.Screen>
-    <Tab.Screen name="Top">{() => <ErrorBoundary><LeaderboardScreen /></ErrorBoundary>}</Tab.Screen>
-    <Tab.Screen name="Junaci">{() => <ErrorBoundary><HeroesScreen /></ErrorBoundary>}</Tab.Screen>
-    <Tab.Screen name="Kovačnica">{() => <ErrorBoundary><KovacnicaScreen /></ErrorBoundary>}</Tab.Screen>
-    <Tab.Screen name="Turnir">{() => <ErrorBoundary><TurnirScreen /></ErrorBoundary>}</Tab.Screen>
-    <Tab.Screen name="Tamnica">{() => <ErrorBoundary><TamnicaScreen /></ErrorBoundary>}</Tab.Screen>
+    {ROOT_MENU_KONFIGURACIJA.map((menu) => (
+      <Tab.Screen key={menu.routeName} name={menu.routeName}>
+        {() => (
+          <SubmenuPager accentColor={menu.boja} sections={menu.sections} />
+        )}
+      </Tab.Screen>
+    ))}
   </Tab.Navigator>
 );
 
@@ -172,39 +173,46 @@ const styles = StyleSheet.create({
   navWrapper: {
     backgroundColor: 'transparent',
   },
-  pageIndicatorRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 6,
-    paddingBottom: 6,
-  },
-  pageIndicatorDot: {
-    height: 5,
-    borderRadius: 2.5,
-  },
   floatingNavbar: {
     marginHorizontal: 10,
-    marginBottom: Platform.OS === 'ios' ? 28 : 16,
     flexDirection: 'row',
-    justifyContent: 'space-evenly',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: BOJE.navBg,
-    paddingVertical: 10,
-    paddingHorizontal: 6,
-    borderRadius: 32,
+    backgroundColor: '#0A0F1BCC',
+    paddingVertical: 11,
+    paddingHorizontal: 8,
+    borderRadius: 26,
     borderWidth: 1,
-    borderColor: BOJE.border,
+    borderColor: 'rgba(255,255,255,0.09)',
     shadowColor: '#000',
     shadowOpacity: 0.6,
     shadowRadius: 24,
     elevation: 18,
   },
-  navBtn:            { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 2 },
-  navTabPill:        { height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
-  navTabPillInactive:{ width: 44, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)' },
-  navTabPillActive:  { paddingHorizontal: 14, shadowOpacity: 0.55, shadowRadius: 12, elevation: 6, transform: [{ translateY: -2 }] },
-  navText:           { fontSize: Math.round(11 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, letterSpacing: 0.5, color: '#000', marginLeft: 5 },
+  navBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  navItem: {
+    minHeight: 56,
+    width: '100%',
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  navText: {
+    marginTop: 5,
+    fontSize: Math.round(9 * uiScale),
+    fontWeight: '900',
+    fontFamily: FONT_FAMILY,
+    letterSpacing: 0.9,
+    textAlign: 'center',
+  },
 });
 
 export default AppNavigator;

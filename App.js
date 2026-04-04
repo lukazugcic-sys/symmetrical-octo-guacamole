@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
-  SafeAreaView, StatusBar, StyleSheet, Animated, View, Text,
+  StatusBar, StyleSheet, Animated, View, Text,
   TouchableOpacity, ActivityIndicator, AppState,
 } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { enableScreens } from 'react-native-screens';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useGameStore } from './src/store/gameStore';
 import { useVillage }   from './src/hooks/useVillage';
 import { useMarket }    from './src/hooks/useMarket';
@@ -175,9 +176,10 @@ export default function App() {
 
   return (
     <UIContext.Provider value={{ onFlash, onShake }}>
-      <NavigationContainer>
-        <SafeAreaView style={styles.container}>
-          <StatusBar barStyle="light-content" backgroundColor={BOJE.bg} />
+      <SafeAreaProvider>
+        <NavigationContainer>
+          <SafeAreaView style={styles.container} edges={[ 'left', 'right' ]}>
+            <StatusBar barStyle="light-content" backgroundColor={BOJE.bg} />
 
           {/* Flash overlay za animacije udarca */}
           <Animated.View
@@ -251,8 +253,9 @@ export default function App() {
             <AppNavigator />
           </Animated.View>
 
-        </SafeAreaView>
-      </NavigationContainer>
+          </SafeAreaView>
+        </NavigationContainer>
+      </SafeAreaProvider>
     </UIContext.Provider>
   );
 }

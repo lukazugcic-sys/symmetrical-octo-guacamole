@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Platform, TouchableOpacity, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
 import { Zap, Coins, Gem, Shield, TreePine, Mountain, Pickaxe, TrendingUp, Crown } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGameStore } from '../store/gameStore';
 import AnimatedStat from './AnimatedStat';
 import { BOJE, uiScale, FONT_FAMILY } from '../config/constants';
@@ -10,6 +11,7 @@ import { izracunajMaxStitova, izracunajPotrebniXp, izracunajPasivniMnozitelj } f
  * Globalno zaglavlje aplikacije — razina, XP bar, resursi, obrana.
  */
 const Header = ({ onOpenBattlePass }) => {
+  const insets = useSafeAreaInsets();
   const igracRazina    = useGameStore((s) => s.igracRazina);
   const prestigeRazina = useGameStore((s) => s.prestigeRazina);
   const xp             = useGameStore((s) => s.xp);
@@ -48,7 +50,7 @@ const Header = ({ onOpenBattlePass }) => {
   });
 
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, { paddingTop: Math.max(14, insets.top + 6) }]}>
       {cloudSaveStatus !== 'idle' && (
         <View style={styles.saveStatusRow}>
           <Text style={styles.saveStatusTxt}>
@@ -140,10 +142,9 @@ const Header = ({ onOpenBattlePass }) => {
 const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'android' ? 44 : 16,
-    paddingBottom: 14,
+    paddingBottom: 16,
     zIndex: 10,
-    backgroundColor: 'rgba(4, 4, 8, 0.96)',
+    backgroundColor: '#05070E',
     borderBottomWidth: 1,
     borderColor: BOJE.border,
     shadowColor: '#000',
@@ -173,12 +174,12 @@ const styles = StyleSheet.create({
   levelContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: BOJE.slotOkvirZlato,
-    borderRadius: 26,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 24,
     padding: 6,
-    marginBottom: 10,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: BOJE.border,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   levelBadgeOuter: {
     width: Math.round(34 * uiScale),
@@ -215,7 +216,7 @@ const styles = StyleSheet.create({
   xpBarContainer: {
     flex: 1,
     height: Math.round(18 * uiScale),
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.38)',
     borderRadius: Math.round(9 * uiScale),
     marginHorizontal: 10,
     overflow: 'hidden',
@@ -275,10 +276,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: BOJE.bgCard,
-    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: BOJE.border,
+    borderColor: 'rgba(255,255,255,0.08)',
     height: Math.round(40 * uiScale),
     gap: 6,
   },
@@ -294,11 +295,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: BOJE.bgCard,
+    backgroundColor: 'rgba(255,255,255,0.04)',
     paddingVertical: Math.round(6 * uiScale),
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: BOJE.border,
+    borderColor: 'rgba(255,255,255,0.08)',
     gap: 6,
   },
   resChipTxt: {
