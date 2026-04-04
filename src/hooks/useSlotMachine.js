@@ -5,17 +5,31 @@ import { useSlotStore } from '../store/slotStore';
 import { useUI } from '../context/UIContext';
 import { useHaptics } from './useHaptics';
 import { useSounds } from './useSounds';
+import { useSeasonalEvent } from './useSeasonalEvent';
 import {
   SVO_BLAGO, BLAGO, LUCKY_SPIN_INTERVAL, MAX_WIN_STREAK,
   STREAK_BONUS_PER_WIN, WILD_BOOST_CHANCE_PER_LEVEL, ZGRADE,
-  SHIELD_GRANT_MIN_BET, MAX_GAMBLE_ROUNDS,
+  SHIELD_GRANT_MIN_BET, MAX_GAMBLE_ROUNDS, HERO_DROP_SANSA,
 } from '../config/constants';
 import {
   izracunajMaxStitova, izracunajPrestigeMnozitelj, izracunajSansuZaDobitak,
+  izracunajHeroBonus,
 } from '../utils/economy';
 import { delay, randomChance, randomFloat, randomInt } from '../utils/helpers';
 
 let spinGuard = false;
+
+// Izgradi težinski pool simbola na osnovu sezonalnog modificatora
+const izgradiPool = (dogadaj) => {
+  if (!dogadaj?.modifikatorBlaga) return SVO_BLAGO;
+  const pool = [];
+  SVO_BLAGO.forEach((sym) => {
+    const mult  = dogadaj.modifikatorBlaga[sym] ?? 1.0;
+    const count = Math.max(1, Math.round(mult * 2));
+    for (let i = 0; i < count; i++) pool.push(sym);
+  });
+  return pool;
+};
 
 /**
  * Hook koji enkapsulira svu logiku automata:
@@ -25,10 +39,11 @@ let spinGuard = false;
  *  - igrajGamble — duplanje dobitka (crvena/crna)
  *
  * Flash i shake efekti čitaju se iz UIContext.
- * Symbol pool je statičan i definiran u constants.js.
+ * Symbol pool se prilagođuje aktivnom sezonalnom događaju.
  */
 export const useSlotMachine = () => {
   const { onFlash: _onFlash, onShake: _onShake } = useUI();
+  const aktivniDogadaj = useSeasonalEvent();
 
   const { light, medium, heavy, success, error: hapticError } = useHaptics();
   const { play } = useSounds();
@@ -76,8 +91,8 @@ export const useSlotMachine = () => {
       ...(d.zlato > 0 ? { ukupnoZlata: s.ukupnoZlata + d.zlato } : {}),
     }));
 
-    if (d.zlato > 0) { gs.azurirajMisiju('zlato', d.zlato); }
-    if (d.linije   > 0) { gs.azurirajMisiju('dobitak', d.linije); }
+    if (d.zlato > 0) { gs.azurirajMisiju('zlato', d.zlato); gs.azurirajKlanZadatak('zlato', d.zlato); }
+    if (d.linije   > 0) { gs.azurirajMisiju('dobitak', d.linije); gs.azurirajKlanZadatak('dobitak', d.linije); }
 
     if (d.zlato > 0) {
       const gs2 = useGameStore.getState();
@@ -154,6 +169,10 @@ export const useSlotMachine = () => {
       useGameStore.setState((s) => ({ energija: s.energija - ulog }));
     }
     useGameStore.getState().azurirajMisiju('spin');
+    useGameStore.getState().azurirajKlanZadatak('spin');
+    useGameStore.getState().evidentirajClanRatBodove('spin', 1);
+    useGameStore.getState().dodajSezonaXp('spin', 1);
+    useGameStore.getState().dodajTurnirBodove(1);
 
     let dobijeniXp  = ulog * 2;
     const novaVrtnja = gs.ukupnoVrtnji + 1;
@@ -203,17 +222,19 @@ export const useSlotMachine = () => {
       const gs2          = useGameStore.getState();
       const wildBoostLevel  = gs2.razine.wildBoost || 0;
       const wildBoostChance = wildBoostLevel * WILD_BOOST_CHANCE_PER_LEVEL;
-      const sansaZaDobitak  = izracunajSansuZaDobitak(gs2.razine.sreca || 0);
+      const sansaZaDobitak  = izracunajSansuZaDobitak(gs2.razine.sreca || 0)
+        + (izracunajHeroBonus(gs2.junaci, gs2.aktivniJunaci, 'luck') / 100);
       const prestigeMnozitelj = izracunajPrestigeMnozitelj(gs2.prestigeRazina);
       const winStreakMultiplier = 1 + (Math.min(gs2.winStreak, MAX_WIN_STREAK) * STREAK_BONUS_PER_WIN);
-      const eventMnozitelj = 1.0;
+      const eventMnozitelj = aktivniDogadaj?.bonusMnozitelj ?? 1.0;
       const maxStitova = izracunajMaxStitova(gs2.razine.oklop || 0);
       const imaBoost = useGameStore.getState().iskoristiBoostSpin();
       const boostMnozitelj = imaBoost ? 2 : 1;
-      const heroZlatoMnozitelj = 1;
-      const heroXpMnozitelj    = 1;
+      const heroZlatoMnozitelj = 1 + (izracunajHeroBonus(gs2.junaci, gs2.aktivniJunaci, 'zlato') / 100);
+      const heroXpMnozitelj    = 1 + (izracunajHeroBonus(gs2.junaci, gs2.aktivniJunaci, 'xp')   / 100);
 
-      const simbolPool = SVO_BLAGO;
+      // Težinski pool simbola prilagođen aktivnom sezonalnom događaju
+      const simbolPool = izgradiPool(aktivniDogadaj);
 
       let noviSimboli = Array(15).fill(null).map(() => {
         if (randomChance(wildBoostChance)) return 'wild';
@@ -302,6 +323,13 @@ export const useSlotMachine = () => {
 
       useGameStore.getState().dodajXp(Math.floor(dobijeniXp * heroXpMnozitelj));
 
+      // ─── Hero fragment drop ─────────────────────────────────────────────
+      const fragBonus = jackpotLinija ? randomInt(3) + 2 : 0; // 2-4 bonus on jackpot
+      if (fragBonus > 0 || randomChance(HERO_DROP_SANSA)) {
+        const kolicina = (randomInt(2) + 1) + fragBonus; // 1-2 base + jackpot bonus
+        useGameStore.getState().dodijeliHeroFragmente(null, kolicina);
+      }
+
       const brojLubanja = noviSimboli.filter((s) => s === 'skull').length;
 
       if (dobijenaPoljaPrivremena.length > 0) {
@@ -313,7 +341,12 @@ export const useSlotMachine = () => {
         useGameStore.setState({ winStreak: noviWinStreak });
         if (noviWinStreak >= 3) {
           useGameStore.getState().azurirajMisiju('streak');
+          useGameStore.getState().dodajSezonaXp('streak', 1);
         }
+
+        // Turnir bodovi: +20 za jackpot, +10 za 4-u-nizu, +5 za obični dobitak
+        const turnirBodovi = jackpotLinija ? 20 : (linijaDobitnih >= 2 ? 10 : 5);
+        useGameStore.getState().dodajTurnirBodove(turnirBodovi);
 
         useSlotStore.getState().setDobitakNaCekanju({
           zlato:     ukupnoZlato,
@@ -370,6 +403,8 @@ export const useSlotMachine = () => {
           } else {
             novaPoruka = `NAPAD! ODUZETO ${gubitakZlata} 🪙`;
           }
+          // Otvori modal za uzvratni napad na pravog igrača
+           useSlotStore.getState().setRaidAktivan(true);
         } else {
           _onFlash('rgba(0, 212, 255, 0.4)');
           medium();

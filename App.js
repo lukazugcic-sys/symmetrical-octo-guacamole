@@ -12,17 +12,25 @@ import { UIContext }    from './src/context/UIContext';
 import Header           from './src/components/Header';
 import WinCelebration   from './src/components/WinCelebration';
 import LevelUpToast     from './src/components/LevelUpToast';
+import BattlePassModal  from './src/components/BattlePassModal';
 import OfflineBonusModal from './src/components/OfflineBonusModal';
 import AppNavigator     from './src/navigation/AppNavigator';
+import useAuth          from './src/hooks/useAuth';
+import useNotifications from './src/hooks/useNotifications';
 import { BOJE, DNEVNE_NAGRADE, uiScale, FONT_FAMILY } from './src/config/constants';
+import { useSeasonalEvent } from './src/hooks/useSeasonalEvent';
 
+// Aktiviraj native screen optimizacije (react-native-screens)
 enableScreens();
 
 export default function App() {
+  // ─── Flash overlay + tresenje ekrana ─────────────────────────────────────
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const flashAnim = useRef(new Animated.Value(0)).current;
   const dailyModalAnim = useRef(new Animated.Value(0)).current;
+  const eventModalAnim = useRef(new Animated.Value(0)).current;
   const [flashBoja, setFlashBoja] = useState('rgba(0,0,0,0)');
+  const [prikaziBattlePass, setPrikaziBattlePass] = useState(false);
 
   const onFlash = useCallback((boja) => {
     setFlashBoja(boja);
@@ -39,6 +47,9 @@ export default function App() {
     ]).start();
   }, [shakeAnim]);
 
+  const { ucitava: authUcitava } = useAuth();
+
+  // ─── Zustand store ────────────────────────────────────────────────────────
   const ucitavam            = useGameStore((s) => s.ucitavam);
   const ucitaj              = useGameStore((s) => s.ucitaj);
   const spremi              = useGameStore((s) => s.spremi);
@@ -47,7 +58,10 @@ export default function App() {
   const dnevnaNagrada       = useGameStore((s) => s.dnevnaNagrada);
   const dnevniStreak        = useGameStore((s) => s.dnevniStreak);
   const preuzmiDnevniBonus  = useGameStore((s) => s.preuzmiDnevniBonus);
+  const uid                 = useGameStore((s) => s.uid);
+  const imeIgraca           = useGameStore((s) => s.imeIgraca);
 
+  // Praćena stanja za auto-save
   const igracRazina      = useGameStore((s) => s.igracRazina);
   const prestigeRazina   = useGameStore((s) => s.prestigeRazina);
   const xp               = useGameStore((s) => s.xp);
@@ -65,20 +79,32 @@ export default function App() {
   const dostignucaDone   = useGameStore((s) => s.dostignucaDone);
   const ukupnoVrtnji     = useGameStore((s) => s.ukupnoVrtnji);
   const ukupnoZlata      = useGameStore((s) => s.ukupnoZlata);
+  const ukupnoRaidova    = useGameStore((s) => s.ukupnoRaidova);
   const aktivniSkin      = useGameStore((s) => s.aktivniSkin);
-  const zadnjiOnlineMs   = useGameStore((s) => s.zadnjiOnlineMs);
+  const klan             = useGameStore((s) => s.klan);
+  const zadnjiVideniEventId = useGameStore((s) => s.zadnjiVideniEventId);
+  const oznaciEventVidjen = useGameStore((s) => s.oznaciEventVidjen);
   const primijeniOfflineNapredak = useGameStore((s) => s.primijeniOfflineNapredak);
+  const junaci           = useGameStore((s) => s.junaci);
+  const aktivniJunaci    = useGameStore((s) => s.aktivniJunaci);
+  const [prikaziEventModal, setPrikaziEventModal] = useState(false);
+  const aktivniDogadaj = useSeasonalEvent();
 
-  useEffect(() => { ucitaj(); }, [ucitaj]);
+  // ─── Inicijalno učitavanje ────────────────────────────────────────────────
+  useEffect(() => {
+    if (authUcitava) return;
+    ucitaj();
+  }, [authUcitava, ucitaj]);
 
   useEffect(() => {
     if (ucitavam) return;
     const now = Date.now();
-    if (zadnjiOnlineMs && now > zadnjiOnlineMs) {
-      primijeniOfflineNapredak(Math.floor((now - zadnjiOnlineMs) / 1000));
+    const last = useGameStore.getState().zadnjiOnlineMs;
+    if (last && now > last) {
+      primijeniOfflineNapredak(Math.floor((now - last) / 1000));
     }
     useGameStore.setState({ zadnjiOnlineMs: now });
-  }, [ucitavam, zadnjiOnlineMs, primijeniOfflineNapredak]);
+  }, [ucitavam, primijeniOfflineNapredak]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
@@ -96,18 +122,27 @@ export default function App() {
     return () => sub.remove();
   }, []);
 
+  // ─── Auto-save glavnih podataka ───────────────────────────────────────────
   useEffect(() => {
     if (ucitavam) return;
     spremi();
   }, [spremi, igracRazina, prestigeRazina, xp, energija, zlato, dijamanti, resursi,
       gradevine, ostecenja, razine, stitovi, misije, luckySpinCounter, winStreak,
-      aktivniSkin, ucitavam]);
+      aktivniSkin, klan, junaci, aktivniJunaci, imeIgraca, uid, ucitavam]);
 
+  // ─── Auto-save dostignuća ─────────────────────────────────────────────────
   useEffect(() => {
     if (ucitavam) return;
     spremiDostignuca();
-  }, [dostignucaDone, ukupnoVrtnji, ukupnoZlata, ucitavam]);
+  }, [dostignucaDone, ukupnoVrtnji, ukupnoZlata, ukupnoRaidova, ucitavam]);
 
+  useEffect(() => {
+    if (!aktivniDogadaj?.id) return;
+    if (zadnjiVideniEventId === aktivniDogadaj.id) return;
+    setPrikaziEventModal(true);
+  }, [aktivniDogadaj?.id, zadnjiVideniEventId]);
+
+  // ─── Animacije modalova ───────────────────────────────────────────────────
   useEffect(() => {
     if (prikazDnevneNagrade) {
       dailyModalAnim.setValue(0);
@@ -115,9 +150,21 @@ export default function App() {
     }
   }, [prikazDnevneNagrade, dailyModalAnim]);
 
+  useEffect(() => {
+    if (prikaziEventModal) {
+      eventModalAnim.setValue(0);
+      Animated.spring(eventModalAnim, { toValue: 1, damping: 16, stiffness: 180, useNativeDriver: true }).start();
+    }
+  }, [prikaziEventModal, eventModalAnim]);
+
+  // ─── Tajmeri (pasivna produkcija + tržište) ───────────────────────────────
   useVillage();
   useMarket();
 
+  // ─── Push notifikacije ────────────────────────────────────────────────────
+  useNotifications();
+
+  // ─── Loading ekran ────────────────────────────────────────────────────────
   if (ucitavam) {
     return (
       <View style={styles.container}>
@@ -132,11 +179,13 @@ export default function App() {
         <SafeAreaView style={styles.container}>
           <StatusBar barStyle="light-content" backgroundColor={BOJE.bg} />
 
+          {/* Flash overlay za animacije udarca */}
           <Animated.View
             style={[StyleSheet.absoluteFill, { backgroundColor: flashBoja, opacity: flashAnim, zIndex: 100 }]}
             pointerEvents="none"
           />
 
+          {/* Dnevna nagrada modal */}
           {prikazDnevneNagrade && dnevnaNagrada && (
             <View style={styles.modalOverlay}>
               <Animated.View style={[styles.modalCard, { transform: [{ scale: dailyModalAnim }], opacity: dailyModalAnim }]}>
@@ -168,12 +217,37 @@ export default function App() {
             </View>
           )}
 
+          {prikaziEventModal && aktivniDogadaj && (
+            <View style={styles.modalOverlay}>
+              <Animated.View style={[styles.modalCard, { borderColor: (aktivniDogadaj.boja || BOJE.zlato) + '80' }, { transform: [{ scale: eventModalAnim }], opacity: eventModalAnim }]}>
+                <Text style={styles.modalTitle}>{aktivniDogadaj.emodzi} {aktivniDogadaj.naziv.toUpperCase()}</Text>
+                <Text style={styles.modalSubtitle}>{aktivniDogadaj.opis}</Text>
+                <Text style={[styles.modalSubtitle, { color: aktivniDogadaj.boja }]}>Bonus: x{aktivniDogadaj.bonusMnozitelj}</Text>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  style={styles.modalBtn}
+                  onPress={() => {
+                    oznaciEventVidjen(aktivniDogadaj.id);
+                    setPrikaziEventModal(false);
+                  }}
+                >
+                  <Text style={styles.modalBtnTxt}>NASTAVI</Text>
+                </TouchableOpacity>
+              </Animated.View>
+            </View>
+          )}
+
+          {/* Čestice proslave pobjede / jackpota */}
           <WinCelebration />
+
+          {/* Level-up toast */}
           <LevelUpToast />
           <OfflineBonusModal />
+          <BattlePassModal visible={prikaziBattlePass} onClose={() => setPrikaziBattlePass(false)} />
 
+          {/* Sadržaj aplikacije — shake wrapper */}
           <Animated.View style={[styles.mainWrapper, { transform: [{ translateX: shakeAnim }] }]}>
-            <Header />
+            <Header onOpenBattlePass={() => setPrikaziBattlePass(true)} />
             <AppNavigator />
           </Animated.View>
 
@@ -186,6 +260,8 @@ export default function App() {
 const styles = StyleSheet.create({
   container:   { flex: 1, backgroundColor: BOJE.bg },
   mainWrapper: { flex: 1 },
+
+  // Dnevna nagrada modal
   modalOverlay:    { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.88)', justifyContent: 'center', alignItems: 'center', zIndex: 200, paddingHorizontal: 24 },
   modalCard:       { backgroundColor: '#0C0E1C', borderRadius: 32, padding: 28, width: '100%', borderWidth: 1, borderColor: BOJE.zlato + '70', alignItems: 'center', shadowColor: BOJE.zlato, shadowOpacity: 0.35, shadowRadius: 28, elevation: 24 },
   modalTitle:      { fontSize: Math.round(24 * uiScale), fontWeight: '900', fontFamily: FONT_FAMILY, color: BOJE.zlato, letterSpacing: 2, marginBottom: 8 },

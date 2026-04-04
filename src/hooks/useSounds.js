@@ -1,5 +1,4 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { Audio } from 'expo-av';
 
 // ┌──────────────────────────────────────────────────────────────────────────┐
 // │  ZVUČNI EFEKTI — Uputa za dodavanje zvukova:                              │
@@ -17,6 +16,8 @@ const ZVUKOVI = {
   button:  null, // require('../../assets/sounds/button.mp3'),
 };
 
+const IMA_AKTIVNIH_ZVUKOVA = Object.values(ZVUKOVI).some(Boolean);
+
 /**
  * Hook za upravljanje zvučnim efektima.
  * Svaka pogreška (nedostaje datoteka, isključen zvuk) se tiho zanemaruje.
@@ -32,13 +33,29 @@ const ZVUKOVI = {
  */
 export const useSounds = () => {
   const soundRefs = useRef({});
+  const audioRef = useRef(null);
+  const audioModeReadyRef = useRef(false);
+
+  const ensureAudio = useCallback(async () => {
+    if (!IMA_AKTIVNIH_ZVUKOVA) return null;
+
+    if (!audioRef.current) {
+      const expoAv = await import('expo-av');
+      audioRef.current = expoAv.Audio;
+    }
+
+    if (!audioModeReadyRef.current && audioRef.current) {
+      await audioRef.current.setAudioModeAsync({
+        playsInSilentModeIOS: false,
+        staysActiveInBackground: false,
+      }).catch(() => {});
+      audioModeReadyRef.current = true;
+    }
+
+    return audioRef.current;
+  }, []);
 
   useEffect(() => {
-    Audio.setAudioModeAsync({
-      playsInSilentModeIOS: false,
-      staysActiveInBackground: false,
-    }).catch(() => {});
-
     return () => {
       Object.values(soundRefs.current).forEach((s) => s?.unloadAsync?.().catch(() => {}));
       soundRefs.current = {};
@@ -50,6 +67,9 @@ export const useSounds = () => {
     if (!source) return;
 
     try {
+      const Audio = await ensureAudio();
+      if (!Audio) return;
+
       // Unload prethodne instance istog zvuka za čisto preklapanje
       await soundRefs.current[tip]?.unloadAsync().catch(() => {});
 
@@ -64,7 +84,7 @@ export const useSounds = () => {
     } catch (_e) {
       // Tiho zanemari greške (nedostaje datoteka, audio nije inicijaliziran)
     }
-  }, []);
+  }, [ensureAudio]);
 
   return { play };
 };

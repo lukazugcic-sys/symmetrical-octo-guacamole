@@ -106,6 +106,8 @@ export const BAZA_MISIJA = [
   { opis: 'Aktiviraj Lucky Spin',         tip: 'luckySpin', cilj: 1,     nagrada: { dijamanti: 4, energija: 40 } },
   { opis: 'Aktiviraj Lucky Spin 3 puta',  tip: 'luckySpin', cilj: 3,     nagrada: { dijamanti: 10, zlato: 1000 } },
   { opis: 'Ostvari niz od 3 dobitka',     tip: 'streak',    cilj: 3,     nagrada: { dijamanti: 6, energija: 60 } },
+  { opis: 'Porazi 5 neprijatelja u tami', tip: 'tamnica',   cilj: 5,     nagrada: { dijamanti: 5, energija: 50 } },
+  { opis: 'Dođi do 10. sprata tamnice',   tip: 'tamnica',   cilj: 10,    nagrada: { dijamanti: 15, energija: 100 } },
 ];
 
 export const generirajMisiju = (excludeTipovi = []) => {
@@ -137,6 +139,8 @@ export const DOSTIGNUCA = [
   { id: 'zlato50000',naziv: 'Tajkun',           opis: 'Prikupi ukupno 50000 zlata iz dobitaka',      tip: 'ukupnoZlato', cilj: 50000, nagrada: { dijamanti: 20 } },
   { id: 'prestige1', naziv: 'Obnova',           opis: 'Izvrši prestige po prvi put',                 tip: 'prestige',    cilj: 1,     nagrada: { dijamanti: 25 } },
   { id: 'gradnja5',  naziv: 'Graditelj',        opis: 'Nadogradi bilo koju zgradu na razinu 5',      tip: 'gradnja',     cilj: 5,     nagrada: { zlato: 500, kamen: 200 } },
+  { id: 'raid10',    naziv: 'Pljačkaš',         opis: 'Uspješno izvrši 10 raidova',                   tip: 'raid',        cilj: 10,    nagrada: { dijamanti: 20, zlato: 1500 } },
+  { id: 'klan1',     naziv: 'Član Klana',       opis: 'Osnuj ili pridruži se klanu',                  tip: 'klan',        cilj: 1,     nagrada: { dijamanti: 10 } },
   { id: 'spin1000',  naziv: 'Legenda Automata', opis: 'Zavrti automat 1000 puta',                     tip: 'spin',        cilj: 1000,  nagrada: { dijamanti: 60 } },
   { id: 'lv50',      naziv: 'Veteran',          opis: 'Dosegni razinu 50',                            tip: 'razina',      cilj: 50,    nagrada: { dijamanti: 35, energija: 200 } },
   { id: 'zlato100k', naziv: 'Magnat',           opis: 'Prikupi ukupno 100000 zlata iz dobitaka',      tip: 'ukupnoZlato', cilj: 100000, nagrada: { dijamanti: 50 } },
@@ -165,8 +169,11 @@ export const LUCKY_SPIN_INTERVAL         = 25;
 export const MAX_WIN_STREAK              = 5;
 export const STREAK_BONUS_PER_WIN        = 0.15;
 export const WILD_BOOST_CHANCE_PER_LEVEL = 0.04;
-export const SHIELD_GRANT_MIN_BET        = 10;
-export const MAX_GAMBLE_ROUNDS           = 5;
+export const SHIELD_GRANT_MIN_BET        = 10; // Min bet for bonus shield grants
+export const MAX_GAMBLE_ROUNDS           = 5;  // Max consecutive gamble attempts per win
+
+// ─── Redoslijed ekrana (za navigaciju swipeom) ────────────────────────────────
+export const POREDAK_EKRANA = ['automat', 'selo', 'misije', 'trgovina', 'nadogradnje', 'klan', 'ljestvica', 'junaci', 'kovacnica', 'turnir'];
 
 // ─── Kozmetika — skinovi zgrada ───────────────────────────────────────────────
 export const ZGRADE_SKINOVI = [
@@ -180,62 +187,298 @@ export const CIJENA_DVOSTRUKI_BOOST = 5000;
 export const TRAJANJE_DVOSTRUKI_BOOST = 20;
 export const STIT_REGEN_INTERVAL_SEK = 90;
 export const OFFLINE_MAX_SEK = 8 * 60 * 60;
+export const BATTLE_PASS_TIER_XP = 100;
+export const BATTLE_PASS_MAX_RAZINA = 30;
+export const BATTLE_PASS_PREMIUM_CIJENA = 200;
 export const MAX_AD_VIEWS_DNEVNO = 5;
 
-// ─── Junaci ───────────────────────────────────────────────────────────────────
-// 4 rarity tiers: obican / rijetki / epski / legendarni
-// tipBonusa: 'zlato' | 'luck' | 'xp' (slot bonuses)
-//            'energija' | 'pasivno' | 'stit' (timerTick bonuses)
+// ─── Klan — predlošci zadataka ────────────────────────────────────────────────
+export const KLAN_ZADACI_SABLONI = [
+  { opis: 'Ukupno zavrti automat 200 puta (klan)',  tip: 'spin',   cilj: 200,  nagrada: { dijamanti: 15, zlato: 800 } },
+  { opis: 'Ukupno prikupi 5000 zlata (klan)',       tip: 'zlato',  cilj: 5000, nagrada: { dijamanti: 10, energija: 100 } },
+  { opis: 'Izgradi ili nadogradi 5 zgrada (klan)',  tip: 'zgrada', cilj: 5,    nagrada: { dijamanti: 20, drvo: 500 } },
+  { opis: 'Doniraj 1000 zlata klanu',               tip: 'donacija', cilj: 1000, nagrada: { dijamanti: 8, kamen: 300 } },
+  { opis: 'Ostvari 50 dobitnih linija (klan)',      tip: 'dobitak', cilj: 50,   nagrada: { dijamanti: 12, energija: 80 } },
+  { opis: 'Kupi ili nadogradi 3 komada opreme (klan)', tip: 'oprema', cilj: 3,  nagrada: { dijamanti: 10, zeljezo: 200 } },
+];
+
+export const generirajKlanZadatke = () =>
+  KLAN_ZADACI_SABLONI.map((s, i) => ({
+    id: i,
+    ...s,
+    trenutno: 0,
+    zavrseno: false,
+    preuzeto: false,
+  }));
+
+// ─── Junaci (Hero Collection System) ─────────────────────────────────────────
+export const RARITET_BOJE = {
+  obican:     '#64748B',
+  rijetki:    '#22C55E',
+  epski:      '#A855F7',
+  legendarni: '#F59E0B',
+};
+
+export const RARITET_NAZIVI = {
+  obican:     'Obični',
+  rijetki:    'Rijetki',
+  epski:      'Epski',
+  legendarni: 'Legendarni',
+};
+
+export const HERO_FRAGMENTI_ZA_OTKLJ = 10;   // fragments needed to unlock (razina 0 → 1)
+export const HERO_FRAGMENTI_ZA_RAZINU = 20;   // fragments per subsequent level-up
+export const HERO_MAX_RAZINA          = 5;
+export const HERO_SUMMON_KOST         = 20;   // diamonds per summon
+export const HERO_DROP_SANSA          = 0.06; // 6% chance per spin to drop hero fragments
+export const HERO_MAX_AKTIVNIH        = 2;    // max simultaneously active heroes
+
+// Rarity weights for random drops (higher = more common)
+export const HERO_DROP_TEZINE = {
+  obican:     55,
+  rijetki:    30,
+  epski:      12,
+  legendarni: 3,
+};
+
+/**
+ * tipBonusa values and their effects:
+ *  zlato    — bonus % on gold wins
+ *  energija — flat bonus energy per timer tick
+ *  pasivno  — bonus % on passive resource production
+ *  stit     — bonus max shield slots
+ *  luck     — bonus % win chance on slot
+ *  xp       — bonus % XP from spins
+ */
 export const JUNACI = [
-  { id: 'warrior',      naziv: 'Ratnik',          tipBonusa: 'zlato',    bonusPoRazini: 0.05, raritet: 'obican'     },
-  { id: 'scout',        naziv: 'Izviđač',          tipBonusa: 'luck',     bonusPoRazini: 0.02, raritet: 'obican'     },
-  { id: 'mage',         naziv: 'Čarobnjak',        tipBonusa: 'xp',       bonusPoRazini: 0.08, raritet: 'rijetki'    },
-  { id: 'knight',       naziv: 'Vitez',            tipBonusa: 'stit',     bonusPoRazini: 0.10, raritet: 'rijetki'    },
-  { id: 'archer',       naziv: 'Strijelac',        tipBonusa: 'zlato',    bonusPoRazini: 0.08, raritet: 'rijetki'    },
-  { id: 'healer',       naziv: 'Iscjelitelj',      tipBonusa: 'energija', bonusPoRazini: 0.05, raritet: 'rijetki'    },
-  { id: 'paladin',      naziv: 'Paladin',          tipBonusa: 'stit',     bonusPoRazini: 0.15, raritet: 'epski'      },
-  { id: 'druid',        naziv: 'Druid',            tipBonusa: 'pasivno',  bonusPoRazini: 0.10, raritet: 'epski'      },
-  { id: 'sorcerer',     naziv: 'Vještac',          tipBonusa: 'xp',       bonusPoRazini: 0.12, raritet: 'epski'      },
-  { id: 'berserker',    naziv: 'Berserker',        tipBonusa: 'zlato',    bonusPoRazini: 0.15, raritet: 'epski'      },
-  { id: 'archmage',     naziv: 'Arhimag',          tipBonusa: 'energija', bonusPoRazini: 0.12, raritet: 'legendarni' },
-  { id: 'dragon_knight',naziv: 'Zmajski Vitez',    tipBonusa: 'pasivno',  bonusPoRazini: 0.20, raritet: 'legendarni' },
+  // ─── Obični ──────────────────────────────────────────────────────────────
+  { id: 'zlatko',   naziv: 'Zlatko',   emodzi: '🪙', raritet: 'obican',     tipBonusa: 'zlato',    opisBonusa: '+3% zlatnih dobitaka po razini',      bonusPoRazini: 3    },
+  { id: 'iskra',    naziv: 'Iskra',    emodzi: '⚡', raritet: 'obican',     tipBonusa: 'energija', opisBonusa: '+0.2 energije/tik po razini',          bonusPoRazini: 0.2  },
+  { id: 'drvar',    naziv: 'Drvar',    emodzi: '🌲', raritet: 'obican',     tipBonusa: 'pasivno',  opisBonusa: '+2% pasivne produkcije po razini',     bonusPoRazini: 2    },
+  { id: 'ucenjak',  naziv: 'Učenjak',  emodzi: '📖', raritet: 'obican',     tipBonusa: 'xp',       opisBonusa: '+5% XP iz vrtnji po razini',           bonusPoRazini: 5    },
+  // ─── Rijetki ─────────────────────────────────────────────────────────────
+  { id: 'strazar',  naziv: 'Stražar',  emodzi: '🛡️', raritet: 'rijetki',   tipBonusa: 'stit',     opisBonusa: '+1 max štit po razini',                bonusPoRazini: 1    },
+  { id: 'kockar',   naziv: 'Kockar',   emodzi: '🍀', raritet: 'rijetki',   tipBonusa: 'luck',     opisBonusa: '+1.5% šanse za dobitak po razini',     bonusPoRazini: 1.5  },
+  { id: 'trgovic',  naziv: 'Trgovac',  emodzi: '💰', raritet: 'rijetki',   tipBonusa: 'zlato',    opisBonusa: '+6% zlatnih dobitaka po razini',       bonusPoRazini: 6    },
+  // ─── Epski ───────────────────────────────────────────────────────────────
+  { id: 'ratnik',   naziv: 'Ratnik',   emodzi: '⚔️', raritet: 'epski',     tipBonusa: 'zlato',    opisBonusa: '+10% zlatnih dobitaka po razini',      bonusPoRazini: 10   },
+  { id: 'carobnjak',naziv: 'Čarobnjak',emodzi: '🧙', raritet: 'epski',     tipBonusa: 'luck',     opisBonusa: '+3% šanse za dobitak po razini',       bonusPoRazini: 3    },
+  { id: 'arhitekt', naziv: 'Arhitekt', emodzi: '🏛️', raritet: 'epski',     tipBonusa: 'pasivno',  opisBonusa: '+8% pasivne produkcije po razini',     bonusPoRazini: 8    },
+  // ─── Legendarni ──────────────────────────────────────────────────────────
+  { id: 'kralj',    naziv: 'Kralj',    emodzi: '👑', raritet: 'legendarni', tipBonusa: 'zlato',    opisBonusa: '+20% zlatnih dobitaka po razini',      bonusPoRazini: 20   },
+  { id: 'boginja',  naziv: 'Boginja',  emodzi: '⭐', raritet: 'legendarni', tipBonusa: 'luck',     opisBonusa: '+6% šanse za dobitak po razini',       bonusPoRazini: 6    },
 ];
 
-// ─── Tamnica (Dungeon) ────────────────────────────────────────────────────────
-export const TAMNICA_IGRAC_MAX_HP = 100;
+export const BATTLE_PASS_SEASON_THEME = {
+  halloween: { naziv: 'Noć Vještica', emodzi: '🎃', skin: 'medieval' },
+  bozic: { naziv: 'Božićni Festival', emodzi: '🎄', skin: 'japanese' },
+  nova_godina: { naziv: 'Nova Godina', emodzi: '🎆', skin: 'futuristic' },
+  ljeto: { naziv: 'Ljetni Festival', emodzi: '☀️', skin: 'default' },
+  default: { naziv: 'Klasična Sezona', emodzi: '🏁', skin: 'default' },
+};
 
-export const TAMNICA_NEPRIJATELJI = [
-  { id: 'goblin',  naziv: 'Goblin',  bazaHp: 30,  napad: 5,  ikona: '👺' },
-  { id: 'orc',     naziv: 'Ork',     bazaHp: 60,  napad: 10, ikona: '👹' },
-  { id: 'troll',   naziv: 'Trol',    bazaHp: 120, napad: 18, ikona: '🧌' },
-  { id: 'dragon',  naziv: 'Zmaj',    bazaHp: 250, napad: 35, ikona: '🐉' },
+export const BATTLE_PASS_NAGRADE = Array.from({ length: BATTLE_PASS_MAX_RAZINA }, (_, idx) => {
+  const razina = idx + 1;
+  const premiumSkinTier = razina % 10 === 0;
+  return {
+    razina,
+    xpPotrebno: razina * BATTLE_PASS_TIER_XP,
+    free: {
+      zlato: razina * 250,
+      energija: razina % 3 === 0 ? 20 : 0,
+      drvo: razina % 2 === 0 ? razina * 20 : 0,
+      kamen: razina % 2 === 1 ? razina * 20 : 0,
+      zeljezo: razina % 5 === 0 ? razina * 15 : 0,
+      dijamanti: razina % 7 === 0 ? 5 : 0,
+    },
+    premium: {
+      zlato: razina * 500,
+      energija: 30,
+      dijamanti: 5 + Math.floor(razina / 2),
+      drvo: razina * 25,
+      kamen: razina * 25,
+      zeljezo: razina * 20,
+      skin: premiumSkinTier ? ZGRADE_SKINOVI[(Math.floor(razina / 10) % ZGRADE_SKINOVI.length)].id : null,
+    },
+  };
+});
+
+// ─── Kovačnica — recepti za izradu predmeta ───────────────────────────────────
+export const RECEPTI = [
+  {
+    id: 'zlatni_amulet',
+    naziv: 'Zlatni Amulet',
+    emodzi: '📿',
+    opis: '+15% zlatnih dobitaka',
+    detalji: '1 sat',
+    cijena: { drvo: 50, kamen: 30, zeljezo: 0 },
+    tip: 'zlato',
+    bonus: 15,
+    trajanjeSek: 3600,
+    boja: '#FBBF24',
+  },
+  {
+    id: 'sretni_talisman',
+    naziv: 'Sretni Talisman',
+    emodzi: '🍀',
+    opis: '+8% šanse za dobitak',
+    detalji: '2 sata',
+    cijena: { drvo: 0, kamen: 20, zeljezo: 30 },
+    tip: 'luck',
+    bonus: 8,
+    trajanjeSek: 7200,
+    boja: '#22C55E',
+  },
+  {
+    id: 'knjiga_mudrosti',
+    naziv: 'Knjiga Mudrosti',
+    emodzi: '📚',
+    opis: '+25% XP iz vrtnji',
+    detalji: '1 sat',
+    cijena: { drvo: 40, kamen: 0, zeljezo: 40 },
+    tip: 'xp',
+    bonus: 25,
+    trajanjeSek: 3600,
+    boja: '#34D399',
+  },
+  {
+    id: 'energetski_kristal',
+    naziv: 'Energetski Kristal',
+    emodzi: '🔮',
+    opis: '+15 energije odmah',
+    detalji: 'Trenutno',
+    cijena: { drvo: 0, kamen: 60, zeljezo: 20 },
+    tip: 'energija_instant',
+    bonus: 15,
+    trajanjeSek: 0,
+    boja: '#A3E635',
+  },
+  {
+    id: 'stit_runa',
+    naziv: 'Štit Runa',
+    emodzi: '🛡️',
+    opis: 'Obnovi sve štitove odmah',
+    detalji: 'Trenutno',
+    cijena: { drvo: 0, kamen: 50, zeljezo: 50 },
+    tip: 'stit_instant',
+    bonus: 0,
+    trajanjeSek: 0,
+    boja: '#22D3EE',
+  },
+  {
+    id: 'heroska_esencija',
+    naziv: 'Heroska Esencija',
+    emodzi: '⚗️',
+    opis: 'Nasumični hero fragmenti (2–4)',
+    detalji: 'Trenutno',
+    cijena: { drvo: 100, kamen: 100, zeljezo: 50 },
+    tip: 'hero_fragment',
+    bonus: 0,
+    trajanjeSek: 0,
+    boja: '#A855F7',
+  },
 ];
 
-export const TAMNICA_BOSSOVI = [
-  { sprat: 5,  naziv: 'Goblin Kralj',  hpMnozac: 2.5, napadMnozac: 1.5, bonus: { zlato: 200,  dijamanti: 3,  tokenovi: 1 } },
-  { sprat: 10, naziv: 'Ork Vojevoda',  hpMnozac: 3.0, napadMnozac: 2.0, bonus: { zlato: 500,  dijamanti: 7,  tokenovi: 2 } },
-  { sprat: 15, naziv: 'Drevni Zmaj',   hpMnozac: 4.0, napadMnozac: 2.5, bonus: { zlato: 1200, dijamanti: 15, tokenovi: 3 } },
-];
-
-// index 0 = napad upgrade, index 1 = obrana upgrade (bonusPoRazini = HP gained per level)
-export const TAMNICA_SHOP = [
-  { id: 'snaga',  naziv: 'Snaga napada', cijena: 50, bonusPoRazini: 5  },
-  { id: 'obrana', naziv: 'Obrana',       cijena: 50, bonusPoRazini: 10 },
-  { id: 'lijek',  naziv: 'Lijek',        cijena: 30, bonusPoRazini: 0, jednokratno: true },
-];
-
-// ─── Turnir (Tournament) ──────────────────────────────────────────────────────
+// ─── Turnir — tjedne razine i nagrade ────────────────────────────────────────
 export const TURNIR_RAZINE = [
-  { id: 'bronca',   naziv: 'Bronca',   minBodova: 0,    nagrada: { zlato: 200 } },
-  { id: 'srebro',   naziv: 'Srebro',   minBodova: 100,  nagrada: { zlato: 500,  dijamanti: 3  } },
-  { id: 'zlato',    naziv: 'Zlato',    minBodova: 300,  nagrada: { zlato: 1000, dijamanti: 8  } },
-  { id: 'platina',  naziv: 'Platina',  minBodova: 600,  nagrada: { zlato: 2000, dijamanti: 20 } },
-  { id: 'dijamant', naziv: 'Dijamant', minBodova: 1000, nagrada: { zlato: 5000, dijamanti: 50 } },
+  { id: 'bronza',   naziv: 'Bronza',   emodzi: '🥉', minBodova: 0,    nagrada: { zlato: 500 } },
+  { id: 'srebro',   naziv: 'Srebro',   emodzi: '🥈', minBodova: 500,  nagrada: { dijamanti: 15, zlato: 1500 } },
+  { id: 'zlato',    naziv: 'Zlato',    emodzi: '🥇', minBodova: 2000, nagrada: { dijamanti: 35, zlato: 3000 } },
+  { id: 'dijamant', naziv: 'Dijamant', emodzi: '💎', minBodova: 5000, nagrada: { dijamanti: 100, zlato: 10000 } },
 ];
+
+// ─── Sanduk — tipovi sa nagradama ─────────────────────────────────────────────
+export const SANDUK_TIPOVI = [
+  {
+    id: 'besplatni',
+    naziv: 'Dnevni Sanduk',
+    emodzi: '📦',
+    boja: '#94A3B8',
+    cijenaDijamanti: 0,
+    besplatanJednom: true,
+    nagrade: [
+      { tip: 'zlato',         min: 200,  max: 600  },
+      { tip: 'energija',      min: 10,   max: 30   },
+      { tip: 'drvo',          min: 30,   max: 100  },
+      { tip: 'kamen',         min: 20,   max: 80   },
+      { tip: 'hero_fragment', min: 0,    max: 2, sansa: 0.25 },
+    ],
+  },
+  {
+    id: 'srebrni',
+    naziv: 'Srebrni Sanduk',
+    emodzi: '🗝️',
+    boja: '#CBD5E1',
+    cijenaDijamanti: 50,
+    besplatanJednom: false,
+    nagrade: [
+      { tip: 'zlato',         min: 1000, max: 2500  },
+      { tip: 'energija',      min: 40,   max: 80    },
+      { tip: 'drvo',          min: 100,  max: 300   },
+      { tip: 'kamen',         min: 80,   max: 250   },
+      { tip: 'zeljezo',       min: 40,   max: 120   },
+      { tip: 'hero_fragment', min: 1,    max: 3, sansa: 1.0  },
+    ],
+  },
+  {
+    id: 'zlatni',
+    naziv: 'Zlatni Sanduk',
+    emodzi: '👑',
+    boja: '#FBBF24',
+    cijenaDijamanti: 200,
+    besplatanJednom: false,
+    nagrade: [
+      { tip: 'zlato',         min: 5000, max: 10000 },
+      { tip: 'dijamanti',     min: 10,   max: 30    },
+      { tip: 'energija',      min: 80,   max: 150   },
+      { tip: 'drvo',          min: 300,  max: 600   },
+      { tip: 'kamen',         min: 250,  max: 500   },
+      { tip: 'zeljezo',       min: 100,  max: 250   },
+      { tip: 'hero_fragment', min: 3,    max: 6, sansa: 1.0  },
+    ],
+  },
+];
+
+// ─── Tamnica — dungeon sustav ─────────────────────────────────────────────────
+export const TAMNICA_KOST_ENERGIJE = 20;
+export const TAMNICA_IGRAC_MAX_HP  = 200;
+
+// Tipovi neprijatelja — skaliraju po spratu
+export const TAMNICA_NEPRIJATELJI = [
+  { id: 'sluz',    naziv: 'Šljuzavac',      emodzi: '🟢', bazaHp:  60,  napadMin:  5, napadMax: 12, nagrada: { zlato:  60, tokenovi: 1 } },
+  { id: 'pauk',    naziv: 'Otrovni Pauk',   emodzi: '🕷️', bazaHp: 100,  napadMin:  8, napadMax: 18, nagrada: { zlato: 100, tokenovi: 1 } },
+  { id: 'goblin',  naziv: 'Divlji Goblin',  emodzi: '👺', bazaHp: 170,  napadMin: 14, napadMax: 26, nagrada: { zlato: 180, tokenovi: 2 } },
+  { id: 'vampir',  naziv: 'Vampirski Knez', emodzi: '🧛', bazaHp: 270,  napadMin: 22, napadMax: 38, nagrada: { zlato: 300, tokenovi: 2 } },
+  { id: 'zmaj',    naziv: 'Drevni Zmaj',    emodzi: '🐉', bazaHp: 430,  napadMin: 32, napadMax: 55, nagrada: { zlato: 500, tokenovi: 3 } },
+];
+
+// Boss neprijatelji svakih 5 spratova
+export const TAMNICA_BOSSOVI = [
+  { sprat:  5, naziv: 'Gargon Sjene',      emodzi: '💀', hpMnozac: 3.0, napadMnozac: 2.0, bonus: { zlato:  600, dijamanti:  3, tokenovi:  5 } },
+  { sprat: 10, naziv: 'Noćni Vladar',       emodzi: '👑', hpMnozac: 3.5, napadMnozac: 2.2, bonus: { zlato: 1200, dijamanti:  5, tokenovi:  8 } },
+  { sprat: 15, naziv: 'Zmaj Ognjene Gore',  emodzi: '🔥', hpMnozac: 4.0, napadMnozac: 2.5, bonus: { zlato: 2500, dijamanti:  8, tokenovi: 12 } },
+  { sprat: 20, naziv: 'Sjena Vječnosti',    emodzi: '🌑', hpMnozac: 5.0, napadMnozac: 3.0, bonus: { zlato: 5000, dijamanti: 15, tokenovi: 20 } },
+];
+
+// Trajne nadogradnje koje se kupuju tamničarskim tokenima
+export const TAMNICA_SHOP = [
+  { id: 'snaga',   naziv: 'Oštrica Tame',    emodzi: '⚔️', opis: '+15 napada po razini',  kost: 8,  maxRazina: 5, bonusPoRazini: 15 },
+  { id: 'obrana',  naziv: 'Tamnički Oklop',  emodzi: '🛡️', opis: '+25 max HP po razini',  kost: 6,  maxRazina: 5, bonusPoRazini: 25 },
+  { id: 'vampir',  naziv: 'Vampirski Čin',   emodzi: '🩸', opis: '+8% lifesteala po razini', kost: 12, maxRazina: 3, bonusPoRazini: 8  },
+];
+
+export const TAMNICA_NAPAD_BAZA    = 20;  // bazični napad igrača u tamnici
+export const TAMNICA_RANDOM_RASPON = 16;  // randomInt(N) → 0 … N-1 dodano na napad
 
 const _contentValidation = validateGameContent({
   BAZA_MISIJA,
   DOSTIGNUCA,
+  JUNACI,
+  RECEPTI,
+  TURNIR_RAZINE,
+  SANDUK_TIPOVI,
+  TAMNICA_NEPRIJATELJI,
+  TAMNICA_BOSSOVI,
 });
 
 if (!_contentValidation.ok) {

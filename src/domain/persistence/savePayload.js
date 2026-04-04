@@ -1,6 +1,9 @@
 import { createSaveEnvelope, unwrapSaveEnvelope } from './schema';
 
+export const RAID_HISTORY_LIMIT = 20;
+
 export const createRuntimeSaveSnapshot = (s) => ({
+  imeIgraca: s.imeIgraca,
   igracRazina: s.igracRazina,
   prestigeRazina: s.prestigeRazina,
   xp: s.xp,
@@ -20,10 +23,25 @@ export const createRuntimeSaveSnapshot = (s) => ({
   aktivniSkin: s.aktivniSkin,
   spinBoostPreostalo: s.spinBoostPreostalo,
   stitRegenSekundi: s.stitRegenSekundi,
+  raidPovijest: Array.isArray(s.raidPovijest)
+    ? s.raidPovijest.slice(0, RAID_HISTORY_LIMIT)
+    : [],
+  klanPopustAktivan: s.klanPopustAktivan,
   prestigeMilestones: s.prestigeMilestones,
+  zadnjiVideniEventId: s.zadnjiVideniEventId,
+  klan: s.klan,
+  sezona: s.sezona,
   adsPogledanoDanas: s.adsPogledanoDanas,
   adsDatum: s.adsDatum,
   zadnjiOnlineMs: s.zadnjiOnlineMs,
+  clanRat: s.clanRat,
+  revengeTarget: s.revengeTarget,
+  junaci: s.junaci,
+  aktivniJunaci: s.aktivniJunaci,
+  kovanice: s.kovanice,
+  turnir: s.turnir,
+  sandukDatum: s.sandukDatum,
+  tamnica: s.tamnica,
 });
 
 export const serializeGameSave = (snapshot) =>
