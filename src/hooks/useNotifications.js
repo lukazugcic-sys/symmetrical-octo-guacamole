@@ -17,12 +17,22 @@ import { Platform, Alert, AppState }       from 'react-native';
 import { useGameStore }   from '../store/gameStore';
 import { izracunajMaxEnergiju } from '../utils/economy';
 import { SEZONALNI_DOGADAJI }   from '../config/sezonalniDogadaji';
+import { isExpoGo } from '../utils/helpers';
 
 let cachedNotificationsModule;
 let hasResolvedNotificationsModule = false;
 let hasConfiguredNotificationHandler = false;
+let hasWarnedAboutExpoGoNotifications = false;
 
 const getNotificationsModule = () => {
+  if (isExpoGo()) {
+    if (!hasWarnedAboutExpoGoNotifications) {
+      hasWarnedAboutExpoGoNotifications = true;
+      console.warn('[Notifications] Expo Go does not support this notifications flow. Use a development build to enable notifications.');
+    }
+    return null;
+  }
+
   if (hasResolvedNotificationsModule) {
     return cachedNotificationsModule;
   }
@@ -68,6 +78,7 @@ const ensureNotificationHandler = () => {
  */
 export const zatraziDopustenje = async () => {
   if (Platform.OS === 'web') return false;
+  if (isExpoGo()) return false;
 
   const Notifications = ensureNotificationHandler();
   if (!Notifications) return false;
@@ -156,6 +167,10 @@ const useNotifications = () => {
 
   // Inicijalno — zatraži dopuštenje i zakaži sezonalne evente
   useEffect(() => {
+    if (isExpoGo()) {
+      return undefined;
+    }
+
     ensureNotificationHandler();
     zatraziDopustenje().then((dopusteno) => {
       if (!dopusteno) {

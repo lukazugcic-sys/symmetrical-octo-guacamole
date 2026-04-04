@@ -27,6 +27,17 @@ export const randomInt = (maxExclusive) => {
   return Math.floor(randomFloat() * maxExclusive);
 };
 
+export const isExpoGo = () => {
+  try {
+    const constantsModule = require('expo-constants');
+    const Constants = constantsModule?.default ?? constantsModule;
+    return Constants?.executionEnvironment === 'storeClient'
+      || Constants?.appOwnership === 'expo';
+  } catch {
+    return false;
+  }
+};
+
 export const shuffle = (list) => {
   const arr = Array.isArray(list) ? [...list] : [];
   for (let i = arr.length - 1; i > 0; i--) {

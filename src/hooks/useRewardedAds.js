@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react';
 import { Alert, Platform } from 'react-native';
 import { useGameStore } from '../store/gameStore';
+import { isExpoGo } from '../utils/helpers';
 
 const genericEnvAdUnitId = process.env.EXPO_PUBLIC_ADMOB_REWARDED_ID;
 const platformEnvAdUnitId = Platform.select({
@@ -14,8 +15,17 @@ const fallbackTestAdUnitId = 'ca-app-pub-3940256099942544/5224354917';
 let cachedMobileAdsModule;
 let hasResolvedMobileAdsModule = false;
 let hasWarnedAboutMissingAdUnit = false;
+let hasWarnedAboutExpoGoAds = false;
 
 const getMobileAdsModule = () => {
+  if (isExpoGo()) {
+    if (!hasWarnedAboutExpoGoAds) {
+      hasWarnedAboutExpoGoAds = true;
+      console.warn('[Ads] Expo Go does not include Google Mobile Ads. Use a development build to enable rewarded ads.');
+    }
+    return null;
+  }
+
   if (hasResolvedMobileAdsModule) {
     return cachedMobileAdsModule;
   }
