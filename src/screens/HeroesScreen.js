@@ -10,6 +10,7 @@ import {
   JUNACI, RARITET_BOJE, RARITET_NAZIVI,
   HERO_SUMMON_KOST, HERO_MAX_AKTIVNIH,
 } from '../config/constants';
+import { getHeroAssignedRoom, getVillageRoomDefinition, normalizeVillageRooms } from '../utils/village';
 
 const FILTRI = ['svi', 'obican', 'rijetki', 'epski', 'legendarni'];
 
@@ -21,10 +22,14 @@ const HeroesScreen = () => {
   const junaci        = useGameStore((s) => s.junaci);
   const aktivniJunaci = useGameStore((s) => s.aktivniJunaci);
   const dijamanti     = useGameStore((s) => s.dijamanti);
+  const villageRoomsState = useGameStore((s) => s.villageRooms);
+  const gradevine = useGameStore((s) => s.gradevine);
+  const ostecenja = useGameStore((s) => s.ostecenja);
   const prizivajHeroja  = useGameStore((s) => s.prizivajHeroja);
   const aktivirajHeroja = useGameStore((s) => s.aktivirajHeroja);
 
   const [filtar, setFiltar] = useState('svi');
+  const villageRooms = normalizeVillageRooms(villageRoomsState, gradevine, ostecenja);
 
   const otkriveniBroj = JUNACI.filter((h) => (junaci[h.id]?.razina ?? 0) > 0).length;
   const mozePrivati    = dijamanti >= HERO_SUMMON_KOST;
@@ -78,6 +83,7 @@ const HeroesScreen = () => {
       {/* ── Info o padovima ── */}
       <View style={styles.infoRow}>
         <Text style={styles.infoTxt}>🎰 Fragmenti padaju i sa vrtnji automata (6% šanse)</Text>
+        <Text style={styles.infoTxt}>🏠 Svaki otključani junak može dati globalni bonus i zasebno raditi u jednoj sobi sela.</Text>
       </View>
 
       {/* ── Filtri po raritetu ── */}
@@ -100,15 +106,23 @@ const HeroesScreen = () => {
       </ScrollView>
 
       {/* ── Kartice junaka ── */}
-      {filtriraniJunaci.map((hero) => (
-        <HeroCard
-          key={hero.id}
-          hero={hero}
-          heroState={junaci[hero.id]}
-          aktivan={aktivniJunaci.includes(hero.id)}
-          onActivate={() => aktivirajHeroja(hero.id)}
-        />
-      ))}
+      {filtriraniJunaci.map((hero) => {
+        const assignedRoom = getHeroAssignedRoom(villageRooms, hero.id);
+        const assignmentLabel = assignedRoom
+          ? `SOBA · ${getVillageRoomDefinition(assignedRoom)?.naziv ?? 'Naselje'}`
+          : null;
+
+        return (
+          <HeroCard
+            key={hero.id}
+            hero={hero}
+            heroState={junaci[hero.id]}
+            aktivan={aktivniJunaci.includes(hero.id)}
+            assignmentLabel={assignmentLabel}
+            onActivate={() => aktivirajHeroja(hero.id)}
+          />
+        );
+      })}
 
     </ScrollView>
   );

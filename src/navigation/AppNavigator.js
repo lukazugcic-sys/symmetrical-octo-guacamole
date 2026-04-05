@@ -29,17 +29,6 @@ const NAV_TIMING = { duration: 180, reduceMotion: ReduceMotion.Never };
 
 const ROOT_MENU_KONFIGURACIJA = [
   {
-    routeName: 'Igraj',
-    label: 'Igraj',
-    ikona: Zap,
-    boja: BOJE.energija,
-    sections: [
-      { key: 'automat', label: 'Automat', component: SlotScreen },
-      { key: 'turnir', label: 'Turnir', component: TurnirScreen },
-      { key: 'tamnica', label: 'Tamnica', component: TamnicaScreen },
-    ],
-  },
-  {
     routeName: 'Baza',
     label: 'Baza',
     ikona: Building2,
@@ -48,6 +37,17 @@ const ROOT_MENU_KONFIGURACIJA = [
       { key: 'selo', label: 'Selo', component: VillageScreen },
       { key: 'nadogradnje', label: 'Nadogradnje', component: UpgradesScreen },
       { key: 'kovacnica', label: 'Kovačnica', component: KovacnicaScreen },
+    ],
+  },
+  {
+    routeName: 'Igraj',
+    label: 'Igraj',
+    ikona: Zap,
+    boja: BOJE.energija,
+    sections: [
+      { key: 'automat', label: 'Automat', component: SlotScreen },
+      { key: 'turnir', label: 'Turnir', component: TurnirScreen },
+      { key: 'tamnica', label: 'Tamnica', component: TamnicaScreen },
     ],
   },
   {
@@ -157,7 +157,7 @@ const CustomTabBar = ({ state, navigation }) => {
 // ─── Glavni navigator ─────────────────────────────────────────────────────────
 const AppNavigator = () => (
   <Tab.Navigator
-    initialRouteName="Igraj"
+    initialRouteName="Baza"
     screenOptions={{ headerShown: false }}
     tabBar={(props) => <CustomTabBar {...props} />}
   >

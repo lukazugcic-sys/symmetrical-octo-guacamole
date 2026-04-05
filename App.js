@@ -13,6 +13,7 @@ import { UIContext }    from './src/context/UIContext';
 import Header           from './src/components/Header';
 import WinCelebration   from './src/components/WinCelebration';
 import LevelUpToast     from './src/components/LevelUpToast';
+import VillageUnlockToast from './src/components/VillageUnlockToast';
 import BattlePassModal  from './src/components/BattlePassModal';
 import OfflineBonusModal from './src/components/OfflineBonusModal';
 import AppNavigator     from './src/navigation/AppNavigator';
@@ -83,6 +84,8 @@ export default function App() {
   const ukupnoRaidova    = useGameStore((s) => s.ukupnoRaidova);
   const aktivniSkin      = useGameStore((s) => s.aktivniSkin);
   const klan             = useGameStore((s) => s.klan);
+  const villageRooms     = useGameStore((s) => s.villageRooms);
+  const villageUnlockSeen = useGameStore((s) => s.villageUnlockSeen);
   const zadnjiVideniEventId = useGameStore((s) => s.zadnjiVideniEventId);
   const oznaciEventVidjen = useGameStore((s) => s.oznaciEventVidjen);
   const primijeniOfflineNapredak = useGameStore((s) => s.primijeniOfflineNapredak);
@@ -129,7 +132,7 @@ export default function App() {
     spremi();
   }, [spremi, igracRazina, prestigeRazina, xp, energija, zlato, dijamanti, resursi,
       gradevine, ostecenja, razine, stitovi, misije, luckySpinCounter, winStreak,
-      aktivniSkin, klan, junaci, aktivniJunaci, imeIgraca, uid, ucitavam]);
+      aktivniSkin, klan, villageRooms, villageUnlockSeen, junaci, aktivniJunaci, imeIgraca, uid, ucitavam]);
 
   // ─── Auto-save dostignuća ─────────────────────────────────────────────────
   useEffect(() => {
@@ -244,6 +247,7 @@ export default function App() {
 
           {/* Level-up toast */}
           <LevelUpToast />
+          <VillageUnlockToast />
           <OfflineBonusModal />
           <BattlePassModal visible={prikaziBattlePass} onClose={() => setPrikaziBattlePass(false)} />
 

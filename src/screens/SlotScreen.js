@@ -10,6 +10,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { Zap, Sparkles, CircleHelp, Shield, Skull, Star, Gem, Coins, TreePine, Mountain, Pickaxe, BatteryCharging } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useGameStore } from '../store/gameStore';
 import { useSlotStore } from '../store/slotStore';
 import { useSlotMachine } from '../hooks/useSlotMachine';
@@ -26,6 +27,7 @@ import { useRewardedAds } from '../hooks/useRewardedAds';
  * Flash i shake efekti dolaze iz UIContext (bez prop drillinga).
  */
 const SlotScreen = () => {
+  const navigation = useNavigation();
   const { width, height } = useWindowDimensions();
   const poruka          = useGameStore((s) => s.poruka);
   const aktivniDogadaj  = useSeasonalEvent();
@@ -95,6 +97,16 @@ const SlotScreen = () => {
     <View style={[styles.gameContainer, { paddingHorizontal: horizontalPadding, paddingBottom: denseUi ? 18 : 26 }]}>
       {/* Sezonalni događaj */}
       <EventBanner dogadaj={aktivniDogadaj} />
+
+      <View style={styles.supportCard}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.supportTitle}>Automat je pomoćni tok ekonomije.</Text>
+          <Text style={styles.supportCopy}>Koristi ga za burst resurse, hitne popravke i kratke skokove u progresiji sela.</Text>
+        </View>
+        <TouchableOpacity activeOpacity={0.8} style={styles.supportBtn} onPress={() => navigation.navigate('Baza')}>
+          <Text style={styles.supportBtnTxt}>OTVORI BAZU</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Poruka + sanduk gumb */}
       <View style={[styles.topRow, { marginBottom: compactUi ? 14 : 18 }]}>
@@ -285,6 +297,43 @@ const styles = StyleSheet.create({
     maxWidth: 460,
     alignSelf: 'center',
     paddingTop: 6,
+  },
+
+  supportCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 22,
+    padding: 14,
+    marginBottom: 14,
+  },
+  supportTitle: {
+    color: BOJE.textMain,
+    fontSize: Math.round(13 * uiScale),
+    fontWeight: '900',
+    fontFamily: FONT_FAMILY,
+  },
+  supportCopy: {
+    color: BOJE.textMuted,
+    fontSize: Math.round(11 * uiScale),
+    fontFamily: FONT_FAMILY,
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  supportBtn: {
+    backgroundColor: BOJE.textMain,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  supportBtnTxt: {
+    color: '#000',
+    fontSize: Math.round(11 * uiScale),
+    fontWeight: '900',
+    fontFamily: FONT_FAMILY,
   },
 
   topRow: {

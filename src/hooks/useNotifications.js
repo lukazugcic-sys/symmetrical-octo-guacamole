@@ -16,6 +16,7 @@ import { useEffect, useRef } from 'react';
 import { Platform, Alert, AppState }       from 'react-native';
 import { useGameStore }   from '../store/gameStore';
 import { izracunajMaxEnergiju } from '../utils/economy';
+import { getVillageSupportStats } from '../utils/village';
 import { SEZONALNI_DOGADAJI }   from '../config/sezonalniDogadaji';
 import { isExpoGo } from '../utils/helpers';
 
@@ -160,6 +161,10 @@ export const otkaziNotifikaciju = async (identifier) => {
 const useNotifications = () => {
   const energija     = useGameStore((s) => s.energija);
   const razine       = useGameStore((s) => s.razine);
+  const villageRooms = useGameStore((s) => s.villageRooms);
+  const gradevine    = useGameStore((s) => s.gradevine);
+  const ostecenja    = useGameStore((s) => s.ostecenja);
+  const junaci       = useGameStore((s) => s.junaci);
   const raidPovijest = useGameStore((s) => s.raidPovijest);
   const energijaNtfRef = useRef(null);
   const idleNtfRef = useRef(null);
@@ -186,7 +191,8 @@ const useNotifications = () => {
 
   // Zakaži notifikaciju kada energija dostigne max
   useEffect(() => {
-    const maxEnergija = izracunajMaxEnergiju(razine.baterija ?? 0);
+    const villageSupportStats = getVillageSupportStats({ villageRooms, gradevine, ostecenja, junaci });
+    const maxEnergija = izracunajMaxEnergiju(razine.baterija ?? 0) + Math.round(villageSupportStats.maxEnergyFlat || 0);
     if (energija >= maxEnergija) {
       // Energija je već puna — otkaži staru
       otkaziNotifikaciju(energijaNtfRef.current);
@@ -204,7 +210,7 @@ const useNotifications = () => {
       'Vaš automat je spreman. Zavrtite i pobijedi!',
       vrijemePunjenja,
     ).then((id) => { energijaNtfRef.current = id; });
-  }, [Math.floor(energija), razine.baterija]);
+  }, [Math.floor(energija), razine.baterija, villageRooms, gradevine, ostecenja, junaci]);
 
   // Raid upozorenje kad stigne novi incoming raid zapis
   useEffect(() => {

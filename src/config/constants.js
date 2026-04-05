@@ -1,6 +1,6 @@
 import { Dimensions, Platform } from 'react-native';
 import {
-  Zap, Shield, Gem, TreePine, Mountain, Pickaxe, Skull, Coins, Star,
+  Zap, Shield, Gem, TreePine, Mountain, Pickaxe, Skull, Coins, Star, Crown,
 } from 'lucide-react-native';
 import { randomInt } from '../utils/helpers';
 import { validateGameContent } from '../domain/content/validateContent';
@@ -90,6 +90,250 @@ export const ZGRADE = [
     bazaProizvodnja: 1.0,
   },
 ];
+
+export const VILLAGE_LAYOUT = [
+  { id: 'room-1', floor: 0, column: 0, defaultType: 'pilana', label: 'Drvna zona' },
+  { id: 'room-2', floor: 0, column: 1, defaultType: 'kamenolom', label: 'Kamena zona' },
+  { id: 'room-3', floor: 0, column: 2, defaultType: 'rudnik', label: 'Metalna zona' },
+  { id: 'room-4', floor: 1, column: 0, defaultType: 'servis', label: 'Servisna zona' },
+  { id: 'room-5', floor: 1, column: 1, defaultType: 'zapovjednistvo', label: 'Zapovjedna zona' },
+  { id: 'room-6', floor: 1, column: 2, defaultType: 'jezgra', label: 'Energetska zona' },
+];
+
+export const VILLAGE_ROOM_TYPES = {
+  pilana: {
+    id: 'pilana',
+    kind: 'production',
+    naziv: 'Drvna Radionica',
+    kratko: 'Drvo',
+    opis: 'Pretvara radni ritam sela u stalan tok drva za gradnju i popravke.',
+    resourceKey: 'drvo',
+    ikona: TreePine,
+    boja: BOJE.drvo,
+    baseProduction: ZGRADE[0].bazaProizvodnja,
+    maxLv: ZGRADE[0].maxLv,
+    cijena: ZGRADE[0].cijena,
+    idealHeroBonuses: ['pasivno', 'energija'],
+    incidentPool: ['pozar', 'kvar', 'upad'],
+  },
+  kamenolom: {
+    id: 'kamenolom',
+    kind: 'production',
+    naziv: 'Kamena Komora',
+    kratko: 'Kamen',
+    opis: 'Zadržava ritam naselja stabilnim kroz pouzdanu proizvodnju kamena.',
+    resourceKey: 'kamen',
+    ikona: Mountain,
+    boja: BOJE.kamen,
+    baseProduction: ZGRADE[1].bazaProizvodnja,
+    maxLv: ZGRADE[1].maxLv,
+    cijena: ZGRADE[1].cijena,
+    idealHeroBonuses: ['pasivno', 'stit'],
+    incidentPool: ['kvar', 'upad'],
+  },
+  rudnik: {
+    id: 'rudnik',
+    kind: 'production',
+    naziv: 'Metalna Komora',
+    kratko: 'Željezo',
+    opis: 'Duboki radionički modul za željezo i kasniji razvoj obrane.',
+    resourceKey: 'zeljezo',
+    ikona: Pickaxe,
+    boja: BOJE.zeljezo,
+    baseProduction: ZGRADE[2].bazaProizvodnja,
+    maxLv: ZGRADE[2].maxLv,
+    cijena: ZGRADE[2].cijena,
+    idealHeroBonuses: ['pasivno', 'zlato'],
+    incidentPool: ['kvar', 'upad'],
+  },
+  servis: {
+    id: 'servis',
+    kind: 'support',
+    naziv: 'Servisna Stanica',
+    kratko: 'Servis',
+    opis: 'Smanjuje rizik incidenata, ubrzava oporavak sela i daje mali globalni poticaj proizvodnji.',
+    unlockLabel: '4 razine proizvodnje',
+    unlockRules: {
+      productionLevels: 4,
+    },
+    resourceKey: null,
+    ikona: Shield,
+    boja: BOJE.stit,
+    baseProduction: 0,
+    maxLv: 8,
+    cijena: (lv) => ({
+      zlato: Math.floor(320 * Math.pow(1.62, lv - 1)),
+      drvo: Math.floor(90 * Math.pow(1.44, lv - 1)),
+      kamen: Math.floor(120 * Math.pow(1.46, lv - 1)),
+      zeljezo: Math.floor(35 * Math.pow(1.42, lv - 1)),
+    }),
+    idealHeroBonuses: ['stit', 'energija', 'pasivno'],
+    supportEffect: {
+      villageProductionPct: 5,
+      incidentRiskPct: 8,
+      repairTimePct: 12,
+      repairCostPct: 8,
+    },
+    incidentPool: ['kvar', 'upad'],
+  },
+  zapovjednistvo: {
+    id: 'zapovjednistvo',
+    kind: 'support',
+    naziv: 'Zapovjedna Soba',
+    kratko: 'Komanda',
+    opis: 'Pretvara kvalitetnu posadu u jači lokalni učinak, dodaje mali ritam cijelom selu i smanjuje kaos u incidentima.',
+    unlockLabel: '2 LV podrške + 2 junaka',
+    unlockRules: {
+      supportLevels: 2,
+      heroCount: 2,
+    },
+    resourceKey: null,
+    ikona: Crown,
+    boja: BOJE.prestige,
+    baseProduction: 0,
+    maxLv: 6,
+    cijena: (lv) => ({
+      zlato: Math.floor(420 * Math.pow(1.68, lv - 1)),
+      drvo: Math.floor(110 * Math.pow(1.46, lv - 1)),
+      kamen: Math.floor(140 * Math.pow(1.5, lv - 1)),
+      zeljezo: Math.floor(55 * Math.pow(1.46, lv - 1)),
+    }),
+    idealHeroBonuses: ['xp', 'pasivno', 'luck'],
+    supportEffect: {
+      villageProductionPct: 2,
+      incidentRiskPct: 4,
+      crewBonusPct: 10,
+    },
+    incidentPool: ['kvar', 'upad'],
+  },
+  jezgra: {
+    id: 'jezgra',
+    kind: 'support',
+    naziv: 'Energetska Jezgra',
+    kratko: 'Jezgra',
+    opis: 'Kasni modul koji širi energetski kapacitet sela i daje završni sloj stabilnosti cijelom sustavu.',
+    unlockLabel: 'Prestige I + 6 LV podrške',
+    unlockRules: {
+      supportLevels: 6,
+      prestigeLevel: 1,
+    },
+    resourceKey: null,
+    ikona: Zap,
+    boja: BOJE.energija,
+    baseProduction: 0,
+    maxLv: 5,
+    cijena: (lv) => ({
+      zlato: Math.floor(760 * Math.pow(1.74, lv - 1)),
+      drvo: Math.floor(160 * Math.pow(1.52, lv - 1)),
+      kamen: Math.floor(190 * Math.pow(1.54, lv - 1)),
+      zeljezo: Math.floor(90 * Math.pow(1.5, lv - 1)),
+    }),
+    idealHeroBonuses: ['energija', 'xp', 'stit'],
+    supportEffect: {
+      villageProductionPct: 1,
+      incidentRiskPct: 2,
+      maxEnergyFlat: 6,
+    },
+    incidentPool: ['kvar', 'upad'],
+  },
+};
+
+export const VILLAGE_INCIDENT_TYPES = {
+  pozar: {
+    id: 'pozar',
+    naziv: 'Požar',
+    kratko: 'Vatra zaustavlja sobu dok se ne stabilizira.',
+    repairBaseSec: 120,
+    costMultiplier: 1.2,
+    response: {
+      label: 'PREUSMJERI JEZGRU',
+      kratko: 'Energetska jezgra gasi požar i odmah pretvara kaos u kontrolirani oporavak.',
+      requiresSupportType: 'jezgra',
+      cost: { energija: 10, zlato: 60 },
+      durationFactor: 0.35,
+      health: 55,
+      drainEnergyToZero: true,
+      tradeoffText: 'Isprazni trenutačnu energiju sela dok jezgra preusmjerava napajanje.',
+    },
+  },
+  kvar: {
+    id: 'kvar',
+    naziv: 'Tehnički kvar',
+    kratko: 'Mehanika staje i traži servisiranje.',
+    repairBaseSec: 90,
+    costMultiplier: 1,
+    response: {
+      label: 'POŠALJI SERVIS',
+      kratko: 'Servisna stanica može premostiti kvar i znatno skratiti zastoj.',
+      requiresSupportType: 'servis',
+      cost: { zlato: 80, zeljezo: 26 },
+      durationFactor: 0.4,
+      health: 50,
+      reward: { zeljezo: 18, kamen: 10, zeljezoPoLv: 4, kamenPoLv: 3 },
+      rewardText: 'Vraća dio materijala kroz brzo spašavanje i rastavljanje kvara.',
+    },
+  },
+  upad: {
+    id: 'upad',
+    naziv: 'Posljedice upada',
+    kratko: 'Soba je oštećena nakon kratkog napada i treba sanaciju.',
+    repairBaseSec: 150,
+    costMultiplier: 1.35,
+    response: {
+      label: 'MOBILIZIRAJ POSADU',
+      kratko: 'Zapovjedna soba može brzo zatvoriti perimetar i vratiti sobu u rad bez punog remonta.',
+      requiresSupportType: 'zapovjednistvo',
+      cost: { stitovi: 1, energija: 6, zlato: 40 },
+      mode: 'secure',
+      clearAssignedHero: true,
+      tradeoffText: 'Trenutna posada napušta sobu nakon hitne mobilizacije.',
+    },
+  },
+};
+
+export const VILLAGE_INCIDENT_COOLDOWN_MS = 75 * 1000;
+export const VILLAGE_INCIDENT_CHANCE = 0.2;
+
+export const VILLAGE_PRESSURE_PHASES = {
+  calm: {
+    id: 'calm',
+    label: 'Mirni prozor',
+    copy: 'Naselje hvata dah. Ovo je najbolji trenutak za gradnju, raspored i pripremu smjene.',
+    tone: BOJE.xp,
+    incidentChanceMultiplier: 0.55,
+    durationMinMs: 85 * 1000,
+    durationMaxMs: 120 * 1000,
+  },
+  rising: {
+    id: 'rising',
+    label: 'Linija se zateže',
+    copy: 'Sustav ulazi u napetiji ritam. Prazne smjene i tanka energija sada se počinju osjećati.',
+    tone: BOJE.prestige,
+    incidentChanceMultiplier: 0.95,
+    durationMinMs: 70 * 1000,
+    durationMaxMs: 105 * 1000,
+  },
+  peak: {
+    id: 'peak',
+    label: 'Vrh vala',
+    copy: 'Direktor gura selo kroz najteži prozor. Ovdje podrška i dobra posada odlučuju je li raspored stabilan ili ne.',
+    tone: BOJE.slotVatra,
+    incidentChanceMultiplier: 1.45,
+    durationMinMs: 55 * 1000,
+    durationMaxMs: 85 * 1000,
+  },
+  recovery: {
+    id: 'recovery',
+    label: 'Faza oporavka',
+    copy: 'Nakon udara dolazi prostor za popravke, preraspodjelu i vraćanje sela u uredan takt.',
+    tone: BOJE.klan,
+    incidentChanceMultiplier: 0.7,
+    durationMinMs: 75 * 1000,
+    durationMaxMs: 110 * 1000,
+  },
+};
+
+export const VILLAGE_PRESSURE_SEQUENCE = ['calm', 'rising', 'peak', 'recovery'];
 
 // ─── Misije ───────────────────────────────────────────────────────────────────
 export const BAZA_MISIJA = [

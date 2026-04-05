@@ -16,7 +16,7 @@ const formatBonus = (tipBonusa, bonusPoRazini, razina) => {
 /**
  * Prikazuje jednu karticu junaka s razinom, fragmentima i aktivacijskim gumbom.
  */
-const HeroCard = ({ hero, heroState = {}, aktivan, onActivate }) => {
+const HeroCard = ({ hero, heroState = {}, aktivan, assignmentLabel, onActivate }) => {
   const { fragmenti = 0, razina = 0 } = heroState;
   const otkriven     = razina > 0;
   const maxed        = razina >= HERO_MAX_RAZINA;
@@ -62,6 +62,21 @@ const HeroCard = ({ hero, heroState = {}, aktivan, onActivate }) => {
         </Text>
       )}
 
+      {otkriven && (aktivan || assignmentLabel) && (
+        <View style={styles.statusRow}>
+          {aktivan && (
+            <View style={[styles.statusChip, styles.statusChipActive]}>
+              <Text style={[styles.statusChipTxt, styles.statusChipTxtActive]}>GLOBALNO AKTIVAN</Text>
+            </View>
+          )}
+          {assignmentLabel && (
+            <View style={styles.statusChip}>
+              <Text style={styles.statusChipTxt}>{assignmentLabel}</Text>
+            </View>
+          )}
+        </View>
+      )}
+
       {/* ── Progress bar fragmenti ── */}
       {!maxed && (
         <View style={styles.progressOuter}>
@@ -83,7 +98,7 @@ const HeroCard = ({ hero, heroState = {}, aktivan, onActivate }) => {
           style={[styles.btn, aktivan ? { backgroundColor: raritetBoja } : styles.btnInactive]}
         >
           <Text style={[styles.btnTxt, aktivan && { color: '#000' }]}>
-            {aktivan ? '✓ AKTIVNO' : 'AKTIVIRAJ'}
+            {aktivan ? '✓ GLOBALNO AKTIVAN' : 'AKTIVIRAJ GLOBALNO'}
           </Text>
         </TouchableOpacity>
       ) : (
@@ -119,6 +134,21 @@ const styles = StyleSheet.create({
   zvjezdice:    { fontSize: Math.round(13 * uiScale), letterSpacing: 2 },
   opis:         { fontSize: Math.round(12 * uiScale), color: BOJE.textMuted, fontFamily: FONT_FAMILY, marginBottom: 4, lineHeight: 17 },
   bonusTxt:     { fontSize: Math.round(12 * uiScale), fontWeight: '700', fontFamily: FONT_FAMILY, marginBottom: 8 },
+  statusRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  statusChip: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  statusChipActive: { backgroundColor: `${BOJE.nadogradnje}22` },
+  statusChipTxt: {
+    color: BOJE.textMuted,
+    fontSize: Math.round(10 * uiScale),
+    fontWeight: '800',
+    fontFamily: FONT_FAMILY,
+  },
+  statusChipTxtActive: { color: BOJE.nadogradnje },
   progressOuter:{
     height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.08)',
     overflow: 'hidden', marginBottom: 4, position: 'relative',

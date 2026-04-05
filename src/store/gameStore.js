@@ -12,6 +12,8 @@ import {
   RECEPTI, TURNIR_RAZINE, SANDUK_TIPOVI,
   TAMNICA_NEPRIJATELJI, TAMNICA_BOSSOVI, TAMNICA_KOST_ENERGIJE, TAMNICA_IGRAC_MAX_HP, TAMNICA_SHOP,
   TAMNICA_NAPAD_BAZA, TAMNICA_RANDOM_RASPON,
+  VILLAGE_INCIDENT_CHANCE, VILLAGE_INCIDENT_COOLDOWN_MS,
+  VILLAGE_PRESSURE_PHASES, VILLAGE_PRESSURE_SEQUENCE,
 } from '../config/constants';
 import { dohvatiAktivniDogadaj } from '../config/sezonalniDogadaji';
 import { setupDungeonFloor } from '../domain/game/dungeon';
@@ -30,6 +32,20 @@ import {
   izracunajPotrebniXp, izracunajHeroBonus,
 } from '../utils/economy';
 import { randomFloat, randomInt } from '../utils/helpers';
+import {
+  createLegacyBuildingStateFromRooms,
+  createLegacyVillageRooms,
+  getHeroDefinition,
+  getVillageIncidentResponse,
+  getVillageIncidentRoom,
+  getVillageProduction,
+  getVillageRepairCost,
+  getVillageRepairDurationMs,
+  getVillageRoomDefinition,
+  getVillageRoomUnlockStatus,
+  getVillageSupportStats,
+  normalizeVillageRooms,
+} from '../utils/village';
 import { spremiCloud, ucitajCloud }      from '../firebase/cloudSave';
 import { azurirajLjestvicu } from '../firebase/leaderboard';
 import { dodajBodoveClanRatu } from '../firebase/clanMultiplayer';
@@ -148,6 +164,57 @@ const PRAZNI_KLAN = {
   zadnjiRefresh: null,
 };
 
+const POCETNE_GRADEVINE = { pilana: 1, kamenolom: 0, rudnik: 0 };
+const POCETNA_OSTECENJA = { pilana: false, kamenolom: false, rudnik: false };
+const POCETNA_VILLAGE_PRESSURE_PHASE = 'calm';
+
+const getVillagePressurePhaseMeta = (phaseId) =>
+  VILLAGE_PRESSURE_PHASES[phaseId] ?? VILLAGE_PRESSURE_PHASES[POCETNA_VILLAGE_PRESSURE_PHASE];
+
+const getVillagePressurePhaseDurationMs = (phaseId) => {
+  const meta = getVillagePressurePhaseMeta(phaseId);
+  const min = Math.max(20000, meta.durationMinMs ?? 60000);
+  const max = Math.max(min, meta.durationMaxMs ?? min);
+  return min + randomInt((max - min) + 1);
+};
+
+const createVillagePressureDirector = (phase = POCETNA_VILLAGE_PRESSURE_PHASE, now = Date.now(), cycle = 0) => ({
+  phase,
+  phaseStartedAt: now,
+  phaseEndsAt: now + getVillagePressurePhaseDurationMs(phase),
+  cycle,
+});
+
+const normalizeVillagePressureDirector = (director) => {
+  const phase = director?.phase && VILLAGE_PRESSURE_PHASES[director.phase]
+    ? director.phase
+    : POCETNA_VILLAGE_PRESSURE_PHASE;
+  const phaseStartedAt = Number.isFinite(director?.phaseStartedAt) ? director.phaseStartedAt : Date.now();
+  const phaseEndsAt = Number.isFinite(director?.phaseEndsAt) && director.phaseEndsAt > phaseStartedAt
+    ? director.phaseEndsAt
+    : phaseStartedAt + getVillagePressurePhaseDurationMs(phase);
+  const cycle = Math.max(0, Number(director?.cycle) || 0);
+
+  return {
+    phase,
+    phaseStartedAt,
+    phaseEndsAt,
+    cycle,
+  };
+};
+
+const getNextVillagePressureDirector = (director, now = Date.now()) => {
+  const currentPhase = director?.phase && VILLAGE_PRESSURE_PHASES[director.phase]
+    ? director.phase
+    : POCETNA_VILLAGE_PRESSURE_PHASE;
+  const currentIndex = Math.max(0, VILLAGE_PRESSURE_SEQUENCE.indexOf(currentPhase));
+  const nextPhase = VILLAGE_PRESSURE_SEQUENCE[(currentIndex + 1) % VILLAGE_PRESSURE_SEQUENCE.length] ?? POCETNA_VILLAGE_PRESSURE_PHASE;
+  const nextCycle = nextPhase === POCETNA_VILLAGE_PRESSURE_PHASE
+    ? (Math.max(0, Number(director?.cycle) || 0) + 1)
+    : Math.max(0, Number(director?.cycle) || 0);
+  return createVillagePressureDirector(nextPhase, now, nextCycle);
+};
+
 const pocetnoStanje = {
   ucitavam:         true,
   uid:              null,       // Firebase UID (postavlja useAuth)
@@ -160,8 +227,9 @@ const pocetnoStanje = {
   dijamanti:        5,
   resursi:          { drvo: 0, kamen: 0, zeljezo: 0 },
   stitovi:          1,
-  gradevine:        { pilana: 1, kamenolom: 0, rudnik: 0 },
-  ostecenja:        { pilana: false, kamenolom: false, rudnik: false },
+  gradevine:        { ...POCETNE_GRADEVINE },
+  ostecenja:        { ...POCETNA_OSTECENJA },
+  villageRooms:     createLegacyVillageRooms(POCETNE_GRADEVINE, POCETNA_OSTECENJA),
   razine:           { sreca: 0, pojacalo: 0, baterija: 0, oklop: 0 },
   misije:           generirajUnikatneMisije(3),
   ukupnoVrtnji:     0,
@@ -177,6 +245,9 @@ const pocetnoStanje = {
   winStreak:        0,
   poruka:           'SPREMAN ZA VRTNJU',
   levelUpData:      null, // { razina: N } — pokreće LevelUpToast
+  villageUnlockData: null, // { roomId, roomType }
+  villageUnlockQueue: [],
+  villageUnlockSeen: [],
   aktivniSkin:      'default', // ID aktivnog skina zgrada
   spinBoostPreostalo: 0, // gold sink: sljedećih N spinova daju 2x dobitak
   stitRegenSekundi: STIT_REGEN_INTERVAL_SEK,
@@ -204,6 +275,8 @@ const pocetnoStanje = {
     nagrada: null,
   },
   revengeTarget: null,
+  zadnjiVillageIncidentMs: 0,
+  villagePressureDirector: createVillagePressureDirector(),
   junaci:        {}, // map: heroId → { fragmenti: number, razina: number }
   aktivniJunaci: [], // max HERO_MAX_AKTIVNIH active hero IDs
   kovanice:      {}, // map: receptId → { expiresAt: ms } — active crafted item bonuses
@@ -220,6 +293,36 @@ export const useGameStore = create((set, get) => ({
 
   // ─── Level up overlay ───────────────────────────────────────────────────────
   clearLevelUp: () => set({ levelUpData: null }),
+
+  // ─── Village unlock overlay ────────────────────────────────────────────────
+  showVillageUnlock: (roomId, roomType) => set((state) => {
+    if (!roomId || state.villageUnlockSeen.includes(roomId)) return {};
+    if (state.villageUnlockData?.roomId === roomId || state.villageUnlockQueue.some((item) => item.roomId === roomId)) return {};
+
+    const nextUnlock = { roomId, roomType };
+    if (state.villageUnlockData) {
+      return {
+        villageUnlockQueue: [...state.villageUnlockQueue, nextUnlock],
+        villageUnlockSeen: [...state.villageUnlockSeen, roomId],
+      };
+    }
+
+    return {
+      villageUnlockData: nextUnlock,
+      villageUnlockSeen: [...state.villageUnlockSeen, roomId],
+    };
+  }),
+  clearVillageUnlock: () => set((state) => {
+    if (state.villageUnlockQueue.length === 0) {
+      return { villageUnlockData: null };
+    }
+
+    const [nextUnlock, ...restQueue] = state.villageUnlockQueue;
+    return {
+      villageUnlockData: nextUnlock,
+      villageUnlockQueue: restQueue,
+    };
+  }),
 
   // ─── Perzistencija ─────────────────────────────────────────────────────────
 
@@ -306,6 +409,12 @@ export const useGameStore = create((set, get) => ({
               bpClaimedPremium: spremljenaSezona.bpClaimedPremium ?? {},
             }
             : novaSezona();
+        const normalizedVillageRooms = normalizeVillageRooms(
+          d.villageRooms,
+          d.gradevine ?? get().gradevine,
+          d.ostecenja ?? get().ostecenja,
+        );
+        const legacyVillageState = createLegacyBuildingStateFromRooms(normalizedVillageRooms);
         set({
           ...(d.imeIgraca ? { imeIgraca: sanitizePlayerName(d.imeIgraca) || get().imeIgraca } : {}),
           ...(d.igracRazina                                          ? { igracRazina: d.igracRazina }                           : {}),
@@ -315,8 +424,9 @@ export const useGameStore = create((set, get) => ({
           ...(d.zlato !== undefined    && !isNaN(d.zlato)            ? { zlato: d.zlato }                                       : {}),
           ...(d.dijamanti !== undefined && !isNaN(d.dijamanti)       ? { dijamanti: d.dijamanti }                               : {}),
           ...(d.resursi                                              ? { resursi: { ...get().resursi, ...d.resursi } }           : {}),
-          ...(d.gradevine                                            ? { gradevine: { ...get().gradevine, ...d.gradevine } }     : {}),
-          ...(d.ostecenja                                            ? { ostecenja: { ...get().ostecenja, ...d.ostecenja } }     : {}),
+          gradevine: legacyVillageState.gradevine,
+          ostecenja: legacyVillageState.ostecenja,
+          villageRooms: normalizedVillageRooms,
           ...(d.razine                                               ? { razine: { ...get().razine, ...d.razine } }             : {}),
           ...(d.stitovi !== undefined                                ? { stitovi: d.stitovi }                                   : {}),
           ...(d.misije && d.misije.length > 0                        ? { misije: d.misije }                                     : {}),
@@ -340,6 +450,8 @@ export const useGameStore = create((set, get) => ({
           ...(d.revengeTarget ? { revengeTarget: d.revengeTarget } : {}),
           ...(d.junaci && typeof d.junaci === 'object' ? { junaci: d.junaci } : {}),
           ...(Array.isArray(d.aktivniJunaci) ? { aktivniJunaci: d.aktivniJunaci } : {}),
+          ...(d.villagePressureDirector ? { villagePressureDirector: normalizeVillagePressureDirector(d.villagePressureDirector) } : {}),
+          ...(Array.isArray(d.villageUnlockSeen) ? { villageUnlockSeen: d.villageUnlockSeen } : {}),
           ...(d.kovanice && typeof d.kovanice === 'object' ? { kovanice: d.kovanice } : {}),
           ...(d.turnir && typeof d.turnir === 'object' ? { turnir: { ...noviTurnir(), ...d.turnir } } : {}),
           ...(d.sandukDatum !== undefined ? { sandukDatum: d.sandukDatum } : {}),
@@ -462,17 +574,21 @@ export const useGameStore = create((set, get) => ({
 
   // ─── Tajmeri (poziva se iz useVillage / useMarket hookova) ─────────────────
   timerTick: () => {
+    get().azurirajVillagePopravke();
     get().provjeriSezonu();
     get().provjeriTurnir();
     get().resetirajAdsAkoNoviDan();
+    get().azurirajVillagePressureDirector();
     const s = get();
-    const maxEnergija    = izracunajMaxEnergiju(s.razine.baterija || 0);
+    const villageSupportStats = getVillageSupportStats(s);
+    const maxEnergija    = izracunajMaxEnergiju(s.razine.baterija || 0) + Math.round(villageSupportStats.maxEnergyFlat || 0);
     const heroMaxStit    = Math.floor(izracunajHeroBonus(s.junaci, s.aktivniJunaci, 'stit'));
     const maxStitova     = izracunajMaxStitova(s.razine.oklop || 0) + heroMaxStit;
     const pasivniMnozitelj = izracunajPasivniMnozitelj(s.igracRazina, s.prestigeRazina);
     const heroPasivno    = 1 + (izracunajHeroBonus(s.junaci, s.aktivniJunaci, 'pasivno') / 100);
     const heroEnergija   = izracunajHeroBonus(s.junaci, s.aktivniJunaci, 'energija');
     const ukupniPasivni  = pasivniMnozitelj * heroPasivno;
+    const proizvodnjaSela = getVillageProduction(s, ukupniPasivni);
     const sada           = Date.now();
 
     set((state) => {
@@ -486,9 +602,9 @@ export const useGameStore = create((set, get) => ({
           ? Math.min(maxEnergija, state.energija + 1 + heroEnergija)
           : state.energija,
         resursi: {
-          drvo:    state.resursi.drvo    + (!state.ostecenja.pilana    ? (state.gradevine.pilana    * ZGRADE[0].bazaProizvodnja * ukupniPasivni) : 0),
-          kamen:   state.resursi.kamen   + (!state.ostecenja.kamenolom ? (state.gradevine.kamenolom * ZGRADE[1].bazaProizvodnja * ukupniPasivni) : 0),
-          zeljezo: state.resursi.zeljezo + (!state.ostecenja.rudnik    ? (state.gradevine.rudnik    * ZGRADE[2].bazaProizvodnja * ukupniPasivni) : 0),
+          drvo: state.resursi.drvo + proizvodnjaSela.drvo,
+          kamen: state.resursi.kamen + proizvodnjaSela.kamen,
+          zeljezo: state.resursi.zeljezo + proizvodnjaSela.zeljezo,
         },
         stitovi: (state.stitovi < maxStitova && state.stitRegenSekundi <= 1)
           ? state.stitovi + 1
@@ -499,6 +615,102 @@ export const useGameStore = create((set, get) => ({
         kovanice: novaKovanice,
       };
     });
+    get().pokreniVillageIncident();
+  },
+
+  azurirajVillagePressureDirector: () => {
+    const currentDirector = normalizeVillagePressureDirector(get().villagePressureDirector);
+    const sada = Date.now();
+    if (currentDirector.phaseEndsAt > sada) return false;
+
+    const nextDirector = getNextVillagePressureDirector(currentDirector, sada);
+    set({ villagePressureDirector: nextDirector });
+    return true;
+  },
+
+  azurirajVillagePopravke: () => {
+    const s = get();
+    const sada = Date.now();
+    const rooms = normalizeVillageRooms(s.villageRooms, s.gradevine, s.ostecenja);
+    let zavrsenPopravak = false;
+
+    const villageRooms = rooms.map((room) => {
+      if (room.status === 'repairing' && room.repairEndsAt && room.repairEndsAt <= sada) {
+        zavrsenPopravak = true;
+        return {
+          ...room,
+          status: 'active',
+          health: 100,
+          incidentType: null,
+          incidentStartedAt: null,
+          repairEndsAt: null,
+        };
+      }
+      return room;
+    });
+
+    if (!zavrsenPopravak) return false;
+    const legacyVillageState = createLegacyBuildingStateFromRooms(villageRooms);
+
+    set({
+      villageRooms,
+      gradevine: legacyVillageState.gradevine,
+      ostecenja: legacyVillageState.ostecenja,
+      poruka: 'SOBA JE PONOVO SPREMNA ZA RAD',
+    });
+    return true;
+  },
+
+  pokreniVillageIncident: (force = false) => {
+    const s = get();
+    const sada = Date.now();
+
+    if (!force && (sada - s.zadnjiVillageIncidentMs) < VILLAGE_INCIDENT_COOLDOWN_MS) return false;
+
+    const rooms = normalizeVillageRooms(s.villageRooms, s.gradevine, s.ostecenja);
+    if (getVillageIncidentRoom(rooms)) return false;
+
+    const kandidati = rooms.filter((room) => room.type && room.level > 0 && room.status === 'active');
+    if (!kandidati.length) return false;
+
+    const supportStats = getVillageSupportStats(s);
+    const pressurePhase = getVillagePressurePhaseMeta(s.villagePressureDirector?.phase);
+    const adjustedIncidentChance =
+      VILLAGE_INCIDENT_CHANCE
+      * (pressurePhase.incidentChanceMultiplier ?? 1)
+      * Math.max(0.28, 1 - ((supportStats.incidentRiskPct ?? 0) / 100));
+
+    if (!force && randomFloat() > adjustedIncidentChance) {
+      set({ zadnjiVillageIncidentMs: sada });
+      return false;
+    }
+
+    const target = kandidati[randomInt(kandidati.length)];
+    const roomDefinition = getVillageRoomDefinition(target);
+    const incidentPool = roomDefinition?.incidentPool?.length ? roomDefinition.incidentPool : ['kvar'];
+    const incidentType = incidentPool[randomInt(incidentPool.length)];
+    const villageRooms = rooms.map((room) => (
+      room.id === target.id
+        ? {
+          ...room,
+          status: 'damaged',
+          health: 0,
+          incidentType,
+          incidentStartedAt: sada,
+          repairEndsAt: null,
+        }
+        : room
+    ));
+    const legacyVillageState = createLegacyBuildingStateFromRooms(villageRooms);
+
+    set({
+      villageRooms,
+      gradevine: legacyVillageState.gradevine,
+      ostecenja: legacyVillageState.ostecenja,
+      zadnjiVillageIncidentMs: sada,
+      poruka: `SELU TREBA PAŽNJA: ${roomDefinition?.naziv?.toUpperCase() ?? 'SOBA'} JE IZVAN POGONA`,
+    });
+    return true;
   },
 
   timerMarket: () => {
@@ -531,7 +743,7 @@ export const useGameStore = create((set, get) => ({
 
     if (currentRazina > s.igracRazina) {
       const levelsGained = currentRazina - s.igracRazina;
-      const maxEnergija = izracunajMaxEnergiju(s.razine.baterija || 0);
+      const maxEnergija = izracunajMaxEnergiju(s.razine.baterija || 0) + Math.round(getVillageSupportStats(s).maxEnergyFlat || 0);
       set({
         xp:          currentXp,
         igracRazina: currentRazina,
@@ -902,7 +1114,7 @@ export const useGameStore = create((set, get) => ({
 
     // Primijeni efekt
     if (recept.tip === 'energija_instant') {
-      const maxEnergija = izracunajMaxEnergiju(s.razine.baterija || 0);
+      const maxEnergija = izracunajMaxEnergiju(s.razine.baterija || 0) + Math.round(getVillageSupportStats(s).maxEnergyFlat || 0);
       set((state) => ({ energija: Math.min(maxEnergija, state.energija + recept.bonus) }));
       set({ poruka: `⚡ +${recept.bonus} ENERGIJE!` });
     } else if (recept.tip === 'stit_instant') {
@@ -976,7 +1188,7 @@ export const useGameStore = create((set, get) => ({
       set((state) => ({ dijamanti: state.dijamanti + nagradeIshod.dijamanti }));
     }
     if (nagradeIshod.energija) {
-      const maxEnergija = izracunajMaxEnergiju(s.razine.baterija || 0);
+      const maxEnergija = izracunajMaxEnergiju(s.razine.baterija || 0) + Math.round(getVillageSupportStats(s).maxEnergyFlat || 0);
       set((state) => ({ energija: Math.min(maxEnergija, state.energija + nagradeIshod.energija) }));
     }
     if (nagradeIshod.drvo || nagradeIshod.kamen || nagradeIshod.zeljezo) {
@@ -1000,54 +1212,240 @@ export const useGameStore = create((set, get) => ({
     set({ poruka: `${def.emodzi} SANDUK OTVOREN!` });
     return nagradeIshod;
   },
-  nadogradiZgradu: (zgrada) => {
+  nadogradiSobu: (roomId) => {
     const s = get();
-    const lv = s.gradevine[zgrada.id] || 0;
-    if (lv >= zgrada.maxLv) return;
-    const c = zgrada.cijena(lv + 1);
+    const rooms = normalizeVillageRooms(s.villageRooms, s.gradevine, s.ostecenja);
+    const targetRoom = rooms.find((room) => room.id === roomId);
+    const roomDefinition = getVillageRoomDefinition(targetRoom);
+    const unlockStatus = getVillageRoomUnlockStatus(targetRoom, s);
 
+    if (!targetRoom || !roomDefinition) return false;
+    if (!unlockStatus.unlocked) {
+      set({ poruka: 'SOBA JOŠ NIJE OTKLJUČANA' });
+      return false;
+    }
+    if (targetRoom.level >= roomDefinition.maxLv) return false;
+
+    const c = roomDefinition.cijena((targetRoom.level || 0) + 1);
     if (
-      s.zlato       < c.zlato        ||
-      s.resursi.drvo    < (c.drvo    || 0) ||
-      s.resursi.kamen   < (c.kamen   || 0) ||
-      s.resursi.zeljezo < (c.zeljezo || 0)
+      s.zlato < (c.zlato || 0)
+      || s.resursi.drvo < (c.drvo || 0)
+      || s.resursi.kamen < (c.kamen || 0)
+      || s.resursi.zeljezo < (c.zeljezo || 0)
     ) {
       set({ poruka: 'FALE RESURSI ZA NADOGRADNJU' });
-      return;
+      return false;
     }
 
+    const villageRooms = rooms.map((room) => (
+      room.id === roomId
+        ? {
+          ...room,
+          level: (room.level || 0) + 1,
+          status: 'active',
+          health: 100,
+          incidentType: null,
+          incidentStartedAt: null,
+          repairEndsAt: null,
+        }
+        : room
+    ));
+    const legacyVillageState = createLegacyBuildingStateFromRooms(villageRooms);
+
     set((state) => ({
-      zlato: state.zlato - c.zlato,
+      zlato: state.zlato - (c.zlato || 0),
       resursi: {
-        drvo:    state.resursi.drvo    - (c.drvo    || 0),
-        kamen:   state.resursi.kamen   - (c.kamen   || 0),
+        drvo: state.resursi.drvo - (c.drvo || 0),
+        kamen: state.resursi.kamen - (c.kamen || 0),
         zeljezo: state.resursi.zeljezo - (c.zeljezo || 0),
       },
-      gradevine: { ...state.gradevine, [zgrada.id]: lv + 1 },
-      poruka: `${zgrada.naziv.toUpperCase()} NADOGRAĐEN!`,
+      gradevine: legacyVillageState.gradevine,
+      ostecenja: legacyVillageState.ostecenja,
+      villageRooms,
+      poruka: `${roomDefinition.naziv.toUpperCase()} NADOGRAĐENA!`,
     }));
     get().azurirajMisiju('zgrada');
     get().azurirajKlanZadatak('zgrada');
-    get().provjeriDostignuca(undefined, undefined, lv + 1, undefined);
+    get().provjeriDostignuca(undefined, undefined, (targetRoom.level || 0) + 1, undefined);
+    return true;
+  },
+
+  pokreniPopravakSobe: (roomId) => {
+    const s = get();
+    const rooms = normalizeVillageRooms(s.villageRooms, s.gradevine, s.ostecenja);
+    const targetRoom = rooms.find((room) => room.id === roomId);
+    const roomDefinition = getVillageRoomDefinition(targetRoom);
+
+    if (!targetRoom || !roomDefinition || targetRoom.status !== 'damaged') return false;
+
+    const repairEndsAt = Date.now() + getVillageRepairDurationMs(targetRoom, s);
+    const villageRooms = rooms.map((room) => (
+      room.id === roomId
+        ? { ...room, status: 'repairing', health: 35, repairEndsAt }
+        : room
+    ));
+    const legacyVillageState = createLegacyBuildingStateFromRooms(villageRooms);
+
+    set({
+      villageRooms,
+      gradevine: legacyVillageState.gradevine,
+      ostecenja: legacyVillageState.ostecenja,
+      poruka: `${roomDefinition.naziv.toUpperCase()} JE U POPRAVKU`,
+    });
+    return true;
+  },
+
+  hitniPopravakSobe: (roomId) => {
+    const s = get();
+    const rooms = normalizeVillageRooms(s.villageRooms, s.gradevine, s.ostecenja);
+    const targetRoom = rooms.find((room) => room.id === roomId);
+    const roomDefinition = getVillageRoomDefinition(targetRoom);
+
+    if (!targetRoom || !roomDefinition || !['damaged', 'repairing'].includes(targetRoom.status)) return false;
+
+    const cost = getVillageRepairCost(targetRoom, s);
+    if (
+      s.zlato < cost.zlato
+      || s.energija < cost.energija
+      || s.resursi.drvo < cost.drvo
+      || s.resursi.kamen < cost.kamen
+      || s.resursi.zeljezo < cost.zeljezo
+    ) {
+      set({ poruka: 'NEMAŠ DOVOLJNO RESURSA ZA HITAN POPRAVAK' });
+      return false;
+    }
+
+    const villageRooms = rooms.map((room) => (
+      room.id === roomId
+        ? {
+          ...room,
+          status: 'active',
+          health: 100,
+          incidentType: null,
+          incidentStartedAt: null,
+          repairEndsAt: null,
+        }
+        : room
+    ));
+    const legacyVillageState = createLegacyBuildingStateFromRooms(villageRooms);
+
+    set((state) => ({
+      zlato: state.zlato - cost.zlato,
+      energija: state.energija - cost.energija,
+      resursi: {
+        drvo: state.resursi.drvo - cost.drvo,
+        kamen: state.resursi.kamen - cost.kamen,
+        zeljezo: state.resursi.zeljezo - cost.zeljezo,
+      },
+      villageRooms,
+      gradevine: legacyVillageState.gradevine,
+      ostecenja: legacyVillageState.ostecenja,
+      poruka: `${roomDefinition.naziv.toUpperCase()} JE HITNO STABILIZIRANA`,
+    }));
+    return true;
+  },
+
+  aktivirajIncidentOdgovor: (roomId) => {
+    const s = get();
+    const rooms = normalizeVillageRooms(s.villageRooms, s.gradevine, s.ostecenja);
+    const targetRoom = rooms.find((room) => room.id === roomId);
+    const roomDefinition = getVillageRoomDefinition(targetRoom);
+    const response = getVillageIncidentResponse(targetRoom, s);
+
+    if (!targetRoom || !roomDefinition || !['damaged', 'repairing'].includes(targetRoom.status) || !response) return false;
+    if (!response.available) {
+      set({ poruka: 'NEDOSTAJE PRAVA SOBA PODRŠKE ZA OVAJ MANEVAR' });
+      return false;
+    }
+
+    if (
+      s.zlato < (response.cost.zlato || 0)
+      || s.energija < (response.cost.energija || 0)
+      || s.stitovi < (response.cost.stitovi || 0)
+      || s.resursi.drvo < (response.cost.drvo || 0)
+      || s.resursi.kamen < (response.cost.kamen || 0)
+      || s.resursi.zeljezo < (response.cost.zeljezo || 0)
+    ) {
+      set({ poruka: 'NEMAŠ RESURSE ZA SPECIJALNU INTERVENCIJU' });
+      return false;
+    }
+
+    const sada = Date.now();
+    const currentRemainingMs = targetRoom.status === 'repairing' && targetRoom.repairEndsAt
+      ? Math.max(15000, targetRoom.repairEndsAt - sada)
+      : getVillageRepairDurationMs(targetRoom, s);
+    const responseDurationMs = response.durationMs > 0
+      ? Math.min(currentRemainingMs, response.durationMs)
+      : 0;
+    const removedHeroId = response.clearAssignedHero ? targetRoom.assignedHeroId : null;
+
+    const villageRooms = rooms.map((room) => {
+      if (room.id !== roomId) return room;
+
+      if (response.mode === 'secure') {
+        return {
+          ...room,
+          status: 'active',
+          health: 100,
+          assignedHeroId: response.clearAssignedHero ? null : room.assignedHeroId,
+          incidentType: null,
+          incidentStartedAt: null,
+          repairEndsAt: null,
+        };
+      }
+
+      return {
+        ...room,
+        status: 'repairing',
+        health: response.health ?? 50,
+        assignedHeroId: response.clearAssignedHero ? null : room.assignedHeroId,
+        repairEndsAt: sada + responseDurationMs,
+      };
+    });
+    const legacyVillageState = createLegacyBuildingStateFromRooms(villageRooms);
+    const reward = response.reward ?? {};
+    const responseNotes = [];
+    if (response.drainEnergyToZero) responseNotes.push('energetska rezerva ispražnjena');
+    if (removedHeroId) responseNotes.push('posada povučena');
+    if ((reward.zlato || reward.drvo || reward.kamen || reward.zeljezo || reward.energija || reward.stitovi)) {
+      responseNotes.push('spašeni materijali vraćeni u skladište');
+    }
+
+    set((state) => ({
+      zlato: state.zlato - (response.cost.zlato || 0) + (reward.zlato || 0),
+      energija: response.drainEnergyToZero
+        ? 0
+        : (state.energija - (response.cost.energija || 0) + (reward.energija || 0)),
+      stitovi: state.stitovi - (response.cost.stitovi || 0) + (reward.stitovi || 0),
+      resursi: {
+        drvo: state.resursi.drvo - (response.cost.drvo || 0) + (reward.drvo || 0),
+        kamen: state.resursi.kamen - (response.cost.kamen || 0) + (reward.kamen || 0),
+        zeljezo: state.resursi.zeljezo - (response.cost.zeljezo || 0) + (reward.zeljezo || 0),
+      },
+      villageRooms,
+      gradevine: legacyVillageState.gradevine,
+      ostecenja: legacyVillageState.ostecenja,
+      poruka: response.mode === 'secure'
+        ? `${roomDefinition.naziv.toUpperCase()} JE OBRANJENA I ODMAH VRAĆENA U RAD${responseNotes.length ? ` · ${responseNotes.join(' · ')}` : ''}`
+        : `${response.label} AKTIVIRAN ZA ${roomDefinition.naziv.toUpperCase()}${responseNotes.length ? ` · ${responseNotes.join(' · ')}` : ''}`,
+    }));
+    return true;
+  },
+
+  nadogradiZgradu: (zgrada) => {
+    const s = get();
+    const rooms = normalizeVillageRooms(s.villageRooms, s.gradevine, s.ostecenja);
+    const targetRoom = rooms.find((room) => room.type === zgrada.id);
+    if (!targetRoom) return false;
+    return get().nadogradiSobu(targetRoom.id);
   },
 
   popraviZgradu: (zgrada) => {
     const s = get();
-    const lv             = s.gradevine[zgrada.id];
-    const cPopravakZlato = lv * 50;
-    const cPopravakDrvo  = lv * 20;
-
-    if (s.zlato < cPopravakZlato || s.resursi.drvo < cPopravakDrvo) {
-      set({ poruka: 'NEMAŠ DOVOLJNO RESURSA ZA POPRAVAK' });
-      return;
-    }
-
-    set((state) => ({
-      zlato:    state.zlato - cPopravakZlato,
-      resursi:  { ...state.resursi, drvo: state.resursi.drvo - cPopravakDrvo },
-      ostecenja: { ...state.ostecenja, [zgrada.id]: false },
-      poruka:   `${zgrada.naziv.toUpperCase()} USPJEŠNO POPRAVLJEN!`,
-    }));
+    const rooms = normalizeVillageRooms(s.villageRooms, s.gradevine, s.ostecenja);
+    const targetRoom = rooms.find((room) => room.type === zgrada.id);
+    if (!targetRoom) return false;
+    return get().hitniPopravakSobe(targetRoom.id);
   },
 
   izvrsiPrestige: () => {
@@ -1071,17 +1469,21 @@ export const useGameStore = create((set, get) => ({
       bonusState = { ...bonusState, energija: 35 };
       bonusPoruka += ' | PRESTIGE V: bonus energija';
     }
+    const resetiraneGradevine = { pilana: 0, kamenolom: 0, rudnik: 0 };
+    const resetiranaOstecenja = { pilana: false, kamenolom: false, rudnik: false };
     set({
       prestigeRazina: noviPrestige,
       igracRazina:    1,
       xp:             0,
-      gradevine:      { pilana: 0, kamenolom: 0, rudnik: 0 },
-      ostecenja:      { pilana: false, kamenolom: false, rudnik: false },
+      gradevine:      resetiraneGradevine,
+      ostecenja:      resetiranaOstecenja,
+      villageRooms:   createLegacyVillageRooms(resetiraneGradevine, resetiranaOstecenja),
       resursi:        { drvo: 0, kamen: 0, zeljezo: 0 },
       zlato:          50,
       energija:       bonusState.energija ?? 10,
       winStreak:      0,
       luckySpinCounter: LUCKY_SPIN_INTERVAL,
+      zadnjiVillageIncidentMs: 0,
       prestigeMilestones: milestone,
       ...(bonusState.dijamanti !== undefined ? { dijamanti: bonusState.dijamanti } : {}),
       ...(bonusState.aktivniSkin ? { aktivniSkin: bonusState.aktivniSkin } : {}),
@@ -1322,7 +1724,7 @@ export const useGameStore = create((set, get) => ({
   kupiEnergijuHitno: () => {
     const s = get();
     const cijena = 100;
-    const maxEnergija = izracunajMaxEnergiju(s.razine.baterija || 0);
+    const maxEnergija = izracunajMaxEnergiju(s.razine.baterija || 0) + Math.round(getVillageSupportStats(s).maxEnergyFlat || 0);
     if (s.zlato < cijena) {
       set({ poruka: 'NEDOVOLJNO ZLATA ZA ENERGIJU' });
       return;
@@ -1444,10 +1846,12 @@ export const useGameStore = create((set, get) => ({
     const sek = Math.max(0, Math.min(OFFLINE_MAX_SEK, Math.floor(elapsedSec || 0)));
     if (sek <= 0) return;
     const pasivniMnozitelj = izracunajPasivniMnozitelj(s.igracRazina, s.prestigeRazina);
+    const heroPasivno = 1 + (izracunajHeroBonus(s.junaci, s.aktivniJunaci, 'pasivno') / 100);
+    const produkcijaSela = getVillageProduction(s, pasivniMnozitelj * heroPasivno);
     const bonus = {
-      drvo: Math.floor((!s.ostecenja.pilana ? (s.gradevine.pilana * ZGRADE[0].bazaProizvodnja * pasivniMnozitelj * sek) : 0)),
-      kamen: Math.floor((!s.ostecenja.kamenolom ? (s.gradevine.kamenolom * ZGRADE[1].bazaProizvodnja * pasivniMnozitelj * sek) : 0)),
-      zeljezo: Math.floor((!s.ostecenja.rudnik ? (s.gradevine.rudnik * ZGRADE[2].bazaProizvodnja * pasivniMnozitelj * sek) : 0)),
+      drvo: Math.floor(produkcijaSela.drvo * sek),
+      kamen: Math.floor(produkcijaSela.kamen * sek),
+      zeljezo: Math.floor(produkcijaSela.zeljezo * sek),
     };
     if (bonus.drvo <= 0 && bonus.kamen <= 0 && bonus.zeljezo <= 0) return;
     set((state) => ({
@@ -1485,7 +1889,7 @@ export const useGameStore = create((set, get) => ({
       return false;
     }
     if (tip === 'energija') {
-      const maxEnergija = izracunajMaxEnergiju(get().razine.baterija || 0);
+      const maxEnergija = izracunajMaxEnergiju(get().razine.baterija || 0) + Math.round(getVillageSupportStats(get()).maxEnergyFlat || 0);
       set((state) => ({ energija: Math.min(maxEnergija, state.energija + 30), poruka: '📺 +30 ENERGIJE' }));
       return true;
     }
@@ -1543,6 +1947,68 @@ export const useGameStore = create((set, get) => ({
   })),
 
   // ─── Junaci (Hero Collection) ───────────────────────────────────────────────
+
+  dodijeliHeroURoom: (roomId, heroId) => {
+    const s = get();
+    const heroState = s.junaci[heroId];
+    const heroDefinition = getHeroDefinition(heroId);
+
+    if (!heroState || heroState.razina <= 0 || !heroDefinition) {
+      set({ poruka: 'JUNAK NIJE OTKRIVEN' });
+      return false;
+    }
+
+    const rooms = normalizeVillageRooms(s.villageRooms, s.gradevine, s.ostecenja);
+    const targetRoom = rooms.find((room) => room.id === roomId);
+
+    if (!targetRoom || !targetRoom.type || targetRoom.level <= 0) {
+      set({ poruka: 'SOBA JOŠ NIJE SPREMNA ZA POSADU' });
+      return false;
+    }
+    if (targetRoom.status !== 'active') {
+      set({ poruka: 'SOBA MORA BITI AKTIVNA PRIJE DODJELE JUNAKA' });
+      return false;
+    }
+
+    if (targetRoom.assignedHeroId === heroId) {
+      const villageRooms = rooms.map((room) => (
+        room.id === roomId ? { ...room, assignedHeroId: null } : room
+      ));
+      set({ villageRooms, poruka: `${heroDefinition.naziv.toUpperCase()} JE POVUČEN IZ SOBE` });
+      return true;
+    }
+
+    const roomDefinition = getVillageRoomDefinition(targetRoom);
+    const villageRooms = rooms.map((room) => {
+      if (room.assignedHeroId === heroId) return { ...room, assignedHeroId: null };
+      if (room.id === roomId) return { ...room, assignedHeroId: heroId };
+      return room;
+    });
+
+    set({
+      villageRooms,
+      poruka: `${heroDefinition.naziv.toUpperCase()} RADI U SOBI ${roomDefinition?.naziv?.toUpperCase() ?? 'SELO'}`,
+    });
+    return true;
+  },
+
+  ukloniHeroIzSobe: (roomId) => {
+    const s = get();
+    const rooms = normalizeVillageRooms(s.villageRooms, s.gradevine, s.ostecenja);
+    const targetRoom = rooms.find((room) => room.id === roomId);
+    if (!targetRoom?.assignedHeroId) return false;
+
+    const heroDefinition = getHeroDefinition(targetRoom.assignedHeroId);
+    const villageRooms = rooms.map((room) => (
+      room.id === roomId ? { ...room, assignedHeroId: null } : room
+    ));
+
+    set({
+      villageRooms,
+      poruka: `${heroDefinition?.naziv?.toUpperCase() ?? 'JUNAK'} JE VRAĆEN U ODMOR`,
+    });
+    return true;
+  },
 
   /**
    * Dodaj fragmente junaku. Ako heroId === null, odabere nasumičnog junaka.
