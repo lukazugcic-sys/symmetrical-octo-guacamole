@@ -713,6 +713,13 @@ const getVillageForecastState = ({ rooms, villagePressure, villageSupportStats, 
 };
 
 const getResidentFallbackGlyph = (room) => {
+  if (room?.assignedHeroId) {
+    const heroDefinition = getHeroDefinition(room.assignedHeroId);
+    return heroDefinition?.emodzi || '👤';
+  }
+  if (room?.status === 'damaged' || room?.status === 'repairing') {
+    return '😟'; // worried during incidents
+  }
   switch (room?.type) {
     case 'pilana': return '🌲';
     case 'kamenolom': return '⛰️';
@@ -761,57 +768,72 @@ const getRoomTelegraphState = ({ roomForecast, villagePressure }) => {
 };
 
 const getRoomMotionMeta = (room) => {
-  switch (room?.type) {
-    case 'pilana':
-      return {
-        residentPattern: 'sway',
-        propPattern: 'sway',
-        baseDurationMs: 860,
-        motionAmplitude: 1,
-      };
-    case 'kamenolom':
-      return {
-        residentPattern: 'stomp',
-        propPattern: 'stomp',
-        baseDurationMs: 980,
-        motionAmplitude: 0.9,
-      };
-    case 'rudnik':
-      return {
-        residentPattern: 'pulse',
-        propPattern: 'pulse',
-        baseDurationMs: 780,
-        motionAmplitude: 1.04,
-      };
-    case 'servis':
-      return {
-        residentPattern: 'drift',
-        propPattern: 'stomp',
-        baseDurationMs: 900,
-        motionAmplitude: 0.95,
-      };
-    case 'zapovjednistvo':
-      return {
-        residentPattern: 'glide',
-        propPattern: 'hover',
-        baseDurationMs: 1040,
-        motionAmplitude: 0.85,
-      };
-    case 'jezgra':
-      return {
-        residentPattern: 'hover',
-        propPattern: 'pulse',
-        baseDurationMs: 760,
-        motionAmplitude: 1.12,
-      };
-    default:
-      return {
-        residentPattern: 'bob',
-        propPattern: 'bob',
-        baseDurationMs: 920,
-        motionAmplitude: 0.8,
-      };
+  const baseMeta = (() => {
+    switch (room?.type) {
+      case 'pilana':
+        return {
+          residentPattern: 'sway',
+          propPattern: 'sway',
+          baseDurationMs: 860,
+          motionAmplitude: 1,
+        };
+      case 'kamenolom':
+        return {
+          residentPattern: 'stomp',
+          propPattern: 'stomp',
+          baseDurationMs: 980,
+          motionAmplitude: 0.9,
+        };
+      case 'rudnik':
+        return {
+          residentPattern: 'pulse',
+          propPattern: 'pulse',
+          baseDurationMs: 780,
+          motionAmplitude: 1.04,
+        };
+      case 'servis':
+        return {
+          residentPattern: 'drift',
+          propPattern: 'stomp',
+          baseDurationMs: 900,
+          motionAmplitude: 0.95,
+        };
+      case 'zapovjednistvo':
+        return {
+          residentPattern: 'glide',
+          propPattern: 'hover',
+          baseDurationMs: 1040,
+          motionAmplitude: 0.85,
+        };
+      case 'jezgra':
+        return {
+          residentPattern: 'hover',
+          propPattern: 'pulse',
+          baseDurationMs: 760,
+          motionAmplitude: 1.12,
+        };
+      default:
+        return {
+          residentPattern: 'bob',
+          propPattern: 'bob',
+          baseDurationMs: 920,
+          motionAmplitude: 0.8,
+        };
+    }
+  })();
+
+  // Override resident pattern based on room state
+  let residentPattern = baseMeta.residentPattern;
+  if (room?.status === 'damaged' || room?.status === 'repairing') {
+    residentPattern = 'worry';
+  } else if (room?.status === 'active' && room?.assignedHeroId) {
+    residentPattern = 'work';
   }
+
+  return {
+    ...baseMeta,
+    residentPattern,
+  };
 };
 
 const getRoomTensionState = ({ room, roomTelegraph }) => {
@@ -1256,6 +1278,30 @@ const getAnimatedMotionTransforms = ({ motionValue, pattern, amplitude }) => {
           scale: motionValue.interpolate({
             inputRange: [0, 1],
             outputRange: [1, 1 + (0.05 * amplitude)],
+          }),
+        },
+      ];
+    case 'worry':
+      return [
+        {
+          translateX: motionValue.interpolate({
+            inputRange: [0, 0.25, 0.5, 0.75, 1],
+            outputRange: [0, 2 * amplitude, -2 * amplitude, 1 * amplitude, 0],
+          }),
+        },
+        {
+          translateY: motionValue.interpolate({
+            inputRange: [0, 0.25, 0.5, 0.75, 1],
+            outputRange: [0, -1 * amplitude, 1 * amplitude, -0.5 * amplitude, 0],
+          }),
+        },
+      ];
+    case 'work':
+      return [
+        {
+          translateY: motionValue.interpolate({
+            inputRange: [0, 0.5, 1],
+            outputRange: [0, -2 * amplitude, 0],
           }),
         },
       ];
