@@ -1674,6 +1674,11 @@ const InspectorShiftBoard = ({ room, assignedHero, roomForecast, roomTelegraph, 
       ? roomForecast.reason
       : interiorProfile?.rhythmCopy ?? 'Direktor trenutačno ne vidi pojačan rizik u ovoj sobi.';
 
+  const canRepair = room.status === 'damaged';
+  const canEmergencyRepair = room.status === 'damaged' || room.status === 'repairing';
+  const canAssignHero = room.status === 'active' && !assignedHero;
+  const canRespondIncident = (room.status === 'damaged' || room.status === 'repairing') && getVillageIncidentResponse(room, useGameStore.getState());
+
   return (
     <View style={styles.shiftBoard}>
       <View style={styles.shiftBoardHeader}>
@@ -1715,6 +1720,48 @@ const InspectorShiftBoard = ({ room, assignedHero, roomForecast, roomTelegraph, 
       </View>
 
       <Text style={styles.shiftBoardCopy}>{forecastCopy}</Text>
+
+      <View style={styles.shiftActionsRow}>
+        {canRepair && (
+          <TouchableOpacity
+            activeOpacity={0.82}
+            style={[styles.shiftActionBtn, { borderColor: accentColor }]}
+            onPress={() => useGameStore.getState().pokreniPopravakSobe(room.id)}
+          >
+            <Text style={[styles.shiftActionBtnTxt, { color: accentColor }]}>Pokreni popravak</Text>
+          </TouchableOpacity>
+        )}
+        {canEmergencyRepair && (
+          <TouchableOpacity
+            activeOpacity={0.82}
+            style={[styles.shiftActionBtn, { borderColor: accentColor }]}
+            onPress={() => useGameStore.getState().hitniPopravakSobe(room.id)}
+          >
+            <Text style={[styles.shiftActionBtnTxt, { color: accentColor }]}>Hitni popravak</Text>
+          </TouchableOpacity>
+        )}
+        {canRespondIncident && (
+          <TouchableOpacity
+            activeOpacity={0.82}
+            style={[styles.shiftActionBtn, { borderColor: accentColor }]}
+            onPress={() => useGameStore.getState().aktivirajIncidentOdgovor(room.id)}
+          >
+            <Text style={[styles.shiftActionBtnTxt, { color: accentColor }]}>Intervencija</Text>
+          </TouchableOpacity>
+        )}
+        {canAssignHero && (
+          <TouchableOpacity
+            activeOpacity={0.82}
+            style={[styles.shiftActionBtn, { borderColor: accentColor }]}
+            onPress={() => {
+              // Scroll to heroes or open assign modal
+              // For now, just a placeholder
+            }}
+          >
+            <Text style={[styles.shiftActionBtnTxt, { color: accentColor }]}>Dodijeli junaka</Text>
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 };
@@ -4491,6 +4538,25 @@ const styles = StyleSheet.create({
     fontFamily: FONT_FAMILY,
     lineHeight: 16,
     marginTop: 12,
+  },
+  shiftActionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  shiftActionBtn: {
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  shiftActionBtnTxt: {
+    fontSize: 10,
+    fontFamily: FONT_FAMILY,
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
   inspectorCard: {
     borderRadius: 28,
