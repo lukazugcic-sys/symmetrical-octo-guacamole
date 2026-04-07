@@ -10,7 +10,6 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { Zap, Sparkles, CircleHelp, Shield, Skull, Star, Gem, Coins, TreePine, Mountain, Pickaxe, BatteryCharging } from 'lucide-react-native';
-import { useNavigation } from '@react-navigation/native';
 import { useGameStore } from '../store/gameStore';
 import { useSlotStore } from '../store/slotStore';
 import { useSlotMachine } from '../hooks/useSlotMachine';
@@ -27,7 +26,6 @@ import { useRewardedAds } from '../hooks/useRewardedAds';
  * Flash i shake efekti dolaze iz UIContext (bez prop drillinga).
  */
 const SlotScreen = () => {
-  const navigation = useNavigation();
   const { width, height } = useWindowDimensions();
   const poruka          = useGameStore((s) => s.poruka);
   const aktivniDogadaj  = useSeasonalEvent();
@@ -98,21 +96,11 @@ const SlotScreen = () => {
       {/* Sezonalni događaj */}
       <EventBanner dogadaj={aktivniDogadaj} />
 
-      <View style={styles.supportCard}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.supportTitle}>Automat je pomoćni tok ekonomije.</Text>
-          <Text style={styles.supportCopy}>Koristi ga za burst resurse, hitne popravke i kratke skokove u progresiji sela.</Text>
-        </View>
-        <TouchableOpacity activeOpacity={0.8} style={styles.supportBtn} onPress={() => navigation.navigate('Baza')}>
-          <Text style={styles.supportBtnTxt}>OTVORI BAZU</Text>
-        </TouchableOpacity>
-      </View>
-
       {/* Poruka + sanduk gumb */}
       <View style={[styles.topRow, { marginBottom: compactUi ? 14 : 18 }]}>
-        <View style={[styles.messageBubble, { flex: 1, paddingVertical: denseUi ? 12 : Math.round(14 * uiScale) }]}>
+        <View style={[styles.messageBubble, { flex: 1, paddingVertical: denseUi ? 9 : Math.round(10 * uiScale) }]}> 
           <Sparkles size={denseUi ? 14 : 16} color={BOJE.zlato} style={{ marginRight: 8 }} />
-          <Text style={styles.messageText} numberOfLines={2}>{poruka}</Text>
+          <Text style={styles.messageText} numberOfLines={1}>{poruka}</Text>
           <Sparkles size={denseUi ? 14 : 16} color={BOJE.zlato} style={{ marginLeft: 8 }} />
           <TouchableOpacity onPress={() => setPrikazLegend(true)} style={styles.legendBtn}>
             <CircleHelp size={16} color={BOJE.zlato} />
@@ -299,43 +287,6 @@ const styles = StyleSheet.create({
     paddingTop: 6,
   },
 
-  supportCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 22,
-    padding: 14,
-    marginBottom: 14,
-  },
-  supportTitle: {
-    color: BOJE.textMain,
-    fontSize: Math.round(13 * uiScale),
-    fontWeight: '900',
-    fontFamily: FONT_FAMILY,
-  },
-  supportCopy: {
-    color: BOJE.textMuted,
-    fontSize: Math.round(11 * uiScale),
-    fontFamily: FONT_FAMILY,
-    marginTop: 4,
-    lineHeight: 16,
-  },
-  supportBtn: {
-    backgroundColor: BOJE.textMain,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  supportBtnTxt: {
-    color: '#000',
-    fontSize: Math.round(11 * uiScale),
-    fontWeight: '900',
-    fontFamily: FONT_FAMILY,
-  },
-
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -371,18 +322,18 @@ const styles = StyleSheet.create({
   messageBubble: {
     flexDirection: 'row',
     backgroundColor: 'rgba(10, 15, 27, 0.96)',
-    paddingHorizontal: 16,
-    borderRadius: 18,
+    paddingHorizontal: 12,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(251,191,36,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
     shadowOpacity: 0.24,
-    shadowRadius: 14,
-    elevation: 5,
+    shadowRadius: 10,
+    elevation: 4,
   },
-  messageText: { flex: 1, color: BOJE.textMain, fontSize: Math.round(13 * uiScale), fontWeight: '800', fontFamily: FONT_FAMILY, letterSpacing: 0.4, textAlign: 'center' },
+  messageText: { flex: 1, color: BOJE.textMain, fontSize: Math.round(12 * uiScale), fontWeight: '800', fontFamily: FONT_FAMILY, letterSpacing: 0.2, textAlign: 'center' },
   legendBtn: { marginLeft: 8, padding: 2 },
   boostBadge: { alignSelf: 'stretch', backgroundColor: 'rgba(163,230,53,0.10)', borderWidth: 1, borderColor: 'rgba(163,230,53,0.28)', borderRadius: 14, paddingVertical: 8 },
   boostTxt: { color: BOJE.energija, textAlign: 'center', fontFamily: FONT_FAMILY, fontWeight: '900', fontSize: 12, letterSpacing: 0.5 },

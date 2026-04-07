@@ -3,7 +3,7 @@ import {
   StatusBar, StyleSheet, Animated, View, Text,
   TouchableOpacity, ActivityIndicator, AppState,
 } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme as NavigationDarkTheme } from '@react-navigation/native';
 import { enableScreens } from 'react-native-screens';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useGameStore } from './src/store/gameStore';
@@ -24,6 +24,19 @@ import { useSeasonalEvent } from './src/hooks/useSeasonalEvent';
 
 // Aktiviraj native screen optimizacije (react-native-screens)
 enableScreens();
+
+const APP_NAVIGATION_THEME = {
+  ...NavigationDarkTheme,
+  colors: {
+    ...NavigationDarkTheme.colors,
+    background: BOJE.bg,
+    card: BOJE.bg,
+    border: 'rgba(255,255,255,0.08)',
+    primary: BOJE.drvo,
+    text: BOJE.textMain,
+    notification: BOJE.slotVatra,
+  },
+};
 
 export default function App() {
   // ─── Flash overlay + tresenje ekrana ─────────────────────────────────────
@@ -165,6 +178,15 @@ export default function App() {
   useVillage();
   useMarket();
 
+  // ─── Hero village-state timer ─────────────────────────────────────────────
+  useEffect(() => {
+    if (ucitavam) return;
+    const interval = setInterval(() => {
+      useGameStore.getState().azurirajHeroFatigue();
+    }, 60000); // Update every minute
+    return () => clearInterval(interval);
+  }, [ucitavam]);
+
   // ─── Push notifikacije ────────────────────────────────────────────────────
   useNotifications();
 
@@ -180,7 +202,7 @@ export default function App() {
   return (
     <UIContext.Provider value={{ onFlash, onShake }}>
       <SafeAreaProvider>
-        <NavigationContainer>
+        <NavigationContainer theme={APP_NAVIGATION_THEME}>
           <SafeAreaView style={styles.container} edges={[ 'left', 'right' ]}>
             <StatusBar barStyle="light-content" backgroundColor={BOJE.bg} />
 

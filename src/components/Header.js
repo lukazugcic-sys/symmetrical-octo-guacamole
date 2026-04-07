@@ -1,6 +1,6 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
-import { Zap, Coins, Gem, Shield, TreePine, Mountain, Pickaxe, TrendingUp, Crown } from 'lucide-react-native';
+import { Zap, Coins, Gem, Shield, TreePine, Mountain, Pickaxe, TrendingUp, Crown, ChevronDown, ChevronUp } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGameStore } from '../store/gameStore';
 import AnimatedStat from './AnimatedStat';
@@ -12,6 +12,7 @@ import { izracunajMaxStitova, izracunajPotrebniXp, izracunajPasivniMnozitelj } f
  */
 const Header = ({ onOpenBattlePass }) => {
   const insets = useSafeAreaInsets();
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
   const igracRazina    = useGameStore((s) => s.igracRazina);
   const prestigeRazina = useGameStore((s) => s.prestigeRazina);
   const xp             = useGameStore((s) => s.xp);
@@ -61,80 +62,91 @@ const Header = ({ onOpenBattlePass }) => {
           )}
         </View>
       )}
-      {/* Razina + XP bar */}
-      <View style={styles.levelContainer}>
-        <View style={styles.levelBadgeOuter}>
-          <Text style={styles.levelBadgeTxt}>{igracRazina}</Text>
-        </View>
-
-        {prestigeRazina > 0 && (
-          <View style={styles.prestigeBadgeOuter}>
-            <Crown size={14} color="#000" style={{ marginRight: 2 }} />
-            <Text style={styles.levelBadgeTxt}>{prestigeRazina}</Text>
+      <View style={styles.topRail}>
+        <View style={styles.levelContainer}>
+          <View style={styles.levelBadgeOuter}>
+            <Text style={styles.levelBadgeTxt}>{igracRazina}</Text>
           </View>
-        )}
 
-        <View style={styles.xpBarContainer}>
-          <Animated.View style={[styles.xpBarFill, { width: xpWidthAnim }]} />
-          <Text style={styles.xpText}>{xp} / {potrebanXp} XP</Text>
-        </View>
-
-        <View style={[styles.multiplierBadge, prestigeRazina > 0 && { backgroundColor: BOJE.prestige }]}>
-          <TrendingUp size={12} color="#000" style={{ marginRight: 2 }} />
-          <Text style={styles.multiplierTxt}>{pasivniMnozitelj.toFixed(2)}x</Text>
-        </View>
-        <TouchableOpacity style={styles.bpBtn} onPress={onOpenBattlePass}>
-          <Text style={styles.bpBtnTxt}>BP</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Zlato, energija, dijamanti */}
-      <View style={styles.headerMainStats}>
-        <AnimatedStat value={Math.floor(energija)} style={styles.statChip}>
-          <Zap size={16} color={BOJE.energija} strokeWidth={2.5} />
-          <Text style={styles.statChipTxt}>{Math.floor(energija)}</Text>
-        </AnimatedStat>
-        <AnimatedStat value={Math.floor(zlato)} style={styles.statChip}>
-          <Coins size={16} color={BOJE.zlato} strokeWidth={2.5} />
-          <Text style={styles.statChipTxt}>{Math.floor(zlato)}</Text>
-        </AnimatedStat>
-        <AnimatedStat value={dijamanti} style={styles.statChip}>
-          <Gem size={16} color={BOJE.dijamant} strokeWidth={2.5} />
-          <Text style={styles.statChipTxt}>{dijamanti}</Text>
-        </AnimatedStat>
-      </View>
-
-      {/* Resursi */}
-      <View style={styles.resourceHeaderRow}>
-        <AnimatedStat value={Math.floor(resursi.drvo)} style={styles.resMiniChip}>
-          <TreePine size={14} color={BOJE.drvo} strokeWidth={2.5} />
-          <Text style={styles.resChipTxt}>{Math.floor(resursi.drvo)}</Text>
-        </AnimatedStat>
-        <AnimatedStat value={Math.floor(resursi.kamen)} style={styles.resMiniChip}>
-          <Mountain size={14} color={BOJE.kamen} strokeWidth={2.5} />
-          <Text style={styles.resChipTxt}>{Math.floor(resursi.kamen)}</Text>
-        </AnimatedStat>
-        <AnimatedStat value={Math.floor(resursi.zeljezo)} style={styles.resMiniChip}>
-          <Pickaxe size={14} color={BOJE.zeljezo} strokeWidth={2.5} />
-          <Text style={styles.resChipTxt}>{Math.floor(resursi.zeljezo)}</Text>
-        </AnimatedStat>
-      </View>
-
-      {/* Obrana */}
-      <View style={styles.defenseMatrix}>
-        <Shield size={16} color={BOJE.stit} strokeWidth={2.5} style={{ marginRight: 8 }} />
-        <Text style={styles.defenseTitle}>OBRANA</Text>
-        <View style={styles.shieldSlotsContainer}>
-          {[...Array(maxStitova)].map((_, i) => (
-            <View key={i} style={[styles.shieldSlot, i < stitovi ? styles.shieldActive : styles.shieldEmpty]}>
-              {i < stitovi && <View style={styles.shieldGlow} />}
+          {prestigeRazina > 0 && (
+            <View style={styles.prestigeBadgeOuter}>
+              <Crown size={14} color="#000" style={{ marginRight: 2 }} />
+              <Text style={styles.levelBadgeTxt}>{prestigeRazina}</Text>
             </View>
-          ))}
+          )}
+
+          <View style={styles.xpBarContainer}>
+            <Animated.View style={[styles.xpBarFill, { width: xpWidthAnim }]} />
+            <Text style={styles.xpText}>{xp} / {potrebanXp} XP</Text>
+          </View>
         </View>
-        <Text style={styles.shieldRegenTxt}>
-          {stitovi >= maxStitova ? 'MAX' : `+1 za ${stitRegenSekundi}s`}
-        </Text>
+
+        <View style={styles.headerActions}>
+          <View style={[styles.multiplierBadge, prestigeRazina > 0 && { backgroundColor: BOJE.prestige }]}> 
+            <TrendingUp size={12} color="#000" style={{ marginRight: 2 }} />
+            <Text style={styles.multiplierTxt}>{pasivniMnozitelj.toFixed(2)}x</Text>
+          </View>
+          <TouchableOpacity style={styles.bpBtn} onPress={onOpenBattlePass}>
+            <Text style={styles.bpBtnTxt}>BP</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            activeOpacity={0.82}
+            style={styles.expandBtn}
+            onPress={() => setDetailsExpanded((current) => !current)}
+          >
+            {detailsExpanded ? <ChevronUp size={16} color={BOJE.textMain} /> : <ChevronDown size={16} color={BOJE.textMain} />}
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {detailsExpanded ? (
+        <View style={styles.detailsPanel}>
+          <View style={styles.resourceHeaderRow}>
+            <AnimatedStat value={Math.floor(energija)} style={styles.resMiniChip}>
+              <Zap size={14} color={BOJE.energija} strokeWidth={2.5} />
+              <Text style={styles.resChipTxt}>{Math.floor(energija)}</Text>
+            </AnimatedStat>
+            <AnimatedStat value={Math.floor(zlato)} style={styles.resMiniChip}>
+              <Coins size={14} color={BOJE.zlato} strokeWidth={2.5} />
+              <Text style={styles.resChipTxt}>{Math.floor(zlato)}</Text>
+            </AnimatedStat>
+            <AnimatedStat value={dijamanti} style={styles.resMiniChip}>
+              <Gem size={14} color={BOJE.dijamant} strokeWidth={2.5} />
+              <Text style={styles.resChipTxt}>{dijamanti}</Text>
+            </AnimatedStat>
+          </View>
+
+          <View style={styles.resourceHeaderRow}>
+            <AnimatedStat value={Math.floor(resursi.drvo)} style={styles.resMiniChip}>
+              <TreePine size={14} color={BOJE.drvo} strokeWidth={2.5} />
+              <Text style={styles.resChipTxt}>{Math.floor(resursi.drvo)}</Text>
+            </AnimatedStat>
+            <AnimatedStat value={Math.floor(resursi.kamen)} style={styles.resMiniChip}>
+              <Mountain size={14} color={BOJE.kamen} strokeWidth={2.5} />
+              <Text style={styles.resChipTxt}>{Math.floor(resursi.kamen)}</Text>
+            </AnimatedStat>
+            <AnimatedStat value={Math.floor(resursi.zeljezo)} style={styles.resMiniChip}>
+              <Pickaxe size={14} color={BOJE.zeljezo} strokeWidth={2.5} />
+              <Text style={styles.resChipTxt}>{Math.floor(resursi.zeljezo)}</Text>
+            </AnimatedStat>
+          </View>
+
+          <View style={styles.defenseMatrix}>
+            <Shield size={16} color={BOJE.stit} strokeWidth={2.5} style={{ marginRight: 8 }} />
+            <Text style={styles.defenseTitle}>OBRANA</Text>
+            <View style={styles.shieldSlotsContainer}>
+              {[...Array(maxStitova)].map((_, i) => (
+                <View key={i} style={[styles.shieldSlot, i < stitovi ? styles.shieldActive : styles.shieldEmpty]}>
+                  {i < stitovi && <View style={styles.shieldGlow} />}
+                </View>
+              ))}
+            </View>
+            <Text style={styles.shieldRegenTxt}>
+              {stitovi >= maxStitova ? 'MAX' : `+1 za ${stitRegenSekundi}s`}
+            </Text>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 };
@@ -142,7 +154,7 @@ const Header = ({ onOpenBattlePass }) => {
 const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 12,
     zIndex: 10,
     backgroundColor: '#05070E',
     borderBottomWidth: 1,
@@ -171,15 +183,25 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '900',
   },
+  topRail: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   levelContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: 24,
     padding: 6,
-    marginBottom: 12,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
+    flex: 1,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+    gap: 6,
   },
   levelBadgeOuter: {
     width: Math.round(34 * uiScale),
@@ -215,10 +237,10 @@ const styles = StyleSheet.create({
   },
   xpBarContainer: {
     flex: 1,
-    height: Math.round(18 * uiScale),
+    height: Math.round(16 * uiScale),
     backgroundColor: 'rgba(0,0,0,0.38)',
     borderRadius: Math.round(9 * uiScale),
-    marginHorizontal: 10,
+    marginHorizontal: 8,
     overflow: 'hidden',
     justifyContent: 'center',
   },
@@ -241,9 +263,9 @@ const styles = StyleSheet.create({
   },
   multiplierBadge: {
     backgroundColor: BOJE.xp,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
     shadowColor: BOJE.xp,
@@ -258,11 +280,10 @@ const styles = StyleSheet.create({
     fontFamily: FONT_FAMILY,
   },
   bpBtn: {
-    marginLeft: 6,
     backgroundColor: BOJE.dijamant,
-    borderRadius: 12,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
   },
   bpBtnTxt: {
     color: '#000',
@@ -270,26 +291,21 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     fontSize: 11,
   },
-  headerMainStats: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
-  statChip: {
-    flex: 1,
-    flexDirection: 'row',
+  expandBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    height: Math.round(40 * uiScale),
-    gap: 6,
   },
-  statChipTxt: {
-    fontSize: Math.round(15 * uiScale),
-    fontWeight: '800',
-    fontFamily: FONT_FAMILY,
-    color: BOJE.textMain,
+  detailsPanel: {
+    marginTop: 10,
+    gap: 8,
   },
-  resourceHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginTop: 8 },
+  resourceHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   resMiniChip: {
     flex: 1,
     flexDirection: 'row',
@@ -312,7 +328,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: BOJE.stit + '10',
-    marginTop: 10,
     paddingHorizontal: 12,
     paddingVertical: 9,
     borderRadius: 16,

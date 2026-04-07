@@ -9,15 +9,97 @@ import { useSeasonalEvent } from './useSeasonalEvent';
 import {
   SVO_BLAGO, BLAGO, LUCKY_SPIN_INTERVAL, MAX_WIN_STREAK,
   STREAK_BONUS_PER_WIN, WILD_BOOST_CHANCE_PER_LEVEL, ZGRADE,
-  SHIELD_GRANT_MIN_BET, MAX_GAMBLE_ROUNDS, HERO_DROP_SANSA,
+  SHIELD_GRANT_MIN_BET, MAX_GAMBLE_ROUNDS, HERO_DROP_SANSA, STIT_REGEN_INTERVAL_SEK,
 } from '../config/constants';
 import {
   izracunajMaxStitova, izracunajPrestigeMnozitelj, izracunajSansuZaDobitak,
   izracunajHeroBonus,
 } from '../utils/economy';
-import { delay, randomChance, randomFloat, randomInt } from '../utils/helpers';
+import { randomChance, randomFloat, randomInt } from '../utils/helpers';
 
 let spinGuard = false;
+
+const buildCascadeColumns = ({ currentSymbols, finalSymbols, simbolPool, wildBoostChance, turboRezim }) => (
+  Array.from({ length: 5 }, (_, columnIndex) => {
+    const leadCount = (turboRezim ? 10 : 16) + (columnIndex * (turboRezim ? 2 : 3));
+    const bufferSymbols = Array.from({ length: leadCount }, () => {
+      if (randomChance(wildBoostChance)) return 'wild';
+      return simbolPool[randomInt(simbolPool.length)];
+    });
+
+    return [
+      currentSymbols[columnIndex],
+      currentSymbols[columnIndex + 5],
+      currentSymbols[columnIndex + 10],
+      ...bufferSymbols,
+      finalSymbols[columnIndex],
+      finalSymbols[columnIndex + 5],
+      finalSymbols[columnIndex + 10],
+    ];
+  })
+);
+
+const buildStaticColumns = (symbols) => Array.from({ length: 5 }, (_, columnIndex) => ([
+  symbols[columnIndex],
+  symbols[columnIndex + 5],
+  symbols[columnIndex + 10],
+]));
+
+const animateReelColumn = ({ blurAnim, index, progressAnim, turboRezim }) => new Promise((resolve) => {
+  const preludeDuration = turboRezim ? 70 : 110;
+  const cruiseDuration = (turboRezim ? 150 : 300) + (index * (turboRezim ? 45 : 85));
+  const decelerateDuration = turboRezim ? 90 : 160;
+
+  Animated.parallel([
+    Animated.sequence([
+      Animated.timing(progressAnim, {
+        toValue: 0.16,
+        duration: preludeDuration,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(progressAnim, {
+        toValue: 0.86,
+        duration: cruiseDuration,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+      Animated.timing(progressAnim, {
+        toValue: 0.985,
+        duration: decelerateDuration,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.spring(progressAnim, {
+        toValue: 1,
+        friction: turboRezim ? 9 : 11,
+        tension: turboRezim ? 115 : 92,
+        overshootClamping: true,
+        useNativeDriver: true,
+      }),
+    ]),
+    Animated.sequence([
+      Animated.timing(blurAnim, {
+        toValue: 0.88,
+        duration: preludeDuration,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(blurAnim, {
+        toValue: 0.88,
+        duration: cruiseDuration,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+      Animated.timing(blurAnim, {
+        toValue: 1,
+        duration: decelerateDuration + 40,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]),
+  ]).start(() => resolve());
+});
 
 // Izgradi težinski pool simbola na osnovu sezonalnog modificatora
 const izgradiPool = (dogadaj) => {
@@ -52,7 +134,6 @@ export const useSlotMachine = () => {
   const stupciAnims    = useRef([...Array(5)].map(() => new Animated.Value(0))).current;
   const stupciBlurs    = useRef([...Array(5)].map(() => new Animated.Value(1))).current;
   const winScaleAnims  = useRef([...Array(15)].map(() => new Animated.Value(1))).current;
-  const spinLoopsRef   = useRef([]);
   const gambleCountRef = useRef(0);
 
   // ─── Animiraj pobjednička polja ─────────────────────────────────────────────
@@ -198,25 +279,6 @@ export const useSlotMachine = () => {
     winScaleAnims.forEach((anim) => anim.setValue(1));
     stupciAnims.forEach((anim)   => anim.setValue(0));
 
-    const spinDuration = turboRezim ? 120 : 250;
-    const spinDelay    = turboRezim ? 250 : 600;
-    const stopDelay    = turboRezim ? 100 : 250;
-    const finalDelay   = turboRezim ? 150 : 300;
-
-    // Zaustavi eventualne prethodno pokrenute petlje prije nove vrtnje.
-    spinLoopsRef.current.forEach((a) => a?.stop?.());
-    spinLoopsRef.current = stupciAnims.map((anim) =>
-      Animated.loop(Animated.timing(anim, { toValue: 300, duration: spinDuration, easing: Easing.linear, useNativeDriver: true }))
-    );
-
-    Animated.parallel(
-      spinLoopsRef.current.concat(
-        stupciBlurs.map((anim) => Animated.timing(anim, { toValue: 0.3, duration: 200, useNativeDriver: true }))
-      )
-    ).start();
-
-    await delay(spinDelay);
-
     try {
       // Osvježi stanje nakon čekanja (može se promijeniti za to vrijeme)
       const gs2          = useGameStore.getState();
@@ -255,19 +317,37 @@ export const useSlotMachine = () => {
         raspon.forEach((i) => { noviSimboli[rLinija[i]] = dob; });
       }
 
+      const currentColumns = [0, 1, 2, 3, 4].map((columnIndex) => useSlotStore.getState().getVisibleColumn(columnIndex));
+      const currentSymbols = [
+        currentColumns[0][0], currentColumns[1][0], currentColumns[2][0], currentColumns[3][0], currentColumns[4][0],
+        currentColumns[0][1], currentColumns[1][1], currentColumns[2][1], currentColumns[3][1], currentColumns[4][1],
+        currentColumns[0][2], currentColumns[1][2], currentColumns[2][2], currentColumns[3][2], currentColumns[4][2],
+      ];
+
+      const reelColumns = buildCascadeColumns({
+        currentSymbols,
+        finalSymbols: noviSimboli,
+        simbolPool,
+        wildBoostChance,
+        turboRezim,
+      });
+
+      useSlotStore.getState().setReelColumns(reelColumns);
+
+      stupciAnims.forEach((anim) => anim.setValue(0));
+      stupciBlurs.forEach((anim) => anim.setValue(1));
+
+      await Promise.all(reelColumns.map((_, index) => animateReelColumn({
+        blurAnim: stupciBlurs[index],
+        index,
+        progressAnim: stupciAnims[index],
+        turboRezim,
+      })));
+
       useSlotStore.getState().setSimboli(noviSimboli);
-
-      for (let i = 0; i < 5; i++) {
-        stupciAnims[i].stopAnimation();
-        stupciAnims[i].setValue(-200);
-        Animated.parallel([
-          Animated.spring(stupciAnims[i], { toValue: 0, friction: 5, tension: 80, useNativeDriver: true }),
-          Animated.timing(stupciBlurs[i], { toValue: 1, duration: 100, useNativeDriver: true }),
-        ]).start();
-        await delay(stopDelay);
-      }
-
-      await delay(finalDelay);
+      useSlotStore.getState().setReelColumns(buildStaticColumns(noviSimboli));
+      stupciAnims.forEach((anim) => anim.setValue(0));
+      stupciBlurs.forEach((anim) => anim.setValue(1));
 
       // Izračun dobitaka po linijama
       let ukupnoZlato = 0, ukupnoDijamanata = 0, ukupnoEnergije = 0, ukupnoStitova = 0;
@@ -414,7 +494,11 @@ export const useSlotMachine = () => {
           novaPoruka  = `OBRANA AKTIVNA! -${steta} ŠTITA`;
         }
 
-        useGameStore.setState({ stitovi: noviStitovi, poruka: novaPoruka });
+        useGameStore.setState({
+          stitovi: noviStitovi,
+          stitRegenSekundi: noviStitovi < gs3.stitovi ? STIT_REGEN_INTERVAL_SEK : gs3.stitRegenSekundi,
+          poruka: novaPoruka,
+        });
 
         const skullP = noviSimboli.map((v, i) => (v === 'skull' ? i : null)).filter((v) => v !== null);
         useSlotStore.getState().setDobitnaPolja(skullP);
@@ -423,8 +507,6 @@ export const useSlotMachine = () => {
         useGameStore.setState({ winStreak: 0, poruka: 'NEMA DOBITKA. POKUŠAJ PONOVO.' });
       }
     } finally {
-      spinLoopsRef.current.forEach((a) => a?.stop?.());
-      spinLoopsRef.current = [];
       useSlotStore.getState().setVrti(false);
       spinGuard = false;
     }

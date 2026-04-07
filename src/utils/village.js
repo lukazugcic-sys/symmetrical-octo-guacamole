@@ -16,6 +16,56 @@ const ROOM_BONUS_BY_HERO_TYPE = {
   xp: 7,
 };
 
+export const HERO_MORALE_BASELINE = 72;
+
+const clampHeroPct = (value, fallback = 0) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(0, Math.min(100, Math.round(numeric)));
+};
+
+export const getHeroMoralePct = (heroState = null) => {
+  if (!heroState) return 0;
+  if ((heroState.razina ?? 0) <= 0) return 0;
+  return clampHeroPct(heroState.morale, HERO_MORALE_BASELINE);
+};
+
+export const getHeroMoraleLabel = (heroState = null) => {
+  const morale = getHeroMoralePct(heroState);
+  if (morale >= 85) return 'Visok moral';
+  if (morale >= 60) return 'Stabilan moral';
+  if (morale >= 35) return 'Pad morala';
+  return 'Kritican moral';
+};
+
+export const getHeroMoraleModifierPct = (heroState = null) => {
+  const morale = getHeroMoralePct(heroState);
+  if (!morale) return 0;
+  return Math.round((morale - HERO_MORALE_BASELINE) * 0.35 * 10) / 10;
+};
+
+export const normalizeHeroState = (heroState = {}) => {
+  const razina = Math.max(0, Number(heroState?.razina) || 0);
+  const fragmenti = Math.max(0, Number(heroState?.fragmenti) || 0);
+  const fatigue = clampHeroPct(heroState?.fatigue, 0);
+  const morale = razina > 0
+    ? clampHeroPct(heroState?.morale, HERO_MORALE_BASELINE)
+    : 0;
+
+  return {
+    ...heroState,
+    fragmenti,
+    razina,
+    fatigue,
+    morale,
+  };
+};
+
+export const normalizeHeroCollection = (junaci = {}) =>
+  Object.fromEntries(
+    Object.entries(junaci || {}).map(([heroId, heroState]) => [heroId, normalizeHeroState(heroState)]),
+  );
+
 const buildFallbackRoom = (slot, gradevine = {}, ostecenja = {}) => {
   const type = slot.defaultType ?? null;
   const level = type ? Math.max(0, Number(gradevine[type]) || 0) : 0;
@@ -106,7 +156,10 @@ const getBaseRoomAssignmentBonusPct = (junaci = {}, room) => {
   const roomDefinition = getVillageRoomDefinition(room);
   if (roomDefinition?.idealHeroBonuses?.includes(heroDefinition.tipBonusa)) perLevel += 3;
 
-  return heroState.razina * perLevel;
+  const baseBonus = heroState.razina * perLevel;
+  const fatiguePenalty = (heroState.fatigue || 0) / 2; // 50% fatigue = 25% penalty
+  const moraleModifier = getHeroMoraleModifierPct(heroState);
+  return Math.max(0, baseBonus + moraleModifier - fatiguePenalty);
 };
 
 const getBaseRoomAssignmentMultiplier = (junaci = {}, room) =>

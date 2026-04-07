@@ -5,6 +5,7 @@ import {
   RARITET_BOJE, RARITET_NAZIVI, HERO_FRAGMENTI_ZA_OTKLJ, HERO_FRAGMENTI_ZA_RAZINU,
   HERO_MAX_RAZINA,
 } from '../config/constants';
+import { getHeroMoraleLabel, getHeroMoralePct } from '../utils/village';
 
 const formatBonus = (tipBonusa, bonusPoRazini, razina) => {
   const val = bonusPoRazini * razina;
@@ -25,6 +26,10 @@ const HeroCard = ({ hero, heroState = {}, aktivan, assignmentLabel, onActivate }
     : (maxed ? 0 : HERO_FRAGMENTI_ZA_RAZINU);
   const progresPos   = maxed ? 1 : Math.min(1, fragmenti / Math.max(1, potrebno));
   const raritetBoja  = RARITET_BOJE[hero.raritet] ?? BOJE.textMuted;
+  const moralePct    = getHeroMoralePct(heroState);
+  const moraleColor  = moralePct < 35 ? BOJE.slotVatra : moralePct < 60 ? BOJE.prestige : moralePct < 85 ? BOJE.energija : BOJE.xp;
+  const fatiguePct   = Math.min(100, heroState?.fatigue || 0);
+  const fatigueColor = fatiguePct > 75 ? BOJE.slotVatra : fatiguePct > 50 ? BOJE.prestige : BOJE.energija;
 
   return (
     <View style={[styles.card, { borderColor: raritetBoja + '55', opacity: otkriven ? 1 : 0.65 }]}>
@@ -60,6 +65,34 @@ const HeroCard = ({ hero, heroState = {}, aktivan, assignmentLabel, onActivate }
         <Text style={[styles.bonusTxt, { color: raritetBoja }]}>
           Trenutno: {formatBonus(hero.tipBonusa, hero.bonusPoRazini, razina)}
         </Text>
+      )}
+
+      {otkriven && (
+        <View style={styles.vitalsRow}>
+          <View style={styles.vitalCard}>
+            <View style={styles.vitalHeader}>
+              <Text style={styles.vitalTitle}>Moral</Text>
+              <Text style={[styles.vitalValue, { color: moraleColor }]}>{moralePct}%</Text>
+            </View>
+            <View style={styles.vitalBar}>
+              <View style={[styles.vitalFill, { width: `${moralePct}%`, backgroundColor: moraleColor }]} />
+            </View>
+            <Text style={[styles.vitalHint, { color: moraleColor }]}>{getHeroMoraleLabel(heroState)}</Text>
+          </View>
+
+          <View style={styles.vitalCard}>
+            <View style={styles.vitalHeader}>
+              <Text style={styles.vitalTitle}>Umor</Text>
+              <Text style={[styles.vitalValue, { color: fatigueColor }]}>{fatiguePct}%</Text>
+            </View>
+            <View style={styles.vitalBar}>
+              <View style={[styles.vitalFill, { width: `${fatiguePct}%`, backgroundColor: fatigueColor }]} />
+            </View>
+            <Text style={[styles.vitalHint, { color: fatigueColor }]}>
+              {fatiguePct > 75 ? 'Trazi odmor' : fatiguePct > 40 ? 'Nakuplja zamor' : 'Spreman za smjenu'}
+            </Text>
+          </View>
+        </View>
       )}
 
       {otkriven && (aktivan || assignmentLabel) && (
@@ -134,6 +167,45 @@ const styles = StyleSheet.create({
   zvjezdice:    { fontSize: Math.round(13 * uiScale), letterSpacing: 2 },
   opis:         { fontSize: Math.round(12 * uiScale), color: BOJE.textMuted, fontFamily: FONT_FAMILY, marginBottom: 4, lineHeight: 17 },
   bonusTxt:     { fontSize: Math.round(12 * uiScale), fontWeight: '700', fontFamily: FONT_FAMILY, marginBottom: 8 },
+  vitalsRow:    { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  vitalCard: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+  vitalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 5,
+  },
+  vitalTitle: {
+    color: BOJE.textMuted,
+    fontSize: Math.round(10 * uiScale),
+    fontWeight: '800',
+    fontFamily: FONT_FAMILY,
+    textTransform: 'uppercase',
+  },
+  vitalValue: {
+    fontSize: Math.round(10 * uiScale),
+    fontWeight: '900',
+    fontFamily: FONT_FAMILY,
+  },
+  vitalBar: {
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+  },
+  vitalFill: { height: '100%', borderRadius: 999 },
+  vitalHint: {
+    marginTop: 6,
+    fontSize: Math.round(10 * uiScale),
+    fontFamily: FONT_FAMILY,
+    lineHeight: 14,
+  },
   statusRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
   statusChip: {
     backgroundColor: 'rgba(255,255,255,0.06)',

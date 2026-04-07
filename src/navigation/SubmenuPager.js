@@ -1,6 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import PagerView from 'react-native-pager-view';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import Animated, {
   Extrapolation,
   ReduceMotion,
@@ -14,9 +13,42 @@ import Animated, {
 } from 'react-native-reanimated';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { BOJE, FONT_FAMILY, uiScale } from '../config/constants';
+import { isExpoGo } from '../utils/helpers';
 
-const AnimatedPagerView = Animated.createAnimatedComponent(PagerView);
 const NAV_TIMING = { duration: 180, reduceMotion: ReduceMotion.Never };
+let cachedPagerViewComponent;
+let hasResolvedPagerViewComponent = false;
+let hasWarnedAboutPagerFallback = false;
+
+const getPagerViewComponent = () => {
+  if (isExpoGo()) {
+    return null;
+  }
+
+  if (hasResolvedPagerViewComponent) {
+    return cachedPagerViewComponent;
+  }
+
+  hasResolvedPagerViewComponent = true;
+
+  try {
+    const pagerModule = require('react-native-pager-view');
+    cachedPagerViewComponent = pagerModule?.default ?? pagerModule;
+  } catch (error) {
+    cachedPagerViewComponent = null;
+    if (!hasWarnedAboutPagerFallback) {
+      hasWarnedAboutPagerFallback = true;
+      console.warn('[SubmenuPager] PagerView is unavailable in this build. Falling back to scroll-based paging.', error?.message || error);
+    }
+  }
+
+  return cachedPagerViewComponent;
+};
+
+const PagerViewComponent = getPagerViewComponent();
+const AnimatedPagerView = PagerViewComponent
+  ? Animated.createAnimatedComponent(PagerViewComponent)
+  : null;
 
 const usePageScrollHandler = (handlers, dependencies) => {
   const { context, doDependenciesDiffer } = useHandler(handlers, dependencies);
@@ -44,11 +76,6 @@ const SubmenuChip = React.memo(({ accentColor, active, index, label, onPress, pa
         focus,
         [0, 1],
         ['rgba(255,255,255,0.04)', `${accentColor}26`],
-      ),
-      borderColor: interpolateColor(
-        focus,
-        [0, 1],
-        ['rgba(255,255,255,0.08)', `${accentColor}88`],
       ),
       transform: [
         { translateY: -focus * 2 },
@@ -116,11 +143,14 @@ const PagerScene = React.memo(({ index, pageProgress, section }) => {
   );
 });
 
-const SubmenuPager = ({ accentColor, sections }) => {
+const SubmenuPager = ({ accentColor, sections, swipeEnabled = false }) => {
   const pagerRef = useRef(null);
+  const fallbackPagerRef = useRef(null);
   const [activeIndex, setActiveIndex] = useState(0);
-  const activeSection = sections[activeIndex];
   const pageProgress = useSharedValue(0);
+  const { width: viewportWidth } = useWindowDimensions();
+  const pageWidth = Math.max(1, viewportWidth);
+  const canSwipeBetweenSections = swipeEnabled && sections.length > 1;
 
   const pageScrollHandler = usePageScrollHandler({
     onPageScroll: (event) => {
@@ -132,8 +162,13 @@ const SubmenuPager = ({ accentColor, sections }) => {
   const idiNaSekciju = useCallback((index) => {
     setActiveIndex(index);
     pageProgress.value = withTiming(index, NAV_TIMING);
-    pagerRef.current?.setPage(index);
-  }, [pageProgress]);
+    if (AnimatedPagerView) {
+      pagerRef.current?.setPage(index);
+      return;
+    }
+
+    fallbackPagerRef.current?.scrollTo({ x: pageWidth * index, animated: true });
+  }, [pageProgress, pageWidth]);
 
   const onPageSelected = useCallback((event) => {
     const nextIndex = event.nativeEvent.position;
@@ -141,25 +176,27 @@ const SubmenuPager = ({ accentColor, sections }) => {
     setActiveIndex(nextIndex);
   }, [pageProgress]);
 
+  const onFallbackScroll = useCallback((event) => {
+    const offsetX = event.nativeEvent.contentOffset.x;
+    pageProgress.value = offsetX / pageWidth;
+  }, [pageProgress, pageWidth]);
+
+  const onFallbackMomentumEnd = useCallback((event) => {
+    const offsetX = event.nativeEvent.contentOffset.x;
+    const nextIndex = Math.max(0, Math.min(sections.length - 1, Math.round(offsetX / pageWidth)));
+    pageProgress.value = nextIndex;
+    setActiveIndex(nextIndex);
+  }, [pageProgress, pageWidth, sections.length]);
+
   return (
     <View style={styles.container}>
       {sections.length > 1 && (
         <View style={styles.submenuRail}>
-          <View style={styles.submenuHeaderRow}>
-            <View>
-              <Text style={styles.submenuEyebrow}>SEKCIJA</Text>
-              <Text style={[styles.submenuTitle, { color: accentColor }]}>
-                {activeSection?.label?.toUpperCase()}
-              </Text>
-            </View>
-            <Text style={styles.submenuCount}>
-              {String(activeIndex + 1).padStart(2, '0')} / {String(sections.length).padStart(2, '0')}
-            </Text>
-          </View>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.submenuRow}
+            keyboardShouldPersistTaps="handled"
           >
             {sections.map((section, index) => (
               <SubmenuChip
@@ -176,22 +213,45 @@ const SubmenuPager = ({ accentColor, sections }) => {
         </View>
       )}
 
-      <AnimatedPagerView
-        ref={pagerRef}
-        style={styles.pager}
-        initialPage={0}
-        offscreenPageLimit={Math.min(2, sections.length)}
-        onPageScroll={pageScrollHandler}
-        onPageSelected={onPageSelected}
-        overdrag={false}
-        scrollEnabled={sections.length > 1}
-      >
-        {sections.map((section, index) => (
-          <View key={section.key} collapsable={false} style={styles.pageContainer}>
-            <PagerScene index={index} pageProgress={pageProgress} section={section} />
-          </View>
-        ))}
-      </AnimatedPagerView>
+      {AnimatedPagerView ? (
+        <AnimatedPagerView
+          ref={pagerRef}
+          style={styles.pager}
+          initialPage={0}
+          offscreenPageLimit={Math.min(2, sections.length)}
+          onPageScroll={pageScrollHandler}
+          onPageSelected={onPageSelected}
+          overdrag={false}
+          scrollEnabled={canSwipeBetweenSections}
+        >
+          {sections.map((section, index) => (
+            <View key={section.key} collapsable={false} style={styles.pageContainer}>
+              <PagerScene index={index} pageProgress={pageProgress} section={section} />
+            </View>
+          ))}
+        </AnimatedPagerView>
+      ) : (
+        <ScrollView
+          ref={fallbackPagerRef}
+          horizontal
+          pagingEnabled
+          bounces={false}
+          overScrollMode="never"
+          nestedScrollEnabled
+          scrollEnabled={canSwipeBetweenSections}
+          showsHorizontalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={onFallbackScroll}
+          onMomentumScrollEnd={onFallbackMomentumEnd}
+          style={styles.pagerFallback}
+        >
+          {sections.map((section, index) => (
+            <View key={section.key} collapsable={false} style={[styles.pageContainer, { width: pageWidth }]}> 
+              <PagerScene index={index} pageProgress={pageProgress} section={section} />
+            </View>
+          ))}
+        </ScrollView>
+      )}
     </View>
   );
 };
@@ -199,67 +259,49 @@ const SubmenuPager = ({ accentColor, sections }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: BOJE.bg,
   },
   submenuRail: {
-    paddingTop: 12,
-    paddingBottom: 10,
-  },
-  submenuHeaderRow: {
-    paddingHorizontal: 16,
-    paddingBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-  },
-  submenuEyebrow: {
-    color: BOJE.textMuted,
-    fontSize: Math.round(10 * uiScale),
-    fontFamily: FONT_FAMILY,
-    fontWeight: '800',
-    letterSpacing: 1.6,
-    marginBottom: 4,
-  },
-  submenuTitle: {
-    fontSize: Math.round(20 * uiScale),
-    fontFamily: FONT_FAMILY,
-    fontWeight: '900',
-    letterSpacing: 1.2,
-  },
-  submenuCount: {
-    color: BOJE.textMuted,
-    fontSize: Math.round(11 * uiScale),
-    fontFamily: FONT_FAMILY,
-    fontWeight: '800',
-    letterSpacing: 1,
+    marginTop: 6,
+    marginHorizontal: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 18,
+    backgroundColor: 'rgba(10,15,27,0.92)',
   },
   submenuRow: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 2,
   },
   submenuButton: {
-    marginRight: 10,
+    marginRight: 6,
   },
   submenuChip: {
-    minHeight: 40,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    borderWidth: 1,
+    minHeight: 34,
+    paddingHorizontal: 12,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   submenuChipText: {
-    fontSize: Math.round(11 * uiScale),
+    fontSize: Math.round(10 * uiScale),
     fontFamily: FONT_FAMILY,
     fontWeight: '800',
-    letterSpacing: 0.8,
+    letterSpacing: 0.7,
   },
   pager: {
     flex: 1,
   },
+  pagerFallback: {
+    flex: 1,
+    backgroundColor: BOJE.bg,
+  },
   pageContainer: {
     flex: 1,
+    backgroundColor: BOJE.bg,
   },
   page: {
     flex: 1,
+    backgroundColor: BOJE.bg,
   },
 });
 

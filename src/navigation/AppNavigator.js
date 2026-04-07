@@ -111,6 +111,20 @@ const TabButton = React.memo(({ tab, aktivan, onPress }) => {
     color: interpolateColor(progress.value, [0, 1], [BOJE.textMuted, BOJE.textMain]),
   }));
 
+  const iconBubbleStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(
+      progress.value,
+      [0, 1],
+      ['rgba(255,255,255,0.03)', `${tab.boja}20`]
+    ),
+    borderColor: interpolateColor(
+      progress.value,
+      [0, 1],
+      ['rgba(255,255,255,0.05)', `${tab.boja}66`]
+    ),
+    transform: [{ scale: 0.96 + (progress.value * 0.04) }],
+  }));
+
   return (
     <TouchableOpacity
       activeOpacity={0.7}
@@ -121,11 +135,13 @@ const TabButton = React.memo(({ tab, aktivan, onPress }) => {
         styles.navItem,
         bubbleStyle,
       ]}>
-        <TIcon
-          size={18}
-          color={aktivan ? tab.boja : BOJE.textMuted}
-          strokeWidth={aktivan ? 2.4 : 1.9}
-        />
+        <Animated.View style={[styles.navIconWrap, iconBubbleStyle]}>
+          <TIcon
+            size={18}
+            color={aktivan ? tab.boja : BOJE.textMuted}
+            strokeWidth={aktivan ? 2.4 : 1.9}
+          />
+        </Animated.View>
         <Animated.Text style={[styles.navText, labelStyle]}>
           {tab.label.toUpperCase()}
         </Animated.Text>
@@ -164,7 +180,7 @@ const AppNavigator = () => (
     {ROOT_MENU_KONFIGURACIJA.map((menu) => (
       <Tab.Screen key={menu.routeName} name={menu.routeName}>
         {() => (
-          <SubmenuPager accentColor={menu.boja} sections={menu.sections} />
+          <SubmenuPager accentColor={menu.boja} sections={menu.sections} swipeEnabled />
         )}
       </Tab.Screen>
     ))}
@@ -180,8 +196,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#0A0F1BCC',
-    paddingVertical: 11,
+    backgroundColor: 'rgba(7, 10, 19, 0.96)',
+    paddingVertical: 10,
     paddingHorizontal: 8,
     borderRadius: 26,
     borderWidth: 1,
@@ -198,7 +214,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   navItem: {
-    minHeight: 56,
+    minHeight: 58,
     width: '100%',
     borderRadius: 20,
     borderWidth: 1,
@@ -207,12 +223,20 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 4,
   },
+  navIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   navText: {
-    marginTop: 5,
+    marginTop: 6,
     fontSize: Math.round(9 * uiScale),
     fontWeight: '900',
     fontFamily: FONT_FAMILY,
-    letterSpacing: 0.9,
+    letterSpacing: 0.7,
     textAlign: 'center',
   },
 });

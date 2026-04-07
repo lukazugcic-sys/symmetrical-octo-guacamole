@@ -43,13 +43,14 @@ const WinPulse = React.memo(() => {
  * Mreža automata — 5 stupaca × 3 reda.
  * Animacije stupaca i mjerila polja dolaze iz useSlotMachine hooka.
  *
- * @param {Animated.Value[]} stupciAnims   - translacija Y po stupcu
+ * @param {Animated.Value[]} stupciAnims   - progress 0..1 po stupcu
  * @param {Animated.Value[]} stupciBlurs   - opacity po stupcu (zamućenje pri vrtnji)
  * @param {Animated.Value[]} winScaleAnims - mjerilo skaliranja po ćeliji
  */
 const SlotReel = ({ stupciAnims, stupciBlurs, winScaleAnims }) => {
   const { width } = useWindowDimensions();
   const simboli      = useSlotStore((s) => s.simboli);
+  const reelColumns  = useSlotStore((s) => s.reelColumns);
   const dobitnaPolja = useSlotStore((s) => s.dobitnaPolja);
 
   const hasWinAnywhere = dobitnaPolja.length > 0;
@@ -60,64 +61,98 @@ const SlotReel = ({ stupciAnims, stupciBlurs, winScaleAnims }) => {
     return Math.max(46, Math.min(slotSize, estimatedSize));
   }, [compactUi, width]);
   const tileRadius = Math.round((compactUi ? 14 : 16) * uiScale);
+  const viewportHeight = (reelTileSize * 3) + (reelGap * 2);
 
   return (
     <Animated.View style={[styles.gridColumnsWrapper, { gap: reelGap }]}>
-      {[0, 1, 2, 3, 4].map((stupacIndex) => (
-        <Animated.View
-          key={stupacIndex}
-          style={[
-            styles.gridColumn,
-            { gap: reelGap },
-            {
-              transform: [{ translateY: stupciAnims[stupacIndex] }],
-              opacity: stupciBlurs[stupacIndex],
-            },
-          ]}
-        >
-          {[0, 1, 2].map((redIndex) => {
-            const apsolutniIndeks = redIndex * 5 + stupacIndex;
-            const simbolId = simboli[apsolutniIndeks];
-            const isWin    = dobitnaPolja.includes(apsolutniIndeks);
-            const SIcon    = BLAGO[simbolId].Ikona;
-            const boja     = BLAGO[simbolId].boja;
-            const bgBoja   = BLAGO[simbolId].raritet;
-            const isWild   = simbolId === 'wild';
-            const opacity  = (!isWin && hasWinAnywhere) ? 0.26 : 1;
+      {[0, 1, 2, 3, 4].map((stupacIndex) => {
+        const finalColumn = [
+          simboli[stupacIndex],
+          simboli[stupacIndex + 5],
+          simboli[stupacIndex + 10],
+        ];
+        const columnSymbols = reelColumns?.[stupacIndex]?.length ? reelColumns[stupacIndex] : finalColumn;
+        const travelSteps = Math.max(0, columnSymbols.length - 3);
+        const pitch = reelTileSize + reelGap;
+        const translateY = travelSteps > 0
+          ? Animated.multiply(stupciAnims[stupacIndex], -(travelSteps * pitch))
+          : 0;
 
-            return (
-              <Animated.View
-                key={apsolutniIndeks}
-                style={[
-                  styles.slotItem,
-                  {
-                    width: reelTileSize,
-                    height: reelTileSize,
-                    borderRadius: tileRadius,
-                  },
-                  { backgroundColor: bgBoja, borderColor: boja + (isWild ? '80' : '40') },
-                  isWin && [styles.slotItemWinning, { borderColor: BOJE.slotVatra, shadowColor: BOJE.slotVatra, borderRadius: tileRadius }],
-                  { transform: [{ scale: winScaleAnims[apsolutniIndeks] }], opacity },
-                ]}
-              >
-                {isWin && <WinPulse />}
-                <SIcon
-                  size={reelTileSize * (isWild ? 0.65 : 0.55)}
-                  color={isWin ? '#FFF' : boja}
-                  strokeWidth={isWin ? 2.5 : 2}
-                />
-              </Animated.View>
-            );
-          })}
-        </Animated.View>
-      ))}
+        return (
+          <Animated.View
+            key={stupacIndex}
+            style={[
+              styles.gridColumnViewport,
+              {
+                height: viewportHeight,
+                borderRadius: tileRadius + 2,
+              },
+            ]}
+          >
+            <Animated.View
+              style={[
+                styles.gridColumn,
+                {
+                  transform: [{ translateY }],
+                  opacity: stupciBlurs[stupacIndex],
+                },
+              ]}
+            >
+              {columnSymbols.map((simbolId, stripIndex) => {
+                const finalRowIndex = stripIndex - (columnSymbols.length - 3);
+                const apsolutniIndeks = finalRowIndex >= 0 ? (finalRowIndex * 5) + stupacIndex : -1;
+                const isWin = apsolutniIndeks >= 0 && dobitnaPolja.includes(apsolutniIndeks);
+                const SIcon = BLAGO[simbolId].Ikona;
+                const boja = BLAGO[simbolId].boja;
+                const bgBoja = BLAGO[simbolId].raritet;
+                const isWild = simbolId === 'wild';
+                const opacity = (apsolutniIndeks >= 0 && !isWin && hasWinAnywhere) ? 0.26 : 1;
+                const scaleTransform = apsolutniIndeks >= 0
+                  ? winScaleAnims[apsolutniIndeks]
+                  : 1;
+
+                return (
+                  <Animated.View
+                    key={`${stupacIndex}-${stripIndex}`}
+                    style={[
+                      styles.slotItem,
+                      {
+                        width: reelTileSize,
+                        height: reelTileSize,
+                        borderRadius: tileRadius,
+                        marginBottom: stripIndex === columnSymbols.length - 1 ? 0 : reelGap,
+                      },
+                      { backgroundColor: bgBoja, borderColor: boja + (isWild ? '80' : '40') },
+                      isWin && [styles.slotItemWinning, { borderColor: BOJE.slotVatra, shadowColor: BOJE.slotVatra, borderRadius: tileRadius }],
+                      { transform: [{ scale: scaleTransform }], opacity },
+                    ]}
+                  >
+                    {isWin && <WinPulse />}
+                    <SIcon
+                      size={reelTileSize * (isWild ? 0.65 : 0.55)}
+                      color={isWin ? '#FFF' : boja}
+                      strokeWidth={isWin ? 2.5 : 2}
+                    />
+                  </Animated.View>
+                );
+              })}
+            </Animated.View>
+          </Animated.View>
+        );
+      })}
     </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   gridColumnsWrapper: { flexDirection: 'row', justifyContent: 'space-between' },
-  gridColumn:         { flex: 1 },
+  gridColumnViewport: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  gridColumn: {
+    width: '100%',
+  },
   slotItem: {
     justifyContent: 'center',
     alignItems: 'center',

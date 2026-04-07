@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
   PanResponder,
+  useWindowDimensions,
   View,
   Text,
   TouchableOpacity,
@@ -11,6 +12,8 @@ import {
 } from 'react-native';
 import {
   AlertTriangle,
+  ChevronDown,
+  ChevronUp,
   Coins,
   Crown,
   Mountain,
@@ -30,6 +33,7 @@ import {
   uiScale,
   VILLAGE_LAYOUT,
   VILLAGE_PRESSURE_PHASES,
+  VILLAGE_PRESSURE_SEQUENCE,
   ZGRADE,
 } from '../config/constants';
 import { dohvatiRaidPovijest } from '../firebase/raids';
@@ -37,6 +41,8 @@ import {
   getFirstVillageRoomId,
   getHeroAssignedRoom,
   getHeroDefinition,
+  getHeroMoraleLabel,
+  getHeroMoralePct,
   getVillageIncidentDefinition,
   getVillageIncidentResponse,
   getRoomAssignmentBonusPct,
@@ -81,6 +87,46 @@ const formatCountdown = (ms) => {
 
 const clampPct = (value) => Math.max(0, Math.min(100, Math.round(value)));
 
+const PhaseSequence = ({ sequence, currentIndex, remainingMs, totalMs }) => {
+  const progressPct = totalMs > 0 ? Math.max(0, Math.min(100, ((totalMs - remainingMs) / totalMs) * 100)) : 0;
+
+  return (
+    <View style={styles.phaseSequence}>
+      {sequence.map((phaseId, index) => {
+        const phase = VILLAGE_PRESSURE_PHASES[phaseId];
+        const isCurrent = index === currentIndex;
+        const isPast = index < currentIndex;
+        const isFuture = index > currentIndex;
+
+        return (
+          <View key={phaseId} style={styles.phaseSequenceItem}>
+            <View style={[
+              styles.phaseSequenceDot,
+              {
+                backgroundColor: isCurrent ? phase.tone : isPast ? `${phase.tone}44` : '#333',
+                borderColor: phase.tone,
+              },
+            ]}>
+              {isCurrent && (
+                <View style={[
+                  styles.phaseSequenceProgress,
+                  { width: `${progressPct}%`, backgroundColor: phase.tone },
+                ]} />
+              )}
+            </View>
+            <Text style={[
+              styles.phaseSequenceLabel,
+              { color: isCurrent ? phase.tone : isPast ? `${phase.tone}88` : '#666' },
+            ]}>
+              {phase.label}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+};
+
 const getVillagePrestigeStage = (prestigeRazina) => {
   if (prestigeRazina >= 5) {
     return {
@@ -106,13 +152,25 @@ const getVillagePrestigeStage = (prestigeRazina) => {
     };
   }
 
+  if (prestigeRazina >= 2) {
+    return {
+      label: 'Metalna baza',
+      accentColor: BOJE.stit,
+      copy: 'Drugi prestige donosi pravu evoluciju. Metalni elementi i organizacijske strukture počinju definirati identitet sela.',
+      progressPct: clampPct(((prestigeRazina - 2) / 1) * 100),
+      progressLabel: 'Prestige III otvara zapovjednu utvrdu i sljedeći sloj organizacije.',
+      groundLabel: 'Metalni radionice',
+      supportLabel: 'Koordinacijski kat',
+    };
+  }
+
   if (prestigeRazina >= 1) {
     return {
       label: 'Ojačano naselje',
       accentColor: BOJE.klan,
       copy: 'Prvi prestige više nije samo broj. Selo počinje djelovati kao trajna baza, a ne kao privremeni kamp.',
-      progressPct: clampPct(((prestigeRazina - 1) / 2) * 100),
-      progressLabel: 'Prestige III otvara sljedeći veliki vizualni skok sela.',
+      progressPct: clampPct(((prestigeRazina - 1) / 1) * 100),
+      progressLabel: 'Prestige II otvara metalnu bazu i prvu pravu transformaciju.',
       groundLabel: 'Ojačane smjene',
       supportLabel: 'Organizirana galerija',
     };
@@ -223,6 +281,53 @@ const getVillageVisualTheme = (prestigeRazina) => {
           surfaceLabel: 'Promatračka galerija',
           roomSurface: 'rgba(252,211,77,0.04)',
           roomBorder: 'rgba(252,211,77,0.16)',
+        },
+      },
+    };
+  }
+
+  if (prestigeRazina >= 2) {
+    return {
+      shell: {
+        surface: '#0F1520',
+        border: `${BOJE.stit}35`,
+        glow: 'rgba(34,211,238,0.08)',
+        plate: 'rgba(34,211,238,0.07)',
+        beam: 'rgba(252,211,77,0.09)',
+        gradient: ['#0F1520', '#181E2A'],
+        shadow: 'rgba(34,211,238,0.11)',
+        materialLabel: 'Metalni okvir · ojačani mostovi',
+        copy: 'Drugi prestige donosi pravu transformaciju. Metalni elementi počinju dominirati, a selo dobiva čvršći, organiziraniji izgled.',
+        tags: ['Metal', 'Mostovi', 'Organizacija'],
+      },
+      floors: {
+        0: {
+          accent: BOJE.zeljezo,
+          border: 'rgba(148,163,184,0.20)',
+          surface: 'rgba(148,163,184,0.07)',
+          rail: 'rgba(148,163,184,0.13)',
+          brace: 'rgba(34,211,238,0.08)',
+          materialLabel: 'Metalni nosači · ojačane ploče',
+          productionFrameLabel: 'Metalni prag',
+          supportFrameLabel: 'Tehnički nosač',
+          emptyFrameLabel: 'Metalna niša',
+          surfaceLabel: 'Ojačana podnica',
+          roomSurface: 'rgba(255,255,255,0.05)',
+          roomBorder: 'rgba(148,163,184,0.15)',
+        },
+        1: {
+          accent: BOJE.klan,
+          border: 'rgba(56,189,248,0.24)',
+          surface: 'rgba(56,189,248,0.08)',
+          rail: 'rgba(56,189,248,0.14)',
+          brace: 'rgba(252,211,77,0.09)',
+          materialLabel: 'Nadzorni most · organizacijske linije',
+          productionFrameLabel: 'Organizacijski prag',
+          supportFrameLabel: 'Nadzorni okvir',
+          emptyFrameLabel: 'Koordinacijska niša',
+          surfaceLabel: 'Organizacijska galerija',
+          roomSurface: 'rgba(56,189,248,0.04)',
+          roomBorder: 'rgba(56,189,248,0.16)',
         },
       },
     };
@@ -399,7 +504,10 @@ const getVillagePressureState = ({ rooms, energija, maxEnergija, villageSupportS
     directorCopy: pressurePhase.copy,
     directorTone: pressurePhase.tone,
     directorRemainingMs: Math.max(0, (pressureDirector?.phaseEndsAt ?? 0) - Date.now()),
+    directorTotalMs: Math.max(0, (pressureDirector?.phaseEndsAt ?? 0) - (pressureDirector?.phaseStartedAt ?? 0)),
     directorChancePct: Math.round((pressurePhase.incidentChanceMultiplier ?? 1) * 100),
+    directorSequence: VILLAGE_PRESSURE_SEQUENCE,
+    directorCurrentIndex: VILLAGE_PRESSURE_SEQUENCE.indexOf(pressurePhase.id),
     activeRoomsCount: activeRooms.length,
     builtRoomsCount: builtRooms.length,
     staffedActiveRoomsCount: staffedActiveRooms.length,
@@ -508,109 +616,109 @@ const getVillagePhaseVisualState = ({ directorPhase, floor = null }) => {
         rowCopy: 'Kad je mirno, gornja etaža pretvara višak discipline u sigurniji sljedeći val.',
       };
   }
+};
 
-    const getRoomPhaseChromeState = ({ room, roomTelegraph, directorPhase }) => {
-      if (room?.status === 'damaged') {
-        return {
-          tone: BOJE.slotVatra,
-          label: 'PREKID RADA',
-          copy: 'Soba je izbačena iz ritma dok se incident ne zatvori.',
-          pulseDurationMs: 760,
-          minOpacity: 0.12,
-          maxOpacity: 0.28,
-        };
-      }
-
-      if (room?.status === 'repairing') {
-        return {
-          tone: BOJE.misije,
-          label: 'SANACIJA',
-          copy: 'Povrat u puni rad još traje. Svaki detalj ovdje još nosi trag zastoja.',
-          pulseDurationMs: 1040,
-          minOpacity: 0.1,
-          maxOpacity: 0.22,
-        };
-      }
-
-      if (roomTelegraph?.severity === 'critical') {
-        return {
-          tone: roomTelegraph.tone,
-          label: 'VRH U OVOJ SOBI',
-          copy: 'Ovaj modul nosi najveći trenutni teret i najlakše puca prvi.',
-          pulseDurationMs: 680,
-          minOpacity: 0.14,
-          maxOpacity: 0.32,
-        };
-      }
-
-      if (roomTelegraph?.severity === 'warning') {
-        return {
-          tone: roomTelegraph.tone,
-          label: 'NAPET MODUL',
-          copy: 'Linija još radi, ali ovdje se najjasnije osjeti skori porast pritiska.',
-          pulseDurationMs: 920,
-          minOpacity: 0.1,
-          maxOpacity: 0.24,
-        };
-      }
-
-      const supportCopy = directorPhase === 'peak'
-        ? 'Podrška sada upija najveći dio udara i određuje koliko selo drži formu.'
-        : directorPhase === 'recovery'
-          ? 'Podrška vraća amplitudu pod kontrolu prije sljedeće eskalacije.'
-          : directorPhase === 'rising'
-            ? 'Podrška prelazi iz rezerve u pripremu za novi vrh vala.'
-            : 'Podrška drži mirnu rezervu i sprema selo za sljedeći ciklus.';
-      const productionCopy = directorPhase === 'peak'
-        ? 'Proizvodna linija radi pod najvećim opterećenjem i svaki manjak postaje skuplji.'
-        : directorPhase === 'recovery'
-          ? 'Radni ritam se smiruje i otvara prostor za povratak discipline.'
-          : directorPhase === 'rising'
-            ? 'Ova linija ubrzava i postaje osjetljivija na prazne smjene.'
-            : 'Linija radi uredno i daje najčišći prozor za rast.';
-
-      if (directorPhase === 'peak') {
-        return {
-          tone: BOJE.slotVatra,
-          label: 'VRH VALA',
-          copy: isSupportRoom(room) ? supportCopy : productionCopy,
-          pulseDurationMs: 880,
-          minOpacity: 0.1,
-          maxOpacity: 0.24,
-        };
-      }
-
-      if (directorPhase === 'recovery') {
-        return {
-          tone: BOJE.klan,
-          label: 'OPORAVAK',
-          copy: isSupportRoom(room) ? supportCopy : productionCopy,
-          pulseDurationMs: 1420,
-          minOpacity: 0.08,
-          maxOpacity: 0.18,
-        };
-      }
-
-      if (directorPhase === 'rising') {
-        return {
-          tone: BOJE.prestige,
-          label: 'PORAST PRITISKA',
-          copy: isSupportRoom(room) ? supportCopy : productionCopy,
-          pulseDurationMs: 1260,
-          minOpacity: 0.08,
-          maxOpacity: 0.18,
-        };
-      }
-
-      return {
-        tone: BOJE.xp,
-        label: 'MIRAN PROZOR',
-        copy: isSupportRoom(room) ? supportCopy : productionCopy,
-        pulseDurationMs: 1800,
-        minOpacity: 0.05,
-        maxOpacity: 0.12,
-      };
+const getRoomPhaseChromeState = ({ room, roomTelegraph, directorPhase }) => {
+  if (room?.status === 'damaged') {
+    return {
+      tone: BOJE.slotVatra,
+      label: 'PREKID RADA',
+      copy: 'Soba je izbačena iz ritma dok se incident ne zatvori.',
+      pulseDurationMs: 760,
+      minOpacity: 0.12,
+      maxOpacity: 0.28,
     };
+  }
+
+  if (room?.status === 'repairing') {
+    return {
+      tone: BOJE.misije,
+      label: 'SANACIJA',
+      copy: 'Povrat u puni rad još traje. Svaki detalj ovdje još nosi trag zastoja.',
+      pulseDurationMs: 1040,
+      minOpacity: 0.1,
+      maxOpacity: 0.22,
+    };
+  }
+
+  if (roomTelegraph?.severity === 'critical') {
+    return {
+      tone: roomTelegraph.tone,
+      label: 'VRH U OVOJ SOBI',
+      copy: 'Ovaj modul nosi najveći trenutni teret i najlakše puca prvi.',
+      pulseDurationMs: 680,
+      minOpacity: 0.14,
+      maxOpacity: 0.32,
+    };
+  }
+
+  if (roomTelegraph?.severity === 'warning') {
+    return {
+      tone: roomTelegraph.tone,
+      label: 'NAPET MODUL',
+      copy: 'Linija još radi, ali ovdje se najjasnije osjeti skori porast pritiska.',
+      pulseDurationMs: 920,
+      minOpacity: 0.1,
+      maxOpacity: 0.24,
+    };
+  }
+
+  const supportCopy = directorPhase === 'peak'
+    ? 'Podrška sada upija najveći dio udara i određuje koliko selo drži formu.'
+    : directorPhase === 'recovery'
+      ? 'Podrška vraća amplitudu pod kontrolu prije sljedeće eskalacije.'
+      : directorPhase === 'rising'
+        ? 'Podrška prelazi iz rezerve u pripremu za novi vrh vala.'
+        : 'Podrška drži mirnu rezervu i sprema selo za sljedeći ciklus.';
+  const productionCopy = directorPhase === 'peak'
+    ? 'Proizvodna linija radi pod najvećim opterećenjem i svaki manjak postaje skuplji.'
+    : directorPhase === 'recovery'
+      ? 'Radni ritam se smiruje i otvara prostor za povratak discipline.'
+      : directorPhase === 'rising'
+        ? 'Ova linija ubrzava i postaje osjetljivija na prazne smjene.'
+        : 'Linija radi uredno i daje najčišći prozor za rast.';
+
+  if (directorPhase === 'peak') {
+    return {
+      tone: BOJE.slotVatra,
+      label: 'VRH VALA',
+      copy: isSupportRoom(room) ? supportCopy : productionCopy,
+      pulseDurationMs: 880,
+      minOpacity: 0.1,
+      maxOpacity: 0.24,
+    };
+  }
+
+  if (directorPhase === 'recovery') {
+    return {
+      tone: BOJE.klan,
+      label: 'OPORAVAK',
+      copy: isSupportRoom(room) ? supportCopy : productionCopy,
+      pulseDurationMs: 1420,
+      minOpacity: 0.08,
+      maxOpacity: 0.18,
+    };
+  }
+
+  if (directorPhase === 'rising') {
+    return {
+      tone: BOJE.prestige,
+      label: 'PORAST PRITISKA',
+      copy: isSupportRoom(room) ? supportCopy : productionCopy,
+      pulseDurationMs: 1260,
+      minOpacity: 0.08,
+      maxOpacity: 0.18,
+    };
+  }
+
+  return {
+    tone: BOJE.xp,
+    label: 'MIRAN PROZOR',
+    copy: isSupportRoom(room) ? supportCopy : productionCopy,
+    pulseDurationMs: 1800,
+    minOpacity: 0.05,
+    maxOpacity: 0.12,
+  };
 };
 
 const getVillageForecastState = ({ rooms, villagePressure, villageSupportStats, junaci }) => {
@@ -630,6 +738,7 @@ const getVillageForecastState = ({ rooms, villagePressure, villageSupportStats, 
     .map((room) => {
       const roomDefinition = getVillageRoomDefinition(room);
       const assignmentBonusPct = getRoomAssignmentBonusPct(junaci, room, villageSupportStats);
+      const assignedMorale = room.assignedHeroId ? getHeroMoralePct(junaci[room.assignedHeroId]) : 0;
       let score = 18;
 
       score += roomDefinition?.kind === 'production' ? 10 : 6;
@@ -648,12 +757,24 @@ const getVillageForecastState = ({ rooms, villagePressure, villageSupportStats, 
 
       if (room.type === 'servis' && villagePressure.directorPhase !== 'peak') score -= 4;
       if (room.type === 'jezgra' && villagePressure.reservePct < 35) score += 6;
+      if (room.assignedHeroId && assignedMorale > 0) {
+        if (assignedMorale < 45) score += Math.round((45 - assignedMorale) * 0.35);
+        if (assignedMorale > 82) score -= Math.round((assignedMorale - 82) * 0.18);
+      }
       score -= Math.min(18, Math.round(assignmentBonusPct * 0.45));
 
       const clampedScore = clampPct(score);
       let label = 'STABILNO';
       let tone = BOJE.xp;
       let reason = assignmentBonusPct > 0 ? `+${Math.round(assignmentBonusPct)}% posada drži red` : 'Smjena je pod kontrolom';
+
+      if (room.assignedHeroId && assignedMorale > 0) {
+        if (assignedMorale < 45) {
+          reason = `Moral smjene pao je na ${assignedMorale}% i soba trazi rasterecenje`;
+        } else if (assignedMorale > 82 && assignmentBonusPct > 0) {
+          reason = `Visok moral (${assignedMorale}%) drzi ritam i kad direktor dize tempo`;
+        }
+      }
 
       if (clampedScore >= 72) {
         label = 'NA UDARU';
@@ -1012,19 +1133,26 @@ const getRoomInteriorProfile = ({ room, roomDefinition, assignedHero, roomTelegr
         props: ['📡', '⬡'],
         rhythm: 'Prolazi, stolovi i radne linije sada imaju planski raspored i jasnu hijerarhiju.',
       }
-      : prestigeRazina >= 1
+      : prestigeRazina >= 2
         ? {
-          label: 'OJAČANI INTERIJER',
-          surfaceLabel: 'Ojačane grede i metalni spoj',
-          props: ['🧱', '🔩'],
-          rhythm: 'Privremeni kamp polako prelazi u bazu s pravim konstrukcijskim ritmom.',
+          label: 'METALNI INTERIJER',
+          surfaceLabel: 'Metalni nosači i organizacijske linije',
+          props: ['🔧', '⚙️'],
+          rhythm: 'Metalni elementi počinju dominirati, a prostor dobiva organiziraniji, efikasniji karakter.',
         }
-        : {
-          label: 'POGRANIČNI INTERIJER',
-          surfaceLabel: 'Daske, konop i improvizirane ograde',
-          props: ['🪵', '🪢'],
-          rhythm: 'Sve još djeluje sastavljeno da izdrži prvi nalet, a ne da traje.',
-        };
+        : prestigeRazina >= 1
+          ? {
+            label: 'OJAČANI INTERIJER',
+            surfaceLabel: 'Ojačane grede i metalni spoj',
+            props: ['🧱', '🔩'],
+            rhythm: 'Privremeni kamp polako prelazi u bazu s pravim konstrukcijskim ritmom.',
+          }
+          : {
+            label: 'POGRANIČNI INTERIJER',
+            surfaceLabel: 'Daske, konop i improvizirane ograde',
+            props: ['🪵', '🪢'],
+            rhythm: 'Sve još djeluje sastavljeno da izdrži prvi nalet, a ne da traje.',
+          };
 
   const roomProfile = (() => {
     switch (room?.type) {
@@ -1152,8 +1280,8 @@ const getSupportRoomSummary = (room, roomDefinition, junaci) => {
   return summaryParts.slice(0, 2).join(' · ') || 'Podrška selu';
 };
 
-const SummaryMetric = ({ label, value, accentColor }) => (
-  <View style={styles.metricCard}>
+const SummaryMetric = ({ label, value, accentColor, fullWidth = false }) => (
+  <View style={[styles.metricCard, fullWidth && styles.metricCardFull]}>
     <Text style={styles.metricLabel}>{label}</Text>
     <Text style={[styles.metricValue, { color: accentColor }]}>{value}</Text>
   </View>
@@ -1630,8 +1758,8 @@ const RoomResidentStrip = ({ room, assignedHero, accentColor, interiorProfile })
   );
 };
 
-const SignalMeter = ({ label, value, accentColor, note }) => (
-  <View style={styles.signalMeter}>
+const SignalMeter = ({ label, value, accentColor, note, fullWidth = false }) => (
+  <View style={[styles.signalMeter, fullWidth && styles.signalMeterFull]}>
     <View style={styles.signalMeterHeader}>
       <Text style={styles.signalMeterLabel}>{label}</Text>
       <Text style={[styles.signalMeterValue, { color: accentColor }]}>{value}%</Text>
@@ -1669,9 +1797,13 @@ const getRoomResidentCapacity = (room) => (
   room.level > 0 ? Math.min(3, isSupportRoom(room) ? 2 : Math.max(2, room.level)) : 2
 );
 
-const InspectorShiftBoard = ({ room, assignedHero, roomForecast, roomTelegraph, accentColor, interiorProfile }) => {
+const InspectorShiftBoard = ({ room, assignedHero, assignedHeroState, roomForecast, roomTelegraph, accentColor, interiorProfile, availableHeroes }) => {
   const residentCapacity = getRoomResidentCapacity(room);
   const riskTone = roomTelegraph?.tone ?? roomForecast?.tone ?? BOJE.textMuted;
+  const assignedHeroMorale = assignedHero ? getHeroMoralePct(assignedHeroState) : 0;
+  const assignedHeroMoraleColor = assignedHeroMorale < 35 ? BOJE.slotVatra : assignedHeroMorale < 60 ? BOJE.prestige : assignedHeroMorale < 85 ? BOJE.energija : BOJE.xp;
+  const assignedHeroFatigue = Math.min(100, assignedHeroState?.fatigue || 0);
+  const assignedHeroFatigueColor = assignedHeroFatigue > 75 ? BOJE.slotVatra : assignedHeroFatigue > 50 ? BOJE.prestige : BOJE.energija;
   const staffingLabel = assignedHero ? 'Voditelj smjene prisutan' : 'Voditelj smjene nedostaje';
   const staffingCopy = assignedHero
     ? 'Ovaj junak vodi lokalni ritam sobe i nosi puni bonus smjene.'
@@ -1684,13 +1816,23 @@ const InspectorShiftBoard = ({ room, assignedHero, roomForecast, roomTelegraph, 
 
   const canRepair = room.status === 'damaged';
   const canEmergencyRepair = room.status === 'damaged' || room.status === 'repairing';
-  const canAssignHero = room.status === 'active' && !assignedHero;
+  const canAssignHero = room.status === 'active' && !assignedHero && availableHeroes.length > 0;
   const canRespondIncident = (room.status === 'damaged' || room.status === 'repairing') && getVillageIncidentResponse(room, useGameStore.getState());
+  const canUpgrade = room.status === 'active' && room.level > 0 && room.level < (getVillageRoomDefinition(room)?.maxLv ?? 0);
+  const canRemoveHero = !!assignedHero;
+
+  const handleAssignHero = () => {
+    // Assign the first available hero that's not assigned elsewhere
+    const availableHero = availableHeroes.find(h => !h.assignedRoom);
+    if (availableHero) {
+      useGameStore.getState().dodijeliHeroURoom(room.id, availableHero.id);
+    }
+  };
 
   return (
     <View style={styles.shiftBoard}>
       <View style={styles.shiftBoardHeader}>
-        <Text style={styles.shiftBoardTitle}>Raspored smjene</Text>
+        <Text style={styles.shiftBoardTitle}>Kontrolna ploča</Text>
         <View style={[
           styles.shiftRiskBadge,
           { borderColor: `${riskTone}44`, backgroundColor: `${riskTone}14` },
@@ -1707,6 +1849,32 @@ const InspectorShiftBoard = ({ room, assignedHero, roomForecast, roomTelegraph, 
         <View style={{ flex: 1 }}>
           <Text style={styles.shiftLeadTitle}>{assignedHero ? assignedHero.naziv : staffingLabel}</Text>
           <Text style={styles.shiftLeadMeta}>{staffingCopy}</Text>
+          {assignedHero && (
+            <View style={styles.shiftVitalsRow}>
+              <View style={styles.shiftVitalCard}>
+                <View style={styles.shiftVitalHeader}>
+                  <Text style={styles.shiftVitalTitle}>Moral</Text>
+                  <Text style={[styles.shiftVitalValue, { color: assignedHeroMoraleColor }]}>{assignedHeroMorale}%</Text>
+                </View>
+                <View style={styles.shiftVitalBar}>
+                  <View style={[styles.shiftVitalFill, { width: `${assignedHeroMorale}%`, backgroundColor: assignedHeroMoraleColor }]} />
+                </View>
+                <Text style={[styles.shiftVitalHint, { color: assignedHeroMoraleColor }]}>{getHeroMoraleLabel(assignedHeroState)}</Text>
+              </View>
+              <View style={styles.shiftVitalCard}>
+                <View style={styles.shiftVitalHeader}>
+                  <Text style={styles.shiftVitalTitle}>Umor</Text>
+                  <Text style={[styles.shiftVitalValue, { color: assignedHeroFatigueColor }]}>{assignedHeroFatigue}%</Text>
+                </View>
+                <View style={styles.shiftVitalBar}>
+                  <View style={[styles.shiftVitalFill, { width: `${assignedHeroFatigue}%`, backgroundColor: assignedHeroFatigueColor }]} />
+                </View>
+                <Text style={[styles.shiftVitalHint, { color: assignedHeroFatigueColor }]}>
+                  {assignedHeroFatigue > 75 ? 'Trazen predah' : assignedHeroFatigue > 45 ? 'Nakupljen pritisak' : 'Ritam je cist'}
+                </Text>
+              </View>
+            </View>
+          )}
         </View>
       </View>
 
@@ -1729,20 +1897,47 @@ const InspectorShiftBoard = ({ room, assignedHero, roomForecast, roomTelegraph, 
 
       <Text style={styles.shiftBoardCopy}>{forecastCopy}</Text>
 
-      <View style={styles.shiftActionsRow}>
+      <View style={styles.shiftActionsGrid}>
+        {canUpgrade && (
+          <TouchableOpacity
+            activeOpacity={0.82}
+            style={[styles.shiftActionBtn, styles.shiftActionBtnPrimary, { borderColor: accentColor }]}
+            onPress={() => useGameStore.getState().nadogradiSobu(room.id)}
+          >
+            <Text style={[styles.shiftActionBtnTxt, { color: accentColor }]}>Nadogradi</Text>
+          </TouchableOpacity>
+        )}
+        {canAssignHero && (
+          <TouchableOpacity
+            activeOpacity={0.82}
+            style={[styles.shiftActionBtn, styles.shiftActionBtnPrimary, { borderColor: accentColor }]}
+            onPress={handleAssignHero}
+          >
+            <Text style={[styles.shiftActionBtnTxt, { color: accentColor }]}>Dodijeli junaka</Text>
+          </TouchableOpacity>
+        )}
+        {canRemoveHero && (
+          <TouchableOpacity
+            activeOpacity={0.82}
+            style={[styles.shiftActionBtn, styles.shiftActionBtnSecondary, { borderColor: accentColor }]}
+            onPress={() => useGameStore.getState().ukloniHeroIzSobe(room.id)}
+          >
+            <Text style={[styles.shiftActionBtnTxt, { color: accentColor }]}>Ukloni junaka</Text>
+          </TouchableOpacity>
+        )}
         {canRepair && (
           <TouchableOpacity
             activeOpacity={0.82}
-            style={[styles.shiftActionBtn, { borderColor: accentColor }]}
+            style={[styles.shiftActionBtn, styles.shiftActionBtnSecondary, { borderColor: accentColor }]}
             onPress={() => useGameStore.getState().pokreniPopravakSobe(room.id)}
           >
-            <Text style={[styles.shiftActionBtnTxt, { color: accentColor }]}>Pokreni popravak</Text>
+            <Text style={[styles.shiftActionBtnTxt, { color: accentColor }]}>Popravak</Text>
           </TouchableOpacity>
         )}
         {canEmergencyRepair && (
           <TouchableOpacity
             activeOpacity={0.82}
-            style={[styles.shiftActionBtn, { borderColor: accentColor }]}
+            style={[styles.shiftActionBtn, styles.shiftActionBtnSecondary, { borderColor: accentColor }]}
             onPress={() => useGameStore.getState().hitniPopravakSobe(room.id)}
           >
             <Text style={[styles.shiftActionBtnTxt, { color: accentColor }]}>Hitni popravak</Text>
@@ -1751,22 +1946,10 @@ const InspectorShiftBoard = ({ room, assignedHero, roomForecast, roomTelegraph, 
         {canRespondIncident && (
           <TouchableOpacity
             activeOpacity={0.82}
-            style={[styles.shiftActionBtn, { borderColor: accentColor }]}
+            style={[styles.shiftActionBtn, styles.shiftActionBtnSecondary, { borderColor: accentColor }]}
             onPress={() => useGameStore.getState().aktivirajIncidentOdgovor(room.id)}
           >
             <Text style={[styles.shiftActionBtnTxt, { color: accentColor }]}>Intervencija</Text>
-          </TouchableOpacity>
-        )}
-        {canAssignHero && (
-          <TouchableOpacity
-            activeOpacity={0.82}
-            style={[styles.shiftActionBtn, { borderColor: accentColor }]}
-            onPress={() => {
-              // Scroll to heroes or open assign modal
-              // For now, just a placeholder
-            }}
-          >
-            <Text style={[styles.shiftActionBtnTxt, { color: accentColor }]}>Dodijeli junaka</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -1774,7 +1957,7 @@ const InspectorShiftBoard = ({ room, assignedHero, roomForecast, roomTelegraph, 
   );
 };
 
-const VillageRoomTile = ({ room, selected, hovered, production, junaci, unlockStatus, villageSupportStats, roomForecast, roomTelegraph, floorTheme, prestigeRazina, directorPhase, onPress }) => {
+const VillageRoomTile = ({ room, selected, hovered, production, junaci, unlockStatus, villageSupportStats, roomForecast, roomTelegraph, floorTheme, prestigeRazina, directorPhase, onPress, compact = false }) => {
   const roomDefinition = getVillageRoomDefinition(room);
   const assignedHero = getHeroDefinition(room.assignedHeroId);
   const status = statusMeta(room, unlockStatus);
@@ -1846,6 +2029,7 @@ const VillageRoomTile = ({ room, selected, hovered, production, junaci, unlockSt
       activeOpacity={0.85}
       style={[
         styles.roomTile,
+        compact && styles.roomTileCompact,
         {
           backgroundColor: floorTheme?.roomSurface ?? 'rgba(255,255,255,0.03)',
           borderColor: floorTheme?.roomBorder ?? 'rgba(255,255,255,0.08)',
@@ -1980,15 +2164,23 @@ const shouldStartHeroDrag = (gestureState) =>
 
 const DraggableHeroCard = ({
   hero,
+  heroState,
   isCurrentRoom,
   isAssignedElsewhere,
   isGlobalActive,
   dragging,
+  compact = false,
   onPress,
   onDragStart,
   onDragMove,
   onDragEnd,
 }) => {
+  const moralePct = getHeroMoralePct(heroState);
+  const moraleColor = moralePct < 35 ? BOJE.slotVatra : moralePct < 60 ? BOJE.prestige : moralePct < 85 ? BOJE.energija : BOJE.xp;
+  const fatigue = heroState?.fatigue || 0;
+  const fatiguePct = Math.min(100, fatigue);
+  const fatigueColor = fatiguePct > 75 ? BOJE.slotVatra : fatiguePct > 50 ? BOJE.prestige : BOJE.energija;
+
   const panResponder = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => false,
     onMoveShouldSetPanResponder: (_, gestureState) => shouldStartHeroDrag(gestureState),
@@ -2013,6 +2205,7 @@ const DraggableHeroCard = ({
         activeOpacity={0.82}
         style={[
           styles.heroAssignCard,
+          compact && styles.heroAssignCardCompact,
           isCurrentRoom && styles.heroAssignCardActive,
           isAssignedElsewhere && styles.heroAssignCardBusy,
         ]}
@@ -2030,6 +2223,23 @@ const DraggableHeroCard = ({
         <Text style={[styles.heroAssignMeta, isGlobalActive && { color: BOJE.nadogradnje }]}>
           {isGlobalActive ? 'Globalni bonus aktivan' : 'Globalni bonus nije aktivan'}
         </Text>
+        <View style={styles.heroStatusRow}>
+          <View style={styles.heroStatusMetric}>
+            <Text style={[styles.heroStatusLabel, { color: moraleColor }]}>Moral · {moralePct}%</Text>
+            <View style={styles.heroStatusBar}>
+              <View style={[styles.heroStatusFill, { width: `${moralePct}%`, backgroundColor: moraleColor }]} />
+            </View>
+          </View>
+          <View style={styles.heroStatusMetric}>
+            <Text style={[styles.heroStatusLabel, { color: fatigueColor }]}>Umor · {fatiguePct}%</Text>
+            <View style={styles.heroStatusBar}>
+              <View style={[styles.heroStatusFill, { width: `${fatiguePct}%`, backgroundColor: fatigueColor }]} />
+            </View>
+          </View>
+        </View>
+        <Text style={[styles.heroAssignMeta, { color: moraleColor, marginTop: 8 }]}> 
+          {getHeroMoraleLabel(heroState)}
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -2037,6 +2247,7 @@ const DraggableHeroCard = ({
 
 const VillageScreen = () => {
   const navigation = useNavigation();
+  const { width: viewportWidth } = useWindowDimensions();
   const uid = useGameStore((s) => s.uid);
   const zlato = useGameStore((s) => s.zlato);
   const energija = useGameStore((s) => s.energija);
@@ -2063,8 +2274,11 @@ const VillageScreen = () => {
   const setRaidAktivan = useSlotStore((s) => s.setRaidAktivan);
 
   const [ucitavaPovijest, setUcitavaPovijest] = useState(false);
+  const compactVillageLayout = viewportWidth < 430;
+  const singleColumnSupportDeck = viewportWidth < 410;
   const rooms = normalizeVillageRooms(villageRoomsState, gradevine, ostecenja);
   const [selectedRoomId, setSelectedRoomId] = useState(() => getFirstVillageRoomId(rooms));
+  const [collapsedFloors, setCollapsedFloors] = useState(() => ({ 0: false, 1: compactVillageLayout }));
   const screenRootRef = useRef(null);
   const roomRefs = useRef(new Map());
   const roomDropFramesRef = useRef(new Map());
@@ -2165,6 +2379,10 @@ const VillageScreen = () => {
     })
     : null;
   const otkljucaniJunaci = JUNACI.filter((hero) => (junaci[hero.id]?.razina ?? 0) > 0);
+  const availableHeroes = otkljucaniJunaci.map(hero => ({
+    ...hero,
+    assignedRoom: getHeroAssignedRoom(rooms, hero.id),
+  })).filter(hero => !hero.assignedRoom || hero.assignedRoom.id === selectedRoom.id);
   const draggingHero = draggingHeroId ? getHeroDefinition(draggingHeroId) : null;
   const spremanZaPrestige =
     gradevine.pilana === ZGRADE[0].maxLv
@@ -2207,6 +2425,25 @@ const VillageScreen = () => {
     });
   };
 
+  const toggleFloor = useCallback((floor) => {
+    setCollapsedFloors((current) => ({
+      ...current,
+      [floor]: !current[floor],
+    }));
+  }, []);
+
+  const focusRoom = useCallback((roomId) => {
+    const targetFloor = VILLAGE_LAYOUT.find((slot) => slot.id === roomId)?.floor;
+    if (typeof targetFloor === 'number') {
+      setCollapsedFloors((current) => (
+        current[targetFloor]
+          ? { ...current, [targetFloor]: false }
+          : current
+      ));
+    }
+    setSelectedRoomId(roomId);
+  }, []);
+
   const handleHeroDragStart = (hero, pageX, pageY) => {
     updateScreenOffset();
     refreshRoomDropFrames();
@@ -2225,7 +2462,7 @@ const VillageScreen = () => {
     const dropRoomId = findDropRoomId(pageX, pageY);
     if (dropRoomId) {
       dodijeliHeroURoom(dropRoomId, hero.id);
-      setSelectedRoomId(dropRoomId);
+      focusRoom(dropRoomId);
     }
     setDraggingHeroId(null);
     setHoverRoomId(null);
@@ -2247,6 +2484,12 @@ const VillageScreen = () => {
       setSelectedRoomId(getFirstVillageRoomId(rooms));
     }
   }, [rooms, selectedRoomId]);
+
+  useEffect(() => {
+    if (!compactVillageLayout) {
+      setCollapsedFloors({ 0: false, 1: false });
+    }
+  }, [compactVillageLayout]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -2302,27 +2545,25 @@ const VillageScreen = () => {
         contentContainerStyle={styles.scrollContent}
       >
       <View style={styles.heroCard}>
-        <Text style={styles.eyebrow}>Baza</Text>
-        <Text style={styles.heroTitle}>Selo je sada glavna petlja igre.</Text>
-        <Text style={styles.heroSubtitle}>
-          Dodijeli junake sobama, održavaj proizvodnju stabilnom i koristi automat kao kratki burst resursa kada selo traži podršku.
-        </Text>
+        <Text style={styles.eyebrow}>Pregled sela</Text>
 
         <View style={styles.metricsGrid}>
-          <SummaryMetric label="Aktivne sobe" value={String(aktivneSobe)} accentColor={BOJE.xp} />
+          <SummaryMetric label="Aktivne sobe" value={String(aktivneSobe)} accentColor={BOJE.xp} fullWidth={compactVillageLayout} />
           <SummaryMetric
             label="Posada"
             value={villageSupportStats.crewBonusPct > 0 ? `${posadjeneSobe} / +${Math.round(villageSupportStats.crewBonusPct)}%` : String(posadjeneSobe)}
             accentColor={BOJE.klan}
+            fullWidth={compactVillageLayout}
           />
           <SummaryMetric
             label="Podrška"
             value={villageSupportStats.maxEnergyFlat > 0 ? `${supportRooms} / +${Math.round(villageSupportStats.maxEnergyFlat)}⚡` : `${supportRooms} soba`}
             accentColor={BOJE.stit}
+            fullWidth={compactVillageLayout}
           />
-          <SummaryMetric label="Sigurnost" value={`-${Math.round(villageSupportStats.incidentRiskPct)}% rizik`} accentColor={BOJE.misije} />
-          <SummaryMetric label="Drvo" value={formatRate(produkcija.drvo)} accentColor={BOJE.drvo} />
-          <SummaryMetric label="Kamen + željezo" value={`${formatRate(produkcija.kamen)} · ${formatRate(produkcija.zeljezo)}`} accentColor={BOJE.kamen} />
+          <SummaryMetric label="Sigurnost" value={`-${Math.round(villageSupportStats.incidentRiskPct)}% rizik`} accentColor={BOJE.misije} fullWidth={compactVillageLayout} />
+          <SummaryMetric label="Drvo" value={formatRate(produkcija.drvo)} accentColor={BOJE.drvo} fullWidth={compactVillageLayout} />
+          <SummaryMetric label="Kamen + željezo" value={`${formatRate(produkcija.kamen)} · ${formatRate(produkcija.zeljezo)}`} accentColor={BOJE.kamen} fullWidth={compactVillageLayout} />
         </View>
       </View>
 
@@ -2337,14 +2578,12 @@ const VillageScreen = () => {
         <View style={styles.transformationHeader}>
           <View style={{ flex: 1 }}>
             <Text style={[styles.transformationEyebrow, { color: prestigeStage.accentColor }]}>{prestigeStage.label}</Text>
-            <Text style={styles.transformationTitle}>Transformacija sela kroz prestige</Text>
+            <Text style={styles.transformationTitle}>Prestige</Text>
           </View>
           <View style={styles.transformationPill}>
             <Text style={styles.transformationPillTxt}>P {prestigeRazina}</Text>
           </View>
         </View>
-        <Text style={styles.transformationCopy}>{prestigeStage.copy}</Text>
-        <Text style={styles.transformationStructureCopy}>{villageVisualTheme.shell.copy}</Text>
         <View style={styles.transformationMaterialsRow}>
           {villageVisualTheme.shell.tags.map((tag) => (
             <View
@@ -2385,7 +2624,6 @@ const VillageScreen = () => {
               <Text style={[styles.pressureBadgeTxt, { color: villagePressure.directorTone }]}>{villagePressure.cycleLabel}</Text>
             </View>
             <Text style={styles.pressureTitle}>Taktička ploča sela</Text>
-            <Text style={styles.pressureCopy}>{villagePressure.copy}</Text>
           </View>
 
           <View style={[
@@ -2397,13 +2635,19 @@ const VillageScreen = () => {
           </View>
         </View>
 
+        <PhaseSequence
+          sequence={villagePressure.directorSequence}
+          currentIndex={villagePressure.directorCurrentIndex}
+          remainingMs={villagePressure.directorRemainingMs}
+          totalMs={villagePressure.directorTotalMs}
+        />
+
         <View style={[
           styles.phaseWindowCard,
           { borderColor: `${villagePressure.directorTone}33`, backgroundColor: `${villagePressure.directorTone}10` },
         ]}>
           <Text style={[styles.phaseWindowEyebrow, { color: villagePressure.directorTone }]}>DIREKTOR VALA</Text>
           <Text style={styles.phaseWindowTitle}>{villagePressure.directorLabel}</Text>
-          <Text style={styles.phaseWindowCopy}>{villagePressure.directorCopy}</Text>
           <Text style={styles.phaseWindowMeta}>
             Sljedeći prijelaz za {formatCountdown(villagePressure.directorRemainingMs)} · tempo incidenta {villagePressure.directorChancePct}% od baznog ritma
           </Text>
@@ -2412,19 +2656,16 @@ const VillageScreen = () => {
         <View style={styles.forecastCard}>
           <Text style={styles.forecastEyebrow}>PROGNOZA PRITISKA</Text>
           <Text style={styles.forecastTitle}>{villageForecast.forecastTitle}</Text>
-          <Text style={styles.forecastCopy}>{villageForecast.forecastCopy}</Text>
 
           <View style={styles.forecastChipsRow}>
             {villageForecast.watchList.map((item) => (
               <ForecastChip
                 key={item.id}
                 item={item}
-                onPress={() => setSelectedRoomId(item.id)}
+                onPress={() => focusRoom(item.id)}
               />
             ))}
           </View>
-
-          <Text style={styles.forecastAction}>{villageForecast.forecastAction}</Text>
         </View>
 
         <View style={styles.pressureMetaRow}>
@@ -2445,18 +2686,21 @@ const VillageScreen = () => {
             value={villagePressure.pressureScore}
             accentColor={villagePressure.tone}
             note={incidentRoom ? 'Incident drži selo u reakciji' : 'Val oscilira kroz zalihu, kvarove i raspored'}
+            fullWidth={compactVillageLayout}
           />
           <SignalMeter
             label="Spremnost"
             value={villagePressure.readinessScore}
             accentColor={BOJE.klan}
             note={`${villagePressure.activeRoomsCount}/${Math.max(villagePressure.builtRoomsCount, 1)} izgrađenih soba trenutno radi`}
+            fullWidth={compactVillageLayout}
           />
           <SignalMeter
             label="Rezerva"
             value={villagePressure.reservePct}
             accentColor={BOJE.energija}
             note={`${Math.floor(energija)} / ${maxEnergija} energije za hitne odluke`}
+            fullWidth={compactVillageLayout}
           />
           <SignalMeter
             label="Posada"
@@ -2465,10 +2709,9 @@ const VillageScreen = () => {
             note={villagePressure.activeRoomsCount > 0
               ? `${villagePressure.staffedActiveRoomsCount}/${villagePressure.activeRoomsCount} aktivnih smjena popunjeno`
               : 'Izgradi prve sobe za puni raspored'}
+            fullWidth={compactVillageLayout}
           />
         </View>
-
-        <Text style={styles.pressureHint}>{villagePressure.recommendation}</Text>
       </View>
 
       <View style={[
@@ -2492,10 +2735,10 @@ const VillageScreen = () => {
             </Text>
             <Text style={styles.eventCopy}>
               {incidentRoom
-                ? `${getVillageIncidentDefinition(incidentRoom.incidentType)?.naziv ?? 'Incident'} u sobi ${getVillageRoomDefinition(incidentRoom)?.naziv ?? 'Soba'} traži reakciju. Pokreni popravak ili zatvori manjak proizvodnje preko automata.`
+                ? `${getVillageIncidentDefinition(incidentRoom.incidentType)?.naziv ?? 'Incident'} · ${getVillageRoomDefinition(incidentRoom)?.naziv ?? 'Soba'}`
                 : hasPreIncidentWarning
-                  ? `${focusForecastRoomDefinition?.naziv ?? 'Ova soba'} nosi najveći prediktivni rizik u sljedećem valu. ${focusTelegraph?.copy ?? focusForecast?.reason ?? villagePressure.recommendation} ${focusTelegraph?.countdownLabel ?? ''}`
-                  : `${villagePressure.recommendation} Automat služi kao kratka korekcija kad želiš kupiti vrijeme.`}
+                  ? `${focusForecastRoomDefinition?.naziv ?? 'Ova soba'} · ${focusTelegraph?.countdownLabel ?? focusForecast?.label ?? 'Pojačan rizik'}`
+                  : villagePressure.label}
             </Text>
           </View>
         </View>
@@ -2505,7 +2748,7 @@ const VillageScreen = () => {
             <TouchableOpacity
               activeOpacity={0.8}
               style={styles.primaryPill}
-              onPress={() => setSelectedRoomId(incidentRoom.id)}
+              onPress={() => focusRoom(incidentRoom.id)}
             >
               <Text style={styles.primaryPillTxt}>OTVORI SOBU</Text>
             </TouchableOpacity>
@@ -2513,7 +2756,7 @@ const VillageScreen = () => {
             <TouchableOpacity
               activeOpacity={0.8}
               style={[styles.primaryPill, { backgroundColor: eventTone }]}
-              onPress={() => focusForecast?.id && setSelectedRoomId(focusForecast.id)}
+              onPress={() => focusForecast?.id && focusRoom(focusForecast.id)}
             >
               <Text style={styles.primaryPillTxt}>POSTAVI NADZOR</Text>
             </TouchableOpacity>
@@ -2537,11 +2780,8 @@ const VillageScreen = () => {
       ]}>
         <View style={styles.supportDeckHeader}>
           <Text style={styles.supportDeckEyebrow}>Gornja etaža</Text>
-          <Text style={styles.supportDeckTitle}>Podrška određuje koliko selo oscilira.</Text>
+          <Text style={styles.supportDeckTitle}>Podrška</Text>
           <Text style={[styles.supportDeckMaterial, { color: supportFloorTheme.accent }]}>{supportFloorTheme.materialLabel}</Text>
-          <Text style={styles.supportDeckCopy}>
-            {prestigeStage.supportLabel} · servis, zapovjedništvo i jezgra ne dižu samo brojke. Oni smanjuju amplitude između mirnog prozora i naglog udara.
-          </Text>
         </View>
 
         <View style={styles.supportDeckGrid}>
@@ -2568,10 +2808,11 @@ const VillageScreen = () => {
                 activeOpacity={0.82}
                 style={[
                   styles.supportDeckItem,
+                  singleColumnSupportDeck && styles.supportDeckItemFull,
                   { borderColor: `${accentColor}2A`, backgroundColor: `${accentColor}10` },
                   room.status === 'damaged' && styles.supportDeckItemAlert,
                 ]}
-                onPress={() => setSelectedRoomId(room.id)}
+                onPress={() => focusRoom(room.id)}
               >
                 <View style={styles.supportDeckItemHeader}>
                   <Text style={[styles.supportDeckItemEyebrow, { color: accentColor }]}>
@@ -2612,7 +2853,7 @@ const VillageScreen = () => {
         />
         <View style={styles.villageShellHeader}>
           <Text style={styles.villageShellTitle}>PRESJEK NASELJA</Text>
-          <Text style={styles.villageShellSub}>{prestigeStage.label} · {villagePressure.cycleLabel.toLowerCase()} · prizemlje proizvodi, gornja etaža amortizira udar.</Text>
+          <Text style={styles.villageShellSub}>{prestigeStage.label} · {villagePressure.cycleLabel.toLowerCase()}</Text>
         </View>
 
         <View
@@ -2628,7 +2869,6 @@ const VillageScreen = () => {
             <Text style={[styles.shellPhaseEyebrow, { color: shellPhaseVisual.tone }]}>{shellPhaseVisual.label}</Text>
             <Text style={styles.shellPhaseMeta}>{formatCountdown(villagePressure.directorRemainingMs)}</Text>
           </View>
-          <Text style={styles.shellPhaseCopy}>{shellPhaseVisual.copy}</Text>
         </View>
 
         <View
@@ -2641,7 +2881,6 @@ const VillageScreen = () => {
           ]}
         >
           <Text style={[styles.shellMaterialTitle, { color: prestigeStage.accentColor }]}>{villageVisualTheme.shell.materialLabel}</Text>
-          <Text style={styles.shellMaterialCopy}>{villageVisualTheme.shell.copy}</Text>
           <View style={styles.shellMaterialTagsRow}>
             {villageVisualTheme.shell.tags.map((tag) => (
               <View key={tag} style={[styles.shellMaterialTag, { backgroundColor: villageVisualTheme.shell.beam }]}>
@@ -2654,6 +2893,12 @@ const VillageScreen = () => {
         {[0, 1].map((floor) => {
           const floorTheme = floor === 0 ? groundFloorTheme : supportFloorTheme;
           const floorPhaseVisual = floor === 0 ? groundPhaseVisual : supportPhaseVisual;
+          const floorSlots = VILLAGE_LAYOUT.filter((slot) => slot.floor === floor);
+          const isCollapsed = !!collapsedFloors[floor];
+          const floorActiveCount = floorSlots.filter((slot) => {
+            const room = rooms.find((item) => item.id === slot.id);
+            return room?.type && room.level > 0 && room.status === 'active';
+          }).length;
 
           return (
             <View
@@ -2679,42 +2924,109 @@ const VillageScreen = () => {
                   { backgroundColor: floorTheme.rail },
                 ]}
               />
-              <View
-                style={[
-                  styles.floorPhaseCard,
-                  {
-                    borderColor: `${floorPhaseVisual.tone}36`,
-                    backgroundColor: `${floorPhaseVisual.tone}10`,
-                  },
-                ]}
+              <TouchableOpacity
+                activeOpacity={0.82}
+                style={styles.floorHeaderButton}
+                onPress={() => toggleFloor(floor)}
               >
-                <Text style={[styles.floorPhaseLabel, { color: floorPhaseVisual.tone }]}>{floorPhaseVisual.rowLabel}</Text>
-                <Text style={styles.floorPhaseCopy}>{floorPhaseVisual.rowCopy}</Text>
-              </View>
-              <View style={styles.floorHeaderRow}>
-                <Text style={styles.floorLabel}>{floor === 0 ? 'PRIZEMLJE · PROIZVODNJA' : 'GORNJA ETAŽA · PODRŠKA'}</Text>
-                <Text style={[styles.floorStageLabel, floor === 1 && { color: prestigeStage.accentColor }]}> 
-                  {floor === 0 ? prestigeStage.groundLabel : prestigeStage.supportLabel}
-                </Text>
-              </View>
-              <Text style={[styles.floorMaterialTxt, { color: floorTheme.accent }]}>{floorTheme.materialLabel}</Text>
-              <View style={styles.floorBraceRow}>
-                {Array.from({ length: 3 }).map((_, braceIndex) => (
+                <View style={styles.floorHeaderCopyWrap}>
+                  <Text style={styles.floorLabel}>{floor === 0 ? 'PRIZEMLJE · PROIZVODNJA' : 'GORNJA ETAŽA · PODRŠKA'}</Text>
+                  <Text style={[styles.floorStageLabel, floor === 1 && { color: prestigeStage.accentColor }]}> 
+                    {floor === 0 ? prestigeStage.groundLabel : prestigeStage.supportLabel}
+                  </Text>
+                </View>
+                <View style={styles.floorHeaderMeta}>
+                  <Text style={styles.floorHeaderCount}>{floorActiveCount}/{floorSlots.length}</Text>
+                  <View style={[
+                    styles.floorToggleChip,
+                    {
+                      borderColor: `${floorTheme.accent}33`,
+                      backgroundColor: `${floorTheme.accent}10`,
+                    },
+                  ]}>
+                    {isCollapsed ? <ChevronDown size={16} color={floorTheme.accent} /> : <ChevronUp size={16} color={floorTheme.accent} />}
+                  </View>
+                </View>
+              </TouchableOpacity>
+
+              {isCollapsed ? (
+                <Text style={styles.floorCollapsedHint}>{floorPhaseVisual.rowLabel}</Text>
+              ) : (
+                <>
                   <View
-                    key={`floor-${floor}-brace-${braceIndex}`}
                     style={[
-                      styles.floorBraceSegment,
+                      styles.floorPhaseCard,
                       {
-                        backgroundColor: braceIndex === 1 ? floorTheme.rail : floorTheme.brace,
+                        borderColor: `${floorPhaseVisual.tone}36`,
+                        backgroundColor: `${floorPhaseVisual.tone}10`,
                       },
                     ]}
-                  />
-                ))}
-              </View>
-              <View style={styles.floorTrack}>
-                {VILLAGE_LAYOUT
-                  .filter((slot) => slot.floor === floor)
-                  .map((slot) => {
+                  >
+                    <Text style={[styles.floorPhaseLabel, { color: floorPhaseVisual.tone }]}>{floorPhaseVisual.rowLabel}</Text>
+                    <Text style={styles.floorPhaseCopy}>{floorPhaseVisual.rowCopy}</Text>
+                  </View>
+                  <Text style={[styles.floorMaterialTxt, { color: floorTheme.accent }]}>{floorTheme.materialLabel}</Text>
+                  <View style={styles.floorBraceRow}>
+                    {Array.from({ length: 3 }).map((_, braceIndex) => (
+                      <View
+                        key={`floor-${floor}-brace-${braceIndex}`}
+                        style={[
+                          styles.floorBraceSegment,
+                          {
+                            backgroundColor: braceIndex === 1 ? floorTheme.rail : floorTheme.brace,
+                          },
+                        ]}
+                      />
+                    ))}
+                  </View>
+                  {compactVillageLayout ? (
+                    <View style={styles.floorTrackStack}>
+                      {floorSlots.map((slot) => {
+                        const room = rooms.find((item) => item.id === slot.id);
+                        const roomDefinition = getVillageRoomDefinition(room);
+                        const roomUnlockStatus = getVillageRoomUnlockStatus(room, villageState);
+                        const roomForecast = villageForecast.riskByRoomId[slot.id] ?? null;
+                        const production = roomDefinition && room.level > 0 && room.status === 'active'
+                          ? room.level
+                            * roomDefinition.baseProduction
+                            * villageMultiplier
+                            * getRoomAssignmentMultiplier(junaci, room, villageSupportStats)
+                          : 0;
+
+                        return (
+                          <View
+                            key={slot.id}
+                            ref={(node) => {
+                              if (node) roomRefs.current.set(slot.id, node);
+                              else roomRefs.current.delete(slot.id);
+                            }}
+                            collapsable={false}
+                            style={[styles.roomDropWrap, styles.roomDropWrapStack]}
+                            onLayout={refreshRoomDropFrames}
+                          >
+                            <VillageRoomTile
+                              room={room}
+                              selected={selectedRoomId === slot.id}
+                              hovered={hoverRoomId === slot.id && draggingHeroId !== null}
+                              production={production}
+                              junaci={junaci}
+                              unlockStatus={roomUnlockStatus}
+                              villageSupportStats={villageSupportStats}
+                              roomForecast={roomForecast}
+                              roomTelegraph={roomTelegraphById[slot.id] ?? null}
+                              floorTheme={floorTheme}
+                              prestigeRazina={prestigeRazina}
+                              directorPhase={villagePressure.directorPhase}
+                              compact
+                              onPress={() => focusRoom(slot.id)}
+                            />
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <View style={styles.floorTrack}>
+                      {floorSlots.map((slot) => {
                     const room = rooms.find((item) => item.id === slot.id);
                     const roomDefinition = getVillageRoomDefinition(room);
                     const roomUnlockStatus = getVillageRoomUnlockStatus(room, villageState);
@@ -2726,36 +3038,39 @@ const VillageScreen = () => {
                         * getRoomAssignmentMultiplier(junaci, room, villageSupportStats)
                       : 0;
 
-                    return (
-                      <View
-                        key={slot.id}
-                        ref={(node) => {
-                          if (node) roomRefs.current.set(slot.id, node);
-                          else roomRefs.current.delete(slot.id);
-                        }}
-                        collapsable={false}
-                        style={styles.roomDropWrap}
-                        onLayout={refreshRoomDropFrames}
-                      >
-                        <VillageRoomTile
-                          room={room}
-                          selected={selectedRoomId === slot.id}
-                          hovered={hoverRoomId === slot.id && draggingHeroId !== null}
-                          production={production}
-                          junaci={junaci}
-                          unlockStatus={roomUnlockStatus}
-                          villageSupportStats={villageSupportStats}
-                          roomForecast={roomForecast}
-                          roomTelegraph={roomTelegraphById[slot.id] ?? null}
-                          floorTheme={floorTheme}
-                          prestigeRazina={prestigeRazina}
-                          directorPhase={villagePressure.directorPhase}
-                          onPress={() => setSelectedRoomId(slot.id)}
-                        />
-                      </View>
-                    );
-                  })}
-              </View>
+                        return (
+                          <View
+                            key={slot.id}
+                            ref={(node) => {
+                              if (node) roomRefs.current.set(slot.id, node);
+                              else roomRefs.current.delete(slot.id);
+                            }}
+                            collapsable={false}
+                            style={styles.roomDropWrap}
+                            onLayout={refreshRoomDropFrames}
+                          >
+                            <VillageRoomTile
+                              room={room}
+                              selected={selectedRoomId === slot.id}
+                              hovered={hoverRoomId === slot.id && draggingHeroId !== null}
+                              production={production}
+                              junaci={junaci}
+                              unlockStatus={roomUnlockStatus}
+                              villageSupportStats={villageSupportStats}
+                              roomForecast={roomForecast}
+                              roomTelegraph={roomTelegraphById[slot.id] ?? null}
+                              floorTheme={floorTheme}
+                              prestigeRazina={prestigeRazina}
+                              directorPhase={villagePressure.directorPhase}
+                              onPress={() => focusRoom(slot.id)}
+                            />
+                          </View>
+                        );
+                      })}
+                    </View>
+                  )}
+                </>
+              )}
             </View>
           );
         })}
@@ -2787,10 +3102,6 @@ const VillageScreen = () => {
             </View>
           </View>
 
-          <Text style={styles.inspectorCopy}>
-            {selectedRoomDefinition?.opis ?? 'Rezervni prostor ostaje prazan dok osnovna tri modula ne postanu dovoljno jaka.'}
-          </Text>
-
           {selectedRoomInterior ? (
             <View
               style={[
@@ -2818,8 +3129,6 @@ const VillageScreen = () => {
                   <Text style={[styles.inspectorInteriorBadgeTxt, { color: selectedRoomInterior.tone }]}>{selectedRoomInterior.postureLabel}</Text>
                 </View>
               </View>
-
-              <Text style={styles.inspectorInteriorCopy}>{selectedRoomInterior.postureCopy}</Text>
 
               <InteriorTensionPanel
                 tone={selectedRoomInterior.tone}
@@ -3056,32 +3365,26 @@ const VillageScreen = () => {
               )}
 
               {selectedRoomDefinition.kind === 'support' && selectedRoom.level > 0 ? (
-                <Text style={styles.helperTxt}>
-                  {selectedRoom.type === 'servis'
-                    ? 'Servisna stanica ne proizvodi resurse izravno. Ona stabilizira cijelo selo i čini svaki kvar jeftinijim i kraćim.'
-                    : selectedRoom.type === 'zapovjednistvo'
-                      ? 'Zapovjedna soba ne proizvodi resurse izravno. Ona pojačava učinak dodijeljene posade i daje ostatku sela uredniji ritam.'
-                      : 'Energetska jezgra ne proizvodi resurse izravno. Ona podiže energetski kapacitet sela i daje završni sloj sigurnosti za duže sesije i hitne reakcije.'}
-                </Text>
+                <Text style={styles.helperTxt}>{selectedRoomPrimarySupportLabel}</Text>
               ) : (!selectedRoomUnlockStatus.unlocked && selectedRoom.level <= 0) ? (
                 <Text style={styles.helperTxt}>{selectedRoomUnlockStatus.shortLabel}</Text>
               ) : null}
 
               <View style={styles.crewHeader}>
                 <Text style={styles.crewTitle}>Posada sobe</Text>
-                <Text style={styles.crewSubtitle}>
-                  Junak može biti globalno aktivan i istovremeno dodijeljen sobi. Dodir dodjeljuje odmah, a povlačenje omogućuje drop na bilo koju aktivnu sobu.
-                </Text>
+                <Text style={styles.crewSubtitle}>Dodir za dodjelu, povuci za premještanje.</Text>
               </View>
 
               {selectedRoom.level > 0 && (
                 <InspectorShiftBoard
                   room={selectedRoom}
                   assignedHero={selectedRoomAssignedHero}
+                  assignedHeroState={selectedRoomAssignedHero ? junaci[selectedRoomAssignedHero.id] : null}
                   roomForecast={selectedRoomForecast}
                   roomTelegraph={selectedRoomTelegraph}
                   accentColor={selectedRoomDefinition.boja}
                   interiorProfile={selectedRoomInterior}
+                  availableHeroes={availableHeroes}
                 />
               )}
 
@@ -3091,6 +3394,32 @@ const VillageScreen = () => {
                 <Text style={styles.helperTxt}>Soba mora biti potpuno aktivna prije rasporeda posade.</Text>
               ) : otkljucaniJunaci.length === 0 ? (
                 <Text style={styles.helperTxt}>Još nema otkrivenih junaka. Otkrij ih kroz summon ili spin nagrade.</Text>
+              ) : compactVillageLayout ? (
+                <View style={styles.heroGrid}>
+                  {otkljucaniJunaci.map((hero) => {
+                    const assignedRoom = getHeroAssignedRoom(rooms, hero.id);
+                    const isCurrentRoom = assignedRoom?.id === selectedRoom.id;
+                    const assignedElsewhereRoom = assignedRoom && !isCurrentRoom ? assignedRoom : null;
+                    const isGlobalActive = aktivniJunaci.includes(hero.id);
+
+                    return (
+                      <DraggableHeroCard
+                        key={hero.id}
+                        hero={hero}
+                        heroState={junaci[hero.id]}
+                        isCurrentRoom={isCurrentRoom}
+                        isAssignedElsewhere={assignedElsewhereRoom}
+                        isGlobalActive={isGlobalActive}
+                        dragging={draggingHeroId === hero.id}
+                        compact
+                        onPress={() => dodijeliHeroURoom(selectedRoom.id, hero.id)}
+                        onDragStart={handleHeroDragStart}
+                        onDragMove={handleHeroDragMove}
+                        onDragEnd={handleHeroDragEnd}
+                      />
+                    );
+                  })}
+                </View>
               ) : (
                 <ScrollView
                   horizontal
@@ -3108,6 +3437,7 @@ const VillageScreen = () => {
                       <DraggableHeroCard
                         key={hero.id}
                         hero={hero}
+                        heroState={junaci[hero.id]}
                         isCurrentRoom={isCurrentRoom}
                         isAssignedElsewhere={assignedElsewhereRoom}
                         isGlobalActive={isGlobalActive}
@@ -3124,7 +3454,7 @@ const VillageScreen = () => {
             </>
           ) : (
             <Text style={styles.helperTxt}>
-              Ova etaža je namjerno ostavljena praznom. Prvi milestone se fokusira na tri proizvodne sobe i jasnu interakciju s posadom.
+              Rezervna etaža.
             </Text>
           )}
         </View>
@@ -3353,6 +3683,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
     padding: 18,
+  metricCardFull: {
+    width: '100%',
+  },
     marginBottom: 14,
   },
   pressureHeader: {
@@ -3365,6 +3698,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   pressureBadge: {
+  signalMeterFull: {
+    width: '100%',
+  },
     alignSelf: 'flex-start',
     borderRadius: 999,
     borderWidth: 1,
@@ -3391,6 +3727,41 @@ const styles = StyleSheet.create({
     fontFamily: FONT_FAMILY,
     lineHeight: 18,
     marginTop: 6,
+  },
+  phaseSequence: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingHorizontal: 4,
+  },
+  phaseSequenceItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  phaseSequenceDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  phaseSequenceProgress: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    height: '100%',
+    borderRadius: 12,
+  },
+  phaseSequenceLabel: {
+    fontSize: 9,
+    fontFamily: FONT_FAMILY,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+    textTransform: 'uppercase',
   },
   phaseWindowCard: {
     borderRadius: 20,
@@ -3930,6 +4301,36 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 8,
   },
+  floorHeaderButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 4,
+  },
+  floorHeaderCopyWrap: {
+    flex: 1,
+  },
+  floorHeaderMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  floorHeaderCount: {
+    color: BOJE.textMuted,
+    fontSize: 10,
+    fontFamily: FONT_FAMILY,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  floorToggleChip: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   floorLabel: {
     color: BOJE.textMuted,
     fontSize: 11,
@@ -3951,6 +4352,13 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
+  floorCollapsedHint: {
+    color: BOJE.textMuted,
+    fontSize: 11,
+    fontFamily: FONT_FAMILY,
+    lineHeight: 16,
+    marginTop: 2,
+  },
   floorBraceRow: {
     flexDirection: 'row',
     gap: 8,
@@ -3967,8 +4375,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 10,
   },
+  floorTrackStack: {
+    gap: 12,
+  },
   roomDropWrap: {
     flex: 1,
+  },
+  roomDropWrapStack: {
+    width: '100%',
   },
   roomTile: {
     flex: 1,
@@ -3978,6 +4392,9 @@ const styles = StyleSheet.create({
     padding: 12,
     overflow: 'hidden',
     position: 'relative',
+  },
+  roomTileCompact: {
+    minHeight: 320,
   },
   roomPhasePulse: {
     position: 'absolute',
@@ -4526,6 +4943,60 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     marginTop: 4,
   },
+  shiftFatigueRow: {
+    marginTop: 6,
+  },
+  shiftFatigueLabel: {
+    fontSize: 10,
+    fontFamily: FONT_FAMILY,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  shiftVitalsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  shiftVitalCard: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  shiftVitalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  shiftVitalTitle: {
+    color: BOJE.textMuted,
+    fontSize: 10,
+    fontFamily: FONT_FAMILY,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  shiftVitalValue: {
+    fontSize: 10,
+    fontFamily: FONT_FAMILY,
+    fontWeight: '900',
+  },
+  shiftVitalBar: {
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    overflow: 'hidden',
+  },
+  shiftVitalFill: {
+    height: '100%',
+    borderRadius: 999,
+  },
+  shiftVitalHint: {
+    fontSize: 10,
+    fontFamily: FONT_FAMILY,
+    marginTop: 5,
+  },
   shiftResidentsRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -4553,12 +5024,25 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 12,
   },
+  shiftActionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 12,
+  },
   shiftActionBtn: {
     borderRadius: 12,
     borderWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 6,
     backgroundColor: 'rgba(255,255,255,0.05)',
+    minWidth: 80,
+  },
+  shiftActionBtnPrimary: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  shiftActionBtnSecondary: {
+    backgroundColor: 'rgba(255,255,255,0.03)',
   },
   shiftActionBtnTxt: {
     fontSize: 10,
@@ -4829,6 +5313,9 @@ const styles = StyleSheet.create({
     color: BOJE.textMain,
     fontSize: 12,
     fontFamily: FONT_FAMILY,
+    supportDeckItemFull: {
+      width: '100%',
+    },
     fontWeight: '800',
   },
   actionRow: {
@@ -4979,6 +5466,12 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 8,
   },
+  heroGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    paddingTop: 14,
+  },
   heroDragSourceHidden: {
     opacity: 0.18,
   },
@@ -4990,6 +5483,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.04)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
+  },
+  heroAssignCardCompact: {
+    width: '48%',
+    marginRight: 0,
   },
   heroAssignCardActive: {
     borderColor: BOJE.klan,
@@ -5014,6 +5511,53 @@ const styles = StyleSheet.create({
     fontFamily: FONT_FAMILY,
     lineHeight: 16,
     marginTop: 6,
+  },
+  heroStatusRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+  },
+  heroStatusMetric: {
+    flex: 1,
+  },
+  heroStatusLabel: {
+    fontSize: 10,
+    fontFamily: FONT_FAMILY,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  heroStatusBar: {
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    overflow: 'hidden',
+  },
+  heroStatusFill: {
+    height: '100%',
+    borderRadius: 999,
+  },
+  heroFatigueRow: {
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  heroFatigueLabel: {
+    fontSize: 10,
+    fontFamily: FONT_FAMILY,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  heroFatigueBar: {
+    width: '100%',
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    overflow: 'hidden',
+  },
+  heroFatigueFill: {
+    height: '100%',
+    borderRadius: 2,
   },
   dragPreview: {
     position: 'absolute',
@@ -5122,6 +5666,21 @@ const styles = StyleSheet.create({
     color: BOJE.textMuted,
     fontSize: 12,
     fontFamily: FONT_FAMILY,
+  },
+  heroFatigueRow: {
+    marginTop: 6,
+  },
+  heroFatigueBar: {
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginTop: 4,
+  },
+  heroFatigueFill: {
+    height: '100%',
+    backgroundColor: BOJE.xp,
+    borderRadius: 2,
   },
 });
 

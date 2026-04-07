@@ -34,16 +34,21 @@ import {
 import { randomFloat, randomInt } from '../utils/helpers';
 import {
   createLegacyBuildingStateFromRooms,
+  getHeroAssignedRoom,
   createLegacyVillageRooms,
   getHeroDefinition,
+  getHeroMoralePct,
   getVillageIncidentResponse,
   getVillageIncidentRoom,
+  HERO_MORALE_BASELINE,
   getVillageProduction,
   getVillageRepairCost,
   getVillageRepairDurationMs,
   getVillageRoomDefinition,
   getVillageRoomUnlockStatus,
   getVillageSupportStats,
+  normalizeHeroCollection,
+  normalizeHeroState,
   normalizeVillageRooms,
 } from '../utils/village';
 import { spremiCloud, ucitajCloud }      from '../firebase/cloudSave';
@@ -277,7 +282,7 @@ const pocetnoStanje = {
   revengeTarget: null,
   zadnjiVillageIncidentMs: 0,
   villagePressureDirector: createVillagePressureDirector(),
-  junaci:        {}, // map: heroId → { fragmenti: number, razina: number }
+  junaci:        {}, // map: heroId → { fragmenti: number, razina: number, fatigue: number, morale: number }
   aktivniJunaci: [], // max HERO_MAX_AKTIVNIH active hero IDs
   kovanice:      {}, // map: receptId → { expiresAt: ms } — active crafted item bonuses
   turnir:        noviTurnir(), // weekly tournament state
@@ -400,6 +405,7 @@ export const useGameStore = create((set, get) => ({
       if (p || odabraniIzvor === 'cloud') {
         const novaSezonaBroj = brojSezone(new Date());
         const spremljenaSezona = d.sezona || null;
+        const normalizedHeroes = normalizeHeroCollection(d.junaci);
         const sezonaZaSet =
           spremljenaSezona && spremljenaSezona.sezonaBroj === novaSezonaBroj
             ? {
@@ -448,7 +454,7 @@ export const useGameStore = create((set, get) => ({
           ...(d.zadnjiOnlineMs !== undefined ? { zadnjiOnlineMs: d.zadnjiOnlineMs } : {}),
           ...(d.clanRat ? { clanRat: { ...get().clanRat, ...d.clanRat } } : {}),
           ...(d.revengeTarget ? { revengeTarget: d.revengeTarget } : {}),
-          ...(d.junaci && typeof d.junaci === 'object' ? { junaci: d.junaci } : {}),
+          ...(d.junaci && typeof d.junaci === 'object' ? { junaci: normalizedHeroes } : {}),
           ...(Array.isArray(d.aktivniJunaci) ? { aktivniJunaci: d.aktivniJunaci } : {}),
           ...(d.villagePressureDirector ? { villagePressureDirector: normalizeVillagePressureDirector(d.villagePressureDirector) } : {}),
           ...(Array.isArray(d.villageUnlockSeen) ? { villageUnlockSeen: d.villageUnlockSeen } : {}),
@@ -1411,24 +1417,29 @@ export const useGameStore = create((set, get) => ({
       responseNotes.push('spašeni materijali vraćeni u skladište');
     }
 
-    set((state) => ({
-      zlato: state.zlato - (response.cost.zlato || 0) + (reward.zlato || 0),
-      energija: response.drainEnergyToZero
-        ? 0
-        : (state.energija - (response.cost.energija || 0) + (reward.energija || 0)),
-      stitovi: state.stitovi - (response.cost.stitovi || 0) + (reward.stitovi || 0),
-      resursi: {
-        drvo: state.resursi.drvo - (response.cost.drvo || 0) + (reward.drvo || 0),
-        kamen: state.resursi.kamen - (response.cost.kamen || 0) + (reward.kamen || 0),
-        zeljezo: state.resursi.zeljezo - (response.cost.zeljezo || 0) + (reward.zeljezo || 0),
-      },
-      villageRooms,
-      gradevine: legacyVillageState.gradevine,
-      ostecenja: legacyVillageState.ostecenja,
-      poruka: response.mode === 'secure'
-        ? `${roomDefinition.naziv.toUpperCase()} JE OBRANJENA I ODMAH VRAĆENA U RAD${responseNotes.length ? ` · ${responseNotes.join(' · ')}` : ''}`
-        : `${response.label} AKTIVIRAN ZA ${roomDefinition.naziv.toUpperCase()}${responseNotes.length ? ` · ${responseNotes.join(' · ')}` : ''}`,
-    }));
+    set((state) => {
+      const nextShields = state.stitovi - (response.cost.stitovi || 0) + (reward.stitovi || 0);
+
+      return {
+        zlato: state.zlato - (response.cost.zlato || 0) + (reward.zlato || 0),
+        energija: response.drainEnergyToZero
+          ? 0
+          : (state.energija - (response.cost.energija || 0) + (reward.energija || 0)),
+        stitovi: nextShields,
+        stitRegenSekundi: nextShields < state.stitovi ? STIT_REGEN_INTERVAL_SEK : state.stitRegenSekundi,
+        resursi: {
+          drvo: state.resursi.drvo - (response.cost.drvo || 0) + (reward.drvo || 0),
+          kamen: state.resursi.kamen - (response.cost.kamen || 0) + (reward.kamen || 0),
+          zeljezo: state.resursi.zeljezo - (response.cost.zeljezo || 0) + (reward.zeljezo || 0),
+        },
+        villageRooms,
+        gradevine: legacyVillageState.gradevine,
+        ostecenja: legacyVillageState.ostecenja,
+        poruka: response.mode === 'secure'
+          ? `${roomDefinition.naziv.toUpperCase()} JE OBRANJENA I ODMAH VRAĆENA U RAD${responseNotes.length ? ` · ${responseNotes.join(' · ')}` : ''}`
+          : `${response.label} AKTIVIRAN ZA ${roomDefinition.naziv.toUpperCase()}${responseNotes.length ? ` · ${responseNotes.join(' · ')}` : ''}`,
+      };
+    });
     return true;
   },
 
@@ -2019,7 +2030,7 @@ export const useGameStore = create((set, get) => ({
     if (!targetId) return;
 
     set((state) => {
-      const current = state.junaci[targetId] || { fragmenti: 0, razina: 0 };
+      const current = normalizeHeroState(state.junaci[targetId] || { fragmenti: 0, razina: 0, fatigue: 0, morale: 0 });
       if (current.razina >= HERO_MAX_RAZINA) return {};
 
       let noviFragmenti = current.fragmenti + kolicina;
@@ -2040,8 +2051,21 @@ export const useGameStore = create((set, get) => ({
         }
       }
 
+      const nextMorale = novaRazina > 0
+        ? (current.razina > 0 ? getHeroMoralePct(current) : HERO_MORALE_BASELINE)
+        : 0;
+
       return {
-        junaci: { ...state.junaci, [targetId]: { fragmenti: noviFragmenti, razina: novaRazina } },
+        junaci: {
+          ...state.junaci,
+          [targetId]: normalizeHeroState({
+            ...current,
+            fragmenti: noviFragmenti,
+            razina: novaRazina,
+            fatigue: current.fatigue || 0,
+            morale: nextMorale,
+          }),
+        },
         ...(novaOtkrica ? { poruka: novaOtkrica } : {}),
       };
     });
@@ -2089,6 +2113,74 @@ export const useGameStore = create((set, get) => ({
     if (!updated || updated.razina === 0) {
       set({ poruka: `✨ PRIZVAN: ${def?.emodzi ?? ''} ${fragmenti}× ${def?.naziv ?? targetId} FRAGMENTI!` });
     }
+    return true;
+  },
+
+  // ─── Upravljanje stanjem junaka ─────────────────────────────────────────────────
+  azurirajHeroFatigue: () => {
+    const s = get();
+    const villageRooms = normalizeVillageRooms(s.villageRooms, s.gradevine, s.ostecenja);
+    const incidentActive = villageRooms.some((room) => room.status === 'damaged' || room.status === 'repairing');
+    const phase = s.villagePressureDirector?.phase ?? POCETNA_VILLAGE_PRESSURE_PHASE;
+    const noviJunaci = { ...normalizeHeroCollection(s.junaci) };
+
+    Object.keys(noviJunaci).forEach((heroId) => {
+      const hero = normalizeHeroState(noviJunaci[heroId]);
+      if (!hero || hero.razina < 1) return;
+
+      const assignedRoom = getHeroAssignedRoom(villageRooms, heroId);
+      const roomDefinition = getVillageRoomDefinition(assignedRoom);
+      const heroDefinition = getHeroDefinition(heroId);
+      const morale = getHeroMoralePct(hero);
+      const fatigue = hero.fatigue || 0;
+      let nextFatigue = fatigue;
+      let moraleDelta = 0;
+
+      if (assignedRoom) {
+        nextFatigue = Math.min(100, fatigue + 1);
+        moraleDelta -= roomDefinition?.kind === 'production' ? 1 : 0;
+        moraleDelta += roomDefinition?.kind === 'support' ? 1 : 0;
+        if (roomDefinition?.idealHeroBonuses?.includes(heroDefinition?.tipBonusa)) moraleDelta += 1;
+        if (phase === 'rising') moraleDelta -= 1;
+        if (phase === 'peak') moraleDelta -= 2;
+        if (phase === 'recovery') moraleDelta += 1;
+        if (assignedRoom.status === 'damaged') moraleDelta -= 4;
+        if (assignedRoom.status === 'repairing') moraleDelta -= 2;
+        if (fatigue >= 70) moraleDelta -= 2;
+        else if (fatigue >= 45) moraleDelta -= 1;
+      } else {
+        nextFatigue = Math.max(0, fatigue - 2);
+        if (morale < HERO_MORALE_BASELINE) moraleDelta += 2;
+        else if (!incidentActive && morale < 84) moraleDelta += 1;
+        if (!incidentActive) moraleDelta += 1;
+        if (phase === 'calm' || phase === 'recovery') moraleDelta += 1;
+        if (phase === 'peak') moraleDelta -= 1;
+        if (fatigue <= 20 && morale < HERO_MORALE_BASELINE) moraleDelta += 1;
+        if (morale > 88 && moraleDelta > 0) moraleDelta -= 1;
+      }
+
+      noviJunaci[heroId] = normalizeHeroState({
+        ...hero,
+        fatigue: nextFatigue,
+        morale: Math.max(0, Math.min(100, morale + moraleDelta)),
+      });
+    });
+
+    set({ junaci: noviJunaci });
+  },
+
+  resetHeroFatigue: (heroId) => {
+    const s = get();
+    const storedHero = s.junaci[heroId];
+    if (!storedHero) return false;
+    const hero = normalizeHeroState(storedHero);
+
+    set({
+      junaci: {
+        ...s.junaci,
+        [heroId]: normalizeHeroState({ ...hero, fatigue: 0 })
+      }
+    });
     return true;
   },
 }));

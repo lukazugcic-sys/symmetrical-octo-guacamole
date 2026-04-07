@@ -429,7 +429,7 @@ export const ZGRADE_SKINOVI = [
 
 export const CIJENA_DVOSTRUKI_BOOST = 5000;
 export const TRAJANJE_DVOSTRUKI_BOOST = 20;
-export const STIT_REGEN_INTERVAL_SEK = 90;
+export const STIT_REGEN_INTERVAL_SEK = 150;
 export const OFFLINE_MAX_SEK = 8 * 60 * 60;
 export const BATTLE_PASS_TIER_XP = 100;
 export const BATTLE_PASS_MAX_RAZINA = 30;

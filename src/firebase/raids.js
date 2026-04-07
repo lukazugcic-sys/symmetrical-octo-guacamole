@@ -121,6 +121,48 @@ export const izvrsiNapad = async (napadacUid, metaUid, options = {}) => {
         zeljezo: (resursiMete.zeljezo ?? 0) - ukradeno.zeljezo,
       };
 
+      // Trigger village incident for raid consequences on victim
+      let villageRoomsMeta = metaData.villageRooms ?? [];
+      if (Array.isArray(villageRoomsMeta) && villageRoomsMeta.length > 0) {
+        const activeRooms = villageRoomsMeta.filter(room => room.type && room.level > 0 && room.status === 'active');
+        if (activeRooms.length > 0) {
+          const targetRoom = activeRooms[Math.floor(Math.random() * activeRooms.length)];
+          villageRoomsMeta = villageRoomsMeta.map(room =>
+            room.id === targetRoom.id
+              ? {
+                  ...room,
+                  status: 'damaged',
+                  health: 0,
+                  incidentType: 'upad',
+                  incidentStartedAt: Date.now(),
+                  repairEndsAt: null,
+                }
+              : room
+          );
+        }
+      }
+
+      // Small chance for attacker to suffer consequences (represents risk of raid)
+      let villageRoomsAttacker = napadacData.villageRooms ?? [];
+      if (Array.isArray(villageRoomsAttacker) && villageRoomsAttacker.length > 0 && Math.random() < 0.15) { // 15% chance
+        const activeRooms = villageRoomsAttacker.filter(room => room.type && room.level > 0 && room.status === 'active');
+        if (activeRooms.length > 0) {
+          const targetRoom = activeRooms[Math.floor(Math.random() * activeRooms.length)];
+          villageRoomsAttacker = villageRoomsAttacker.map(room =>
+            room.id === targetRoom.id
+              ? {
+                  ...room,
+                  status: 'damaged',
+                  health: 0,
+                  incidentType: 'kvar', // Regular breakdown as consequence
+                  incidentStartedAt: Date.now(),
+                  repairEndsAt: null,
+                }
+              : room
+          );
+        }
+      }
+
       const novaMetaPovijest = [
         {
           id: `in-${Date.now()}-${randomInt(RAID_ID_UPPER_BOUND)}`,
@@ -135,7 +177,12 @@ export const izvrsiNapad = async (napadacUid, metaUid, options = {}) => {
         ...((metaData.raidPovijest ?? []).slice(0, 19)),
       ];
 
-      tx.update(metaRef, { resursi: noviResursi, raidPovijest: novaMetaPovijest, zadnjiNapadMs: Date.now() });
+      tx.update(metaRef, { resursi: noviResursi, raidPovijest: novaMetaPovijest, zadnjiNapadMs: Date.now(), villageRooms: villageRoomsMeta });
+
+      // Update attacker if they suffered raid consequences
+      if (villageRoomsAttacker !== (napadacData.villageRooms ?? [])) {
+        tx.update(napadacRef, { villageRooms: villageRoomsAttacker });
+      }
     });
 
     if (ukradeno) {

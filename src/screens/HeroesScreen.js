@@ -83,7 +83,7 @@ const HeroesScreen = () => {
       {/* ── Info o padovima ── */}
       <View style={styles.infoRow}>
         <Text style={styles.infoTxt}>🎰 Fragmenti padaju i sa vrtnji automata (6% šanse)</Text>
-        <Text style={styles.infoTxt}>🏠 Svaki otključani junak može dati globalni bonus i zasebno raditi u jednoj sobi sela.</Text>
+        <Text style={styles.infoTxt}>🏠 Smjene u selu dizu umor, a odmor vraca moral i stabilniji bonus sobe.</Text>
       </View>
 
       {/* ── Filtri po raritetu ── */}
